@@ -1,0 +1,15 @@
+packages:
+  - "packages/*"
+# esbuild is the only dependency permitted to run an install script: it is a
+# dev-only transitive dependency of vitest and needs its postinstall to place its
+# platform binary. Deliberately a list of one — an install script is arbitrary code
+# execution at `pnpm install` time, so each entry should be a decision rather than
+# a default.
+allowBuilds:
+  esbuild: true
+
+# Phase 1 builds the deterministic spine only (docs/INIT.md §11): ir, ooxml,
+# adapters-docx, adapters-md, render-md, render-docx, infer, fidelity, core, cli.
+# Packages for later phases (adapters-pdf, render-pdf, agentify, llm, http, mcp,
+# browser) are specified in docs/SPEC.md §11 but deliberately not scaffolded —
+# an empty package is a promise, and brief §13 forbids adding one without need.

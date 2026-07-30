@@ -44,6 +44,11 @@ for (const [name, path] of Object.entries(schemas)) {
   const doc = read(path);
   const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
   addFormats(ajv);
+  // MarkForge's own annotations. Declared rather than tolerated: strict mode should
+  // still reject a typo'd keyword, so the vocabulary is an explicit list of two.
+  // x-salient   — per-node-type allowlist feeding the NodeId digest (ADR-0014)
+  // x-salientDoc — prose explaining the above, inside the schema for self-containment
+  ajv.addVocabulary(["x-salient", "x-salientDoc"]);
   try {
     compiled[name] = ajv.compile(doc);
     ok(`${name}: compiles under draft 2020-12 strict mode (${path})`);

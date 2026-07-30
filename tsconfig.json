@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/ir" },
+    { "path": "packages/ooxml" },
+    { "path": "packages/infer" },
+    { "path": "packages/adapters-docx" },
+    { "path": "packages/adapters-md" },
+    { "path": "packages/render-md" },
+    { "path": "packages/render-docx" },
+    { "path": "packages/fidelity" },
+    { "path": "packages/core" },
+    { "path": "packages/cli" }
+  ]
+}
