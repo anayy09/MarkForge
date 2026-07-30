@@ -15,6 +15,9 @@ import { parseDocx } from "@markforge/adapters-docx";
 import { parseMarkdown } from "@markforge/adapters-md";
 import { renderMarkdown, type MarkdownRenderOptions } from "@markforge/render-md";
 import { renderDocx, type DocxRenderOptions } from "@markforge/render-docx";
+import { parseHtmlDocument } from "@markforge/adapters-html";
+import { renderHtml, DEFAULT_STYLESHEET, type HtmlRenderOptions } from "@markforge/render-html";
+import { parsePptx, parseXlsx } from "@markforge/adapters-office";
 import { inferHeadings, explainDecisions, type Decision, type InferOptions } from "@markforge/infer";
 
 const CORE = { kind: "rule" as const, name: "@markforge/core", version: "0.1.0" };
@@ -31,14 +34,42 @@ export interface Host {
   exists(path: string): Promise<boolean>;
 }
 
-export type Format = "md" | "docx";
+/**
+ * Formats the pipeline understands.
+ *
+ * Input-only formats are listed too: PPTX and XLSX have adapters but no renderers,
+ * because nobody asked to *generate* a spreadsheet and building one on speculation
+ * would be machinery with no user. `render` rejects them by name rather than by
+ * falling through to a default, so the limit is a message rather than a surprise.
+ */
+export type Format = "md" | "docx" | "html" | "pptx" | "xlsx";
 
-/** Detects a format from a file extension. Explicit `--to` always wins. */
+/** Formats that can be written, as opposed to only read. */
+export const OUTPUT_FORMATS = ["md", "docx", "html"] as const;
+export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
+
+export const isOutputFormat = (f: Format): f is OutputFormat =>
+  (OUTPUT_FORMATS as readonly string[]).includes(f);
+
+/** Detects a format from a file extension. An explicit `--to`/`--from` always wins. */
 export function formatFromPath(path: string): Format | undefined {
   const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
-  if (ext === "md" || ext === "markdown") return "md";
-  if (ext === "docx") return "docx";
-  return undefined;
+  switch (ext) {
+    case "md":
+    case "markdown":
+      return "md";
+    case "docx":
+      return "docx";
+    case "html":
+    case "htm":
+      return "html";
+    case "pptx":
+      return "pptx";
+    case "xlsx":
+      return "xlsx";
+    default:
+      return undefined;
+  }
 }
 
 export interface ConvertOptions {
@@ -48,6 +79,7 @@ export interface ConvertOptions {
   infer?: InferOptions | false;
   markdown?: MarkdownRenderOptions;
   docx?: Omit<DocxRenderOptions, "referenceDoc"> & { referenceDoc?: Uint8Array };
+  html?: HtmlRenderOptions;
   /** Collect the inference decision log for `--explain`. */
   explain?: boolean;
 }
@@ -61,16 +93,27 @@ export interface ConvertResult {
 }
 
 /** Parses bytes into the IR. */
-export function parse(bytes: Uint8Array, format: Format, path?: string): { document: MarkForgeDocument; diagnostics: DiagnosticBag } {
+export function parse(
+  bytes: Uint8Array,
+  format: Format,
+  path?: string,
+): { document: MarkForgeDocument; diagnostics: DiagnosticBag } {
+  const opts = path !== undefined ? { path } : {};
   switch (format) {
     case "docx":
-      return parseDocx(bytes, path !== undefined ? { path } : {});
+      return parseDocx(bytes, opts);
     case "md":
-      return parseMarkdown(bytes, path !== undefined ? { path } : {});
+      return parseMarkdown(bytes, opts);
+    case "html":
+      return parseHtmlDocument(bytes, opts);
+    case "pptx":
+      return parsePptx(bytes, opts);
+    case "xlsx":
+      return parseXlsx(bytes, opts);
   }
 }
 
-/** Renders the IR into bytes. */
+/** Renders the IR into bytes. Throws for input-only formats, by name. */
 export function render(
   document: MarkForgeDocument,
   format: Format,
@@ -85,6 +128,21 @@ export function render(
       const result = renderDocx(document, options.docx ?? {});
       return { bytes: result.bytes, diagnostics: result.diagnostics };
     }
+    case "html": {
+      const result = renderHtml(document, {
+        stylesheet: DEFAULT_STYLESHEET,
+        ...(options.html ?? {}),
+      });
+      return { bytes: new TextEncoder().encode(result.html), diagnostics: result.diagnostics };
+    }
+    case "pptx":
+    case "xlsx":
+      throw new Error(
+        `markforge: ${format} is an input format only. MarkForge reads presentations and ` +
+          `spreadsheets but does not generate them, because nobody asked for that and ` +
+          `building it on speculation would be machinery with no user. Convert to md, ` +
+          `docx, or html instead.`,
+      );
   }
 }
 

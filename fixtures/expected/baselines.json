@@ -33,6 +33,16 @@
       "spanF1": 1
     },
     {
+      "fixture": "clean-report",
+      "loop": "md->html->md",
+      "structural": 0.9059,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
       "fixture": "inline-marks",
       "loop": "md->md",
       "structural": 1,
@@ -63,6 +73,16 @@
       "spanF1": 0.8571
     },
     {
+      "fixture": "inline-marks",
+      "loop": "md->html->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
       "fixture": "nested-restarting-lists",
       "loop": "md->md",
       "structural": 1,
@@ -86,6 +106,16 @@
       "fixture": "nested-restarting-lists",
       "loop": "docx->md->docx",
       "structural": 0.9521,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "nested-restarting-lists",
+      "loop": "md->html->md",
+      "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
       "tableF1": 1,
@@ -123,6 +153,16 @@
       "spanF1": 0.6667
     },
     {
+      "fixture": "tables",
+      "loop": "md->html->md",
+      "structural": 0.863,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
       "fixture": "unicode-edge-cases",
       "loop": "md->md",
       "structural": 1,
@@ -150,6 +190,76 @@
       "textInsensitive": 1,
       "tableF1": 1,
       "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "unicode-edge-cases",
+      "loop": "md->html->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "semantic-structure",
+      "loop": "html->html",
+      "structural": 0.9913,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "semantic-structure",
+      "loop": "html->docx->html",
+      "structural": 0.8716,
+      "textSensitive": 0.7455,
+      "textInsensitive": 0.7455,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 0.75
+    },
+    {
+      "fixture": "semantic-structure",
+      "loop": "html->md->html",
+      "structural": 0.9478,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 0.8889
+    },
+    {
+      "fixture": "spans-ground-truth",
+      "loop": "html->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "spans-ground-truth",
+      "loop": "html->docx->html",
+      "structural": 0.9619,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 0.7,
+      "tableContentF1": 0.8,
+      "spanF1": 1
+    },
+    {
+      "fixture": "spans-ground-truth",
+      "loop": "html->md->html",
+      "structural": 0.7303,
+      "textSensitive": 0.7775,
+      "textInsensitive": 0.7775,
+      "tableF1": 0.2727,
+      "tableContentF1": 0.5455,
       "spanF1": 1
     }
   ]

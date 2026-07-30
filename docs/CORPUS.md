@@ -175,6 +175,12 @@ continuation cells, nested tables, tables broken across pages, and cells contain
 content.
 **Plan:** four authored DOCX and two authored HTML (HTML is where span semantics are
 unambiguous, giving us a ground truth to compare the DOCX and PDF paths against).
+
+**Status:** the two HTML fixtures exist — `fixtures/html/spans-ground-truth.html` and
+`fixtures/html/semantic-structure.html`. They are measured through three loops each, and the
+gap between `html->html` and `html->md->html` on table F1 is the honest cost of Markdown
+having no rowspan: 100% against 27%. `docs/FIDELITY.md` lists that under known limitations so
+it reads as a format constraint rather than a defect.
 **Metrics:** table full-cell F1 and content-only F1 — the gap between them is the point
 (`SPEC.md` §9.3).
 

@@ -202,6 +202,21 @@ likely to need widening — a fourth role would be a code change, not a config e
 **7d. `markforge check --llm` capability probing** was invented to close question 3 rather than
 leaving it open. It adds a command flag and a cache file that the brief does not mention.
 
+Added during Phase 2:
+
+**7e. `TableCell.children` was widened to accept block content as well as phrasing content**,
+amending the Phase 0 schema. The schema followed mdast literally; `CORPUS.md` §2.5 requires
+cells containing block content, so the two contradicted each other. Argued in `SPEC.md` §2.7.1.
+
+**7f. PPTX and XLSX are read-only.** The brief's §11 Phase 2 lists them without saying which
+direction. Adapters exist; renderers do not, because generating a presentation or a spreadsheet
+was not asked for and would be speculative machinery. `--to pptx` refuses by name. Cheap to
+add if wanted.
+
+**7g. `@markforge/adapters-office` holds both PPTX and XLSX** rather than being two packages.
+They share a shape — one OPC container, many sub-documents, each becoming a top-level IR node —
+and splitting them would duplicate that scaffolding for no boundary anyone needs.
+
 ---
 
 ## 8. Questions only Phase 1+ can answer

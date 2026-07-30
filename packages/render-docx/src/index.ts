@@ -20,6 +20,8 @@
 import {
   DiagnosticBag,
   DiagnosticCode,
+  cellSpan,
+  headerRowCount,
   type AnyNode,
   type MarkForgeDocument,
 } from "@markforge/ir";
@@ -431,7 +433,7 @@ function renderList(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, l
 
 function renderTable(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument): string {
   const rows = Array.isArray(node.children) ? (node.children as AnyNode[]) : [];
-  const headerRows = typeof node["headerRows"] === "number" ? node["headerRows"] : 0;
+  const headerRows = headerRowCount(node);
   const tableStyle = styleFor("table", ctx);
 
   const columnCount = Math.max(
@@ -450,8 +452,7 @@ function renderTable(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument):
       const trPr = rowIndex < headerRows ? "<w:trPr><w:tblHeader/></w:trPr>" : "";
       const tcs = cells
         .map((cell) => {
-          const colSpan = typeof cell["colSpan"] === "number" ? cell["colSpan"] : 1;
-          const rowSpan = typeof cell["rowSpan"] === "number" ? cell["rowSpan"] : 1;
+          const { rowSpan, colSpan } = cellSpan(cell);
           const props: string[] = [];
           if (colSpan > 1) props.push(`<w:gridSpan w:val="${colSpan}"/>`);
           if (rowSpan > 1) props.push(`<w:vMerge w:val="restart"/>`);

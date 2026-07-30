@@ -15,9 +15,11 @@ import { existsSync } from "node:fs";
 import { resolve, relative } from "node:path";
 import {
   ExitCode,
+  OUTPUT_FORMATS,
   convert,
   formatMarkdown,
   formatFromPath,
+  isOutputFormat,
   type Format,
 } from "@markforge/core";
 import type { Diagnostic } from "@markforge/ir";
@@ -56,8 +58,8 @@ program
   .description("Convert a document between formats")
   .argument("<input>", "input file")
   .requiredOption("-o, --output <path>", "output file")
-  .option("--to <format>", "output format (md, docx); inferred from --output otherwise")
-  .option("--from <format>", "input format; inferred from the input path otherwise")
+  .option("--to <format>", "output format (md, docx, html); inferred from --output otherwise")
+  .option("--from <format>", "input format (md, docx, html, pptx, xlsx); inferred from the input path otherwise")
   .option("--reference-doc <path>", "DOCX reference document supplying named styles")
   .option("--no-infer", "skip structure inference; evidence stays evidence")
   .option("--explain", "print the inference decision log")
@@ -80,13 +82,24 @@ program
 
       if (!from) {
         process.stderr.write(
-          `markforge: cannot tell the input format from "${input}". Pass --from md|docx.\n`,
+          `markforge: cannot tell the input format from "${input}". ` +
+            `Pass --from md|docx|html|pptx|xlsx.\n`,
         );
         process.exit(ExitCode.ERROR);
       }
       if (!to) {
         process.stderr.write(
-          `markforge: cannot tell the output format from "${output}". Pass --to md|docx.\n`,
+          `markforge: cannot tell the output format from "${output}". ` +
+            `Pass --to ${OUTPUT_FORMATS.join("|")}.\n`,
+        );
+        process.exit(ExitCode.ERROR);
+      }
+      // Caught here rather than in the renderer so the message names the flag the
+      // user typed, not an internal function.
+      if (!isOutputFormat(to)) {
+        process.stderr.write(
+          `markforge: ${to} is an input format only — MarkForge reads it but does not ` +
+            `generate it. Pass --to ${OUTPUT_FORMATS.join("|")}.\n`,
         );
         process.exit(ExitCode.ERROR);
       }

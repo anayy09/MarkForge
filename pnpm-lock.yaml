@@ -42,6 +42,12 @@ importers:
         specifier: workspace:*
         version: link:../ooxml
 
+  packages/adapters-html:
+    dependencies:
+      '@markforge/ir':
+        specifier: workspace:*
+        version: link:../ir
+
   packages/adapters-md:
     dependencies:
       '@markforge/ir':
@@ -69,6 +75,15 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
 
+  packages/adapters-office:
+    dependencies:
+      '@markforge/ir':
+        specifier: workspace:*
+        version: link:../ir
+      '@markforge/ooxml':
+        specifier: workspace:*
+        version: link:../ooxml
+
   packages/cli:
     dependencies:
       '@markforge/core':
@@ -86,9 +101,15 @@ importers:
       '@markforge/adapters-docx':
         specifier: workspace:*
         version: link:../adapters-docx
+      '@markforge/adapters-html':
+        specifier: workspace:*
+        version: link:../adapters-html
       '@markforge/adapters-md':
         specifier: workspace:*
         version: link:../adapters-md
+      '@markforge/adapters-office':
+        specifier: workspace:*
+        version: link:../adapters-office
       '@markforge/fidelity':
         specifier: workspace:*
         version: link:../fidelity
@@ -104,6 +125,9 @@ importers:
       '@markforge/render-docx':
         specifier: workspace:*
         version: link:../render-docx
+      '@markforge/render-html':
+        specifier: workspace:*
+        version: link:../render-html
       '@markforge/render-md':
         specifier: workspace:*
         version: link:../render-md
@@ -161,6 +185,18 @@ importers:
       docx:
         specifier: ^9.7.1
         version: 9.7.1
+
+  packages/render-html:
+    dependencies:
+      '@markforge/adapters-html':
+        specifier: workspace:*
+        version: link:../adapters-html
+      '@markforge/adapters-md':
+        specifier: workspace:*
+        version: link:../adapters-md
+      '@markforge/ir':
+        specifier: workspace:*
+        version: link:../ir
 
   packages/render-md:
     dependencies:

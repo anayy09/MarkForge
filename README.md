@@ -13,23 +13,36 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 
 ---
 
-## Status: Phase 1 — the deterministic spine works
+## Status: Phase 2 — five formats read, three written
 
-`markforge convert` and `markforge fmt` are real. Markdown ↔ DOCX round-trips, `fmt` is
-provably idempotent, and every number in [docs/FIDELITY.md](docs/FIDELITY.md) is measured
-rather than claimed.
+`markforge convert` and `markforge fmt` are real, and every number in
+[docs/FIDELITY.md](docs/FIDELITY.md) is measured rather than claimed.
+
+| Format | Read | Write |
+| --- | :-: | :-: |
+| Markdown | yes | yes |
+| DOCX | yes | yes |
+| HTML | yes | yes |
+| PPTX | yes | — |
+| XLSX | yes | — |
+| PDF | — | — |
+
+PPTX and XLSX are read-only on purpose: nobody asked MarkForge to *generate* a spreadsheet,
+and building it on speculation would be machinery with no user. `--to xlsx` says so by name
+instead of failing somewhere internal.
 
 ```sh
 pnpm install && pnpm build
 
-node packages/cli/dist/index.js convert report.md -o report.docx
-node packages/cli/dist/index.js convert report.docx -o report.md
+node packages/cli/dist/index.js convert report.md   -o report.docx
+node packages/cli/dist/index.js convert deck.pptx   -o deck.md
+node packages/cli/dist/index.js convert data.xlsx   -o data.html
 node packages/cli/dist/index.js fmt docs/**/*.md --check
 ```
 
-Not yet built: PDF, HTML, PPTX, XLSX (Phase 2), the LLM layer (Phase 3), and `agentify`
-(Phase 4). Those subcommands exist in `--help` and **refuse rather than pretend** — a command
-that silently does nothing is worse than one that says it does not exist yet.
+Not yet built: PDF (Phase 2, remaining), the LLM layer (Phase 3), and `agentify` (Phase 4).
+Those subcommands exist in `--help` and **refuse rather than pretend** — a command that
+silently does nothing is worse than one that says it does not exist yet.
 
 ## What to read, in order
 

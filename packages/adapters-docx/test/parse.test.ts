@@ -185,11 +185,11 @@ describe("DOCX adapter — tables", () => {
     const withHeader = parse(
       `<w:tbl><w:tr><w:trPr><w:tblHeader/></w:trPr>${cell("h")}</w:tr><w:tr>${cell("b")}</w:tr></w:tbl>`,
     );
-    expect(selectType(withHeader.document.body, "table")[0]!["headerRows"]).toBe(1);
+    expect(selectType(withHeader.document.body, "table")[0]!["headerRowCount"]).toBe(1);
 
     // A5 again: without the marker, the adapter does not guess that row 0 is a header.
     const without = parse(`<w:tbl><w:tr>${cell("h")}</w:tr><w:tr>${cell("b")}</w:tr></w:tbl>`);
-    expect(selectType(without.document.body, "table")[0]!["headerRows"]).toBeUndefined();
+    expect(selectType(without.document.body, "table")[0]!["headerRowCount"]).toBeUndefined();
   });
 });
 

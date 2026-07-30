@@ -351,6 +351,30 @@ normalization of all strings, object keys sorted by Unicode code point, no insig
 whitespace, numbers in shortest round-trip form, and absent-vs-null distinguished by
 omitting absent keys. Serialization round-trip is property-tested (brief §10).
 
+#### 2.7.1 Amendment: table cells hold block *or* phrasing content
+
+Recorded here because it changed the schema after Phase 0, and because the reason is the kind
+that repeats.
+
+`TableCell.children` originally accepted `PhrasingContent` only, following mdast literally.
+That is right for Markdown and for a simple HTML cell, and wrong for everything else: a DOCX or
+PPTX cell genuinely contains paragraphs, lists, and nested tables, and `CORPUS.md` §2.5 lists
+"cells containing block content" as a construct under test. The schema therefore contradicted
+the corpus plan, and the contradiction was invisible for two phases because **no test validated
+a document containing a table**.
+
+It now accepts either. Two further consequences of the same root cause, both fixed:
+
+- `rowSpan`, `colSpan`, and `isHeader` are **required** on every cell. Four adapters omitted
+  them at their defaults, so every table they produced failed validation. Cell construction now
+  goes through `tableCell()` in `@markforge/ir`, which supplies them once rather than seven
+  times, and a consumer never needs `?? 1`.
+- The field is `headerRowCount`, not `headerRows`. Three adapters wrote the latter, which is
+  not a field: it validated as an unevaluated property and every renderer read `undefined`, so
+  header rows were silently lost.
+
+`packages/ir/test/table-conformance.test.ts` exists to close the gap that hid all three.
+
 ### 2.8 Normalization
 
 `normalize` runs after every adapter and is the **only** place whitespace rules are applied

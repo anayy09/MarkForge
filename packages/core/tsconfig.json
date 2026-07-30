@@ -32,6 +32,15 @@
     },
     {
       "path": "../fidelity"
+    },
+    {
+      "path": "../adapters-html"
+    },
+    {
+      "path": "../render-html"
+    },
+    {
+      "path": "../adapters-office"
     }
   ]
 }

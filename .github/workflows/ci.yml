@@ -130,6 +130,32 @@ jobs:
           cmp /tmp/a.docx /tmp/c.docx || (echo "::error::DOCX output differs across timezones" && exit 1)
           echo "DOCX output is byte-identical across three timezones."
 
+      # Every readable format must survive a conversion. This catches an adapter that
+      # throws on real input, which unit tests using synthetic fixtures can miss.
+      - name: All input formats convert
+        run: |
+          set -e
+          for f in fixtures/md/*.md; do
+            node packages/cli/dist/index.js convert "$f" -o /tmp/out.html --quiet
+            node packages/cli/dist/index.js convert "$f" -o /tmp/out.docx --quiet
+          done
+          for f in fixtures/html/*.html; do
+            node packages/cli/dist/index.js convert "$f" -o /tmp/out.md --quiet
+            node packages/cli/dist/index.js convert "$f" -o /tmp/out.docx --quiet
+          done
+          echo "Every corpus fixture converts to every output format."
+
+      # An input-only format must refuse by name rather than fail somewhere internal.
+      - name: Input-only formats refuse clearly
+        run: |
+          set +e
+          out=$(node packages/cli/dist/index.js convert fixtures/md/clean-report.md -o /tmp/x.xlsx 2>&1)
+          code=$?
+          set -e
+          echo "$out" | grep -q "input format only" || (echo "::error::--to xlsx did not refuse by name" && exit 1)
+          test "$code" -eq 1 || (echo "::error::--to xlsx exited $code, expected 1" && exit 1)
+          echo "Input-only formats refuse with exit 1 and a named reason."
+
       # fmt --check on already-formatted files must exit 0. If it did not, the
       # formatter would report its own output as needing formatting.
       - name: fmt is a fixed point on the corpus

@@ -15,6 +15,8 @@ a file with no row, and a row with no file. See `README.md` for the procedure an
 | md/inline-marks.md | authored | Apache-2.0 | MarkForge | — | Inline span fidelity: combined marks, hard breaks, and escaped characters that must not re-escape on a second pass |
 | md/unicode-edge-cases.md | authored | Apache-2.0 | MarkForge | — | §2.11: ZWJ sequences, skin-tone modifiers, combining marks, non-breaking spaces that must survive whitespace collapsing, CJK, and RTL |
 | md/tables.md | authored | Apache-2.0 | MarkForge | — | §2.5: alignment markers and inline formatting inside cells |
+| html/spans-ground-truth.html | authored | Apache-2.0 | MarkForge | — | §2.5 ground truth: HTML states rowspan/colspan explicitly, so this is what the DOCX and PDF table paths are measured against. Also covers cells holding block content |
+| html/semantic-structure.html | authored | Apache-2.0 | MarkForge | — | HTML-to-IR mapping breadth: nested and start-offset lists, description lists, figure/figcaption binding, fenced code with a language class |
 | expected/baselines.json | generated | Apache-2.0 | MarkForge | the five fixtures above | Committed measurements; CI fails on a regression beyond tolerance (ADR-0010) |
 
 **Every fixture here is authored**, which `../docs/CORPUS.md` §1 rule 3 prefers precisely

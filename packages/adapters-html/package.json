@@ -1,0 +1,23 @@
+{
+  "name": "@markforge/adapters-html",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HTML to IR",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "schema"
+  ],
+  "dependencies": {
+    "@markforge/ir": "workspace:*"
+  }
+}
