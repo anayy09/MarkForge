@@ -20,6 +20,10 @@
   "dependencies": {
     "@markforge/ir": "workspace:*",
     "@markforge/ooxml": "workspace:*",
-    "docx": "^9.7.1"
+    "docx": "^9.7.1",
+    "@markforge/adapters-docx": "workspace:*",
+    "@markforge/adapters-md": "workspace:*",
+    "@markforge/render-md": "workspace:*",
+    "@markforge/infer": "workspace:*"
   }
 }

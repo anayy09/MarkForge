@@ -14,6 +14,18 @@
     },
     {
       "path": "../ooxml"
+    },
+    {
+      "path": "../adapters-docx"
+    },
+    {
+      "path": "../adapters-md"
+    },
+    {
+      "path": "../render-md"
+    },
+    {
+      "path": "../infer"
     }
   ]
 }

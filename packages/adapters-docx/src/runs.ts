@@ -16,6 +16,7 @@ import {
   childElements,
   isElement,
   isText,
+  readProperties,
   resolveStyle,
   textOf,
   val,
@@ -44,12 +45,21 @@ function verticalAlign(rPr: XmlElement | undefined): "sub" | "super" | undefined
 }
 
 /**
- * Wraps a text node in the inline marks its run properties imply.
+ * Wraps a text node in the inline marks its **direct** run properties imply.
  *
- * Order is fixed rather than incidental: nesting `strong` inside `emphasis`
+ * The distinction between direct and inherited formatting is the whole point, and
+ * getting it wrong is visible: a Heading 1 style carries `<w:b/>`, so resolving the
+ * full cascade and reading `weight >= 600` wraps every heading's text in `strong`.
+ * The round trip then produces `# **Title**` — bold inside a heading that is
+ * already bold by definition, and on the way back to DOCX that bold becomes direct
+ * run formatting, which is exactly the defect brief §5.1 exists to remove.
+ *
+ * So marks come from the run's own `w:rPr` only. Inherited formatting stays where
+ * it belongs: in the style sidecar, as evidence.
+ *
+ * Order is fixed rather than incidental: nesting `strong` outside `emphasis`
  * consistently means two runs with the same formatting produce identical trees, so
- * they compare equal and merge during normalisation. An order that varied with
- * property iteration would make the IR depend on object key order.
+ * they compare equal and merge during normalisation.
  */
 function applyMarks(node: AnyNode, evidence: StyleEvidence, rPr: XmlElement | undefined): AnyNode {
   let out = node;
@@ -193,7 +203,12 @@ export function parseRun(r: XmlElement, ctx: RunContext): AnyNode[] {
     // inlineCode carries no marks: monospace *is* the formatting, and wrapping it
     // in strong/emphasis would round-trip to Markdown as `**`code`**`, which is
     // both ugly and not what the source meant.
-    const marked = verbatim ? base : applyMarks(base, resolved.evidence, rPr);
+    // Marks from direct run properties only; the resolved cascade goes to the
+    // sidecar as evidence. See applyMarks.
+    const directOnly = readProperties(undefined, rPr);
+    const marked = verbatim
+      ? base
+      : applyMarks(base, { origin: "directFormatting", ...directOnly }, rPr);
     ctx.recordEvidence(marked, resolved.evidence);
     out.unshift(marked);
   }

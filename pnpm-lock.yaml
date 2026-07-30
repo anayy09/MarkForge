@@ -140,12 +140,24 @@ importers:
 
   packages/render-docx:
     dependencies:
+      '@markforge/adapters-docx':
+        specifier: workspace:*
+        version: link:../adapters-docx
+      '@markforge/adapters-md':
+        specifier: workspace:*
+        version: link:../adapters-md
+      '@markforge/infer':
+        specifier: workspace:*
+        version: link:../infer
       '@markforge/ir':
         specifier: workspace:*
         version: link:../ir
       '@markforge/ooxml':
         specifier: workspace:*
         version: link:../ooxml
+      '@markforge/render-md':
+        specifier: workspace:*
+        version: link:../render-md
       docx:
         specifier: ^9.7.1
         version: 9.7.1
