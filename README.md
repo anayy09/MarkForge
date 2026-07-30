@@ -13,14 +13,23 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 
 ---
 
-## Status: specification complete, no implementation
+## Status: Phase 1 — the deterministic spine works
 
-**There is no code in this repository yet, and that is deliberate.** Phase 0 delivers the
-specification and architecture; implementation begins once the spec is approved. A verification
-check asserts the absence of code so this cannot drift by accident.
+`markforge convert` and `markforge fmt` are real. Markdown ↔ DOCX round-trips, `fmt` is
+provably idempotent, and every number in [docs/FIDELITY.md](docs/FIDELITY.md) is measured
+rather than claimed.
 
-If you are looking for something to run, there is nothing yet. If you are looking for something
-to review, start with `docs/SPEC.md`.
+```sh
+pnpm install && pnpm build
+
+node packages/cli/dist/index.js convert report.md -o report.docx
+node packages/cli/dist/index.js convert report.docx -o report.md
+node packages/cli/dist/index.js fmt docs/**/*.md --check
+```
+
+Not yet built: PDF, HTML, PPTX, XLSX (Phase 2), the LLM layer (Phase 3), and `agentify`
+(Phase 4). Those subcommands exist in `--help` and **refuse rather than pretend** — a command
+that silently does nothing is worse than one that says it does not exist yet.
 
 ## What to read, in order
 
@@ -32,6 +41,7 @@ to review, start with `docs/SPEC.md`.
 | [docs/CORPUS.md](docs/CORPUS.md) | The golden-corpus plan: 14 fixture categories, each naming the failure mode it catches |
 | [docs/TEMPLATES.md](docs/TEMPLATES.md) | Reference documents: what ships, and how to use a publisher template we cannot ship |
 | [docs/OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md) | Everything unresolved, and every decision made without asking |
+| [docs/FIDELITY.md](docs/FIDELITY.md) | Measured conversion fidelity. Generated; every fixture appears |
 
 Machine-readable contracts live beside the docs, not inside them:
 

@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "tolerance": 0.005,
+  "entries": [
+    {
+      "fixture": "clean-report",
+      "loop": "md->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "clean-report",
+      "loop": "md->docx->md",
+      "structural": 0.9059,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "clean-report",
+      "loop": "docx->md->docx",
+      "structural": 0.9731,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "inline-marks",
+      "loop": "md->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "inline-marks",
+      "loop": "md->docx->md",
+      "structural": 0.9848,
+      "textSensitive": 0.9321,
+      "textInsensitive": 0.9321,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 0.8571
+    },
+    {
+      "fixture": "inline-marks",
+      "loop": "docx->md->docx",
+      "structural": 0.9848,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 0.8571
+    },
+    {
+      "fixture": "nested-restarting-lists",
+      "loop": "md->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "nested-restarting-lists",
+      "loop": "md->docx->md",
+      "structural": 0.898,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "nested-restarting-lists",
+      "loop": "docx->md->docx",
+      "structural": 0.9521,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "tables",
+      "loop": "md->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "tables",
+      "loop": "md->docx->md",
+      "structural": 0.8503,
+      "textSensitive": 0.8817,
+      "textInsensitive": 0.8817,
+      "tableF1": 0.95,
+      "tableContentF1": 0.95,
+      "spanF1": 0.6667
+    },
+    {
+      "fixture": "tables",
+      "loop": "docx->md->docx",
+      "structural": 0.9882,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 0.6667
+    },
+    {
+      "fixture": "unicode-edge-cases",
+      "loop": "md->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "unicode-edge-cases",
+      "loop": "md->docx->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "unicode-edge-cases",
+      "loop": "docx->md->docx",
+      "structural": 0.9667,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    }
+  ]
+}

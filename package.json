@@ -19,7 +19,7 @@
     "check:schemas": "node scripts/check-schemas.mjs",
     "check:fixtures": "node scripts/check-fixtures.mjs",
     "codegen": "node scripts/codegen-types.mjs",
-    "fidelity": "node --experimental-strip-types scripts/run-fidelity.mts",
+    "fidelity": "node scripts/run-fidelity.mjs",
     "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run typecheck && pnpm run test"
   },
   "devDependencies": {

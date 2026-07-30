@@ -62,16 +62,23 @@ export function renderDocx(doc: MarkForgeDocument, options: DocxRenderOptions = 
   const onMissing = options.onMissingStyle ?? "warn";
 
   const pkg = options.referenceDoc ? OpcPackage.open(options.referenceDoc) : OpcPackage.create();
-  const available = collectStyles(pkg);
 
-  if (!options.referenceDoc) {
+  // The fallback styles.xml is installed *before* rendering, not after. Written the
+  // other way round, `collectStyles` sees an empty package, every role resolves to
+  // nothing, and the renderer synthesizes duplicates of styles the fallback was
+  // about to define — producing a warning per role on every conversion that did not
+  // supply a reference document, which is the common case.
+  if (!pkg.has(Part.STYLES)) {
+    pkg.set(Part.STYLES, minimalStyles());
     diagnostics.info(
       DiagnosticCode.RENDER_STYLE_MISSING,
-      "No reference document supplied, so a minimal styles.xml is synthesized. Output " +
-        "will be structurally correct but visually plain; supply docx.referenceDoc for " +
-        "a document that looks like your house style.",
+      "No reference document supplied, so a minimal styles.xml is used. Output will be " +
+        "structurally correct but visually plain; supply docx.referenceDoc for a document " +
+        "that looks like your house style.",
     );
   }
+
+  const available = collectStyles(pkg);
 
   const ctx: RenderContext = {
     diagnostics,
@@ -90,7 +97,7 @@ export function renderDocx(doc: MarkForgeDocument, options: DocxRenderOptions = 
   // size, margins, and columns are preserved rather than reset to defaults.
   const sectPr = options.referenceDoc ? extractSectPr(pkg) : DEFAULT_SECT_PR;
 
-  ensureScaffold(pkg, ctx, available.length === 0);
+  ensureScaffold(pkg, ctx);
   pkg.set(
     Part.DOCUMENT,
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
@@ -510,7 +517,7 @@ function serialize(el: XmlElement): string {
 }
 
 /** Writes the parts a DOCX needs in order to open at all. */
-function ensureScaffold(pkg: OpcPackage, ctx: RenderContext, needsStyles: boolean): void {
+function ensureScaffold(pkg: OpcPackage, ctx: RenderContext): void {
   if (!pkg.has(Part.CONTENT_TYPES)) {
     pkg.set(
       Part.CONTENT_TYPES,
@@ -542,9 +549,6 @@ function ensureScaffold(pkg: OpcPackage, ctx: RenderContext, needsStyles: boolea
         `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>` +
         `</Relationships>`,
     );
-  }
-  if (needsStyles && !pkg.has(Part.STYLES)) {
-    pkg.set(Part.STYLES, minimalStyles());
   }
   pkg.set(Part.NUMBERING, numberingXml(ctx));
 }

@@ -16,6 +16,8 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `check-schemas.mjs` | `ajv`, `ajv-formats` | The three JSON Schemas compile in strict mode; the worked examples validate |
 | `codegen-types.mjs` | `json-schema-to-typescript` | Generates TypeScript types from the schemas (`pnpm codegen`) |
 | `add-salient-annotations.mjs` | none | One-shot migration that added `x-salient` to the IR schema |
+| `check-fixtures.mjs` | none | Every fixture has a licence line, and every licence line has a fixture |
+| `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
 
 ## Running them
@@ -36,6 +38,35 @@ teaches people to ignore it.
 Both resolve the repository root from their own location, so neither contains an absolute path.
 That is the same rule `SPEC.md` §1 imposes on MarkForge's own output, and it applies here for the
 same reason: an absolute path makes a result unreproducible on another machine.
+
+## `check-fixtures.mjs`
+
+Enforces `docs/CORPUS.md` §1 rule 1 in **both** directions: a committed fixture with no licence
+line fails, and a licence line naming a file that does not exist fails too. The second direction
+matters as much as the first — a register describing files nobody can find is worse than no
+register, because it looks like diligence.
+
+It runs before the conversion tests in CI, so an unlicensed fixture cannot be used even by a
+test that does not know it is unlicensed. Only `fixtures/local/` and `fixtures/generated/` are
+exempt, and only because they are gitignored: nothing in them is distributed.
+
+## `run-fidelity.mjs`
+
+Measures three loops — `md → md`, `md → docx → md`, `docx → md → docx` — across the corpus,
+writes `docs/FIDELITY.md`, and compares against `fixtures/expected/baselines.json`.
+
+```sh
+node scripts/run-fidelity.mjs            # measure and report
+node scripts/run-fidelity.mjs --update   # rewrite the baselines
+node scripts/run-fidelity.mjs --check    # exit 4 on a regression (CI)
+```
+
+Two deliberate properties. It has **no way to skip a fixture or suppress a row**, because a
+report that can hide its worst numbers is marketing. And it reports *improvements* as well as
+regressions without failing on them: an unexplained jump is as likely to mean the metric broke
+as that the converter improved, so it asks a human to look rather than quietly banking the win.
+
+It imports from `dist/`, not `src/`, so it measures what ships.
 
 ## `codegen-types.mjs`
 

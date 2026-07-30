@@ -21,5 +21,8 @@
     "@markforge/ir": "workspace:*",
     "@markforge/core": "workspace:*",
     "commander": "^12.1.0"
+  },
+  "bin": {
+    "markforge": "./dist/index.js"
   }
 }

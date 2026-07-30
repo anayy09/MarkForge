@@ -91,10 +91,30 @@ describe("DOCX renderer", () => {
   });
 
   it("reports a missing style rather than silently inventing one", () => {
+    // Against a reference document that defines only Normal. The built-in fallback
+    // styles.xml deliberately defines the full Pandoc set, so it cannot demonstrate
+    // this path — an earlier version of this test used it and passed only because
+    // the fallback was being installed too late to be found.
+    const bare = OpcPackage.create({
+      "word/styles.xml":
+        `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+        `<w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>`,
+    }).toBytes();
     const { diagnostics } = renderDocx(parseMarkdown("> quoted\n").document, {
       onMissingStyle: "warn",
+      referenceDoc: bare,
     });
-    expect(diagnostics.lossy().some((d) => d.code.startsWith("MF-RENDER"))).toBe(true);
+    expect(diagnostics.lossy().some((d) => d.code === "MF-RENDER-0002")).toBe(true);
+  });
+
+  // The fallback exists so that a conversion with no reference document is quiet and
+  // correct. If it were installed after rendering, every role would resolve to
+  // nothing and each one would emit a synthesis warning — which is what happened.
+  it("emits no style warnings when falling back, since the fallback defines the set", () => {
+    const { diagnostics } = renderDocx(parseMarkdown("# T\n\n> q\n\n- a\n").document, {
+      onMissingStyle: "warn",
+    });
+    expect(diagnostics.lossy().filter((d) => d.code.startsWith("MF-RENDER-000"))).toEqual([]);
   });
 
   it("throws on a missing style when asked to, naming the role and the fix", () => {

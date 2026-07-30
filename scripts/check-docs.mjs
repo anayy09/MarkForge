@@ -312,7 +312,11 @@ else ok(`all ${officeFiles.length} office binary/ies in the tree are gitignored 
 // empty register cannot be mistaken for an unenforced rule.
 if (!/no fixture lands without a licence line/i.test(fixReadme)) fail("fixtures/README.md does not state the licence rule");
 if (!/ieee-conference-template\.docx/.test(fixLicenses)) fail("fixtures/LICENSES.md does not account for the IEEE template's exclusion");
-if (!/empty and that is correct/i.test(fixLicenses)) fail("fixtures/LICENSES.md does not explain why the register is empty");
+// The register was empty in Phase 0 and had to explain itself; now it has entries
+// and each must name the failure mode it catches. check-fixtures.mjs enforces the
+// per-row rule; here we only assert the register is not silently empty again.
+const registerRows = (fixLicenses.match(/^\| (md|docx|expected)\//gm) ?? []).length;
+if (registerRows === 0) fail("fixtures/LICENSES.md register has no entries and no explanation");
 ok("fixtures/ licence register exists, states the rule, and accounts for the excluded IEEE template");
 
 // --- 13f. Root README and LICENSE must exist, and the LICENSE must actually be the licence
@@ -323,13 +327,31 @@ if (!/Apache License\s*\n\s*Version 2\.0, January 2004/.test(license)) fail("LIC
 if (!license.includes("END OF TERMS AND CONDITIONS")) fail("LICENSE text is truncated");
 ok(`LICENSE is the full canonical Apache-2.0 text (${license.length} bytes)`);
 
-// The README must not imply runnable software while none exists.
-if (!/no code in this repository yet/i.test(readme)) fail("README.md does not disclose that no implementation exists");
-for (const d of ["docs/SPEC.md", "docs/PRIOR_ART.md", "docs/CORPUS.md", "docs/TEMPLATES.md", "docs/OPEN_QUESTIONS.md", "docs/adr/"]) {
+// The README must be honest about what actually runs. In Phase 0 that meant
+// disclosing that nothing did; now it means naming the phase and saying plainly
+// which subcommands are not built, so --help and the README cannot disagree.
+if (!/## Status: Phase \d/.test(readme)) fail("README.md does not state which phase the project is in");
+if (!/refuse rather than pretend|not yet built|Not yet built/i.test(readme)) {
+  fail("README.md does not disclose which subcommands are unimplemented");
+}
+for (const d of ["docs/SPEC.md", "docs/PRIOR_ART.md", "docs/CORPUS.md", "docs/TEMPLATES.md", "docs/OPEN_QUESTIONS.md", "docs/FIDELITY.md", "docs/adr/"]) {
   if (!readme.includes(d)) fail(`README.md does not link ${d}`);
 }
 if (!/fixtures\/` is not covered|fixtures\/ is not covered/.test(readme)) fail("README.md does not scope the licence away from fixtures/");
-ok("README.md links all six deliverables, discloses pre-implementation status, and scopes the licence");
+ok("README.md links every deliverable, states the phase and what is unbuilt, and scopes the licence");
+
+// FIDELITY.md is generated from measurements. A repo that ships fidelity claims
+// without the generator having run is claiming something it has not measured.
+if (existsSync(join(REPO, "docs/FIDELITY.md"))) {
+  const fidelity = read("docs/FIDELITY.md");
+  if (!/Measured, not claimed/.test(fidelity)) fail("docs/FIDELITY.md is missing its provenance line");
+  if (!/\*\*mean\*\*/.test(fidelity)) fail("docs/FIDELITY.md has no mean row");
+  const rows = (fidelity.match(/^\| [a-z-]+ \| (md|docx)/gm) ?? []).length;
+  if (rows === 0) fail("docs/FIDELITY.md contains no measurements");
+  else ok(`docs/FIDELITY.md reports ${rows} measured loop(s) with a mean row and no suppression`);
+} else {
+  fail("docs/FIDELITY.md is missing — run `pnpm fidelity --update`");
+}
 
 // --- 14. Phase 1 architecture invariants.
 //
