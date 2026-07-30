@@ -39,6 +39,9 @@
     },
     {
       "path": "packages/adapters-office"
+    },
+    {
+      "path": "packages/adapters-pdf"
     }
   ]
 }

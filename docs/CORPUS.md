@@ -193,6 +193,26 @@ papers under CC-BY. Includes at least one with a full-width figure interrupting 
 one with a footnote rule that could be mistaken for a column boundary.
 **Metrics:** text (both variants), structural.
 
+### 2.6.1 Status: what the text-layer path measured
+
+The PDF adapter is built and its layout analysis is tested against authored fixtures
+(`packages/adapters-pdf/test/`). Three findings from doing it, all about pdf.js rather than
+about PDFs:
+
+1. **pdf.js synthesises a whitespace run to represent a horizontal gap, with the width of the
+   gap.** On a two-column page that is a ~170pt-wide `" "` sitting exactly across the gutter.
+   Counting it as occupancy fills every gutter, so no columns are found and the page reads
+   interleaved — the defect this category exists to catch, caused by a helpful parser filling
+   in a blank. Whitespace-only runs are now excluded from occupancy.
+2. **Columns must be detected before lines are grouped.** Two columns share baselines
+   constantly, so grouping runs into lines first merges "left column line one" with "right
+   column line one" into one full-width line, after which no gutter exists to find.
+3. **pdf.js clips text extending past the MediaBox and reports the survivors with no flag.**
+   Measured: a 125-character line at 16pt on a 612pt page came back as 78 characters, cut
+   mid-word. The loss happens before we see the items, so it cannot be detected directly; a run
+   reaching the page edge now emits a "this may be incomplete" diagnostic, which is the only
+   honest thing available.
+
 ### 2.7 Scanned PDFs — *public domain + synthesized*
 
 **Catches:** missing-text-layer detection, OCR routing, confidence propagation

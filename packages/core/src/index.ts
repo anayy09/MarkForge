@@ -42,7 +42,7 @@ export interface Host {
  * would be machinery with no user. `render` rejects them by name rather than by
  * falling through to a default, so the limit is a message rather than a surprise.
  */
-export type Format = "md" | "docx" | "html" | "pptx" | "xlsx";
+export type Format = "md" | "docx" | "html" | "pptx" | "xlsx" | "pdf";
 
 /** Formats that can be written, as opposed to only read. */
 export const OUTPUT_FORMATS = ["md", "docx", "html"] as const;
@@ -67,6 +67,8 @@ export function formatFromPath(path: string): Format | undefined {
       return "pptx";
     case "xlsx":
       return "xlsx";
+    case "pdf":
+      return "pdf";
     default:
       return undefined;
   }
@@ -110,7 +112,33 @@ export function parse(
       return parsePptx(bytes, opts);
     case "xlsx":
       return parseXlsx(bytes, opts);
+    case "pdf":
+      // PDF extraction is async, so it cannot be served here. Throwing names the
+      // function that can, rather than returning undefined and failing later.
+      throw new Error(
+        "markforge: PDF parsing is asynchronous. Use parseAsync or convertAsync instead " +
+          "of parse or convert.",
+      );
   }
+}
+
+/**
+ * Parses bytes into the IR, including the formats whose parsers are async.
+ *
+ * PDF extraction is inherently asynchronous (pdf.js is), so it needs this rather than
+ * the synchronous `parse`. Kept separate instead of making everything async: a
+ * Markdown conversion does no I/O and should not force every caller to await.
+ */
+export async function parseAsync(
+  bytes: Uint8Array,
+  format: Format,
+  path?: string,
+): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
+  if (format === "pdf") {
+    const { parsePdf } = await import("@markforge/adapters-pdf");
+    return parsePdf(bytes, path !== undefined ? { path } : {});
+  }
+  return parse(bytes, format, path);
 }
 
 /** Renders the IR into bytes. Throws for input-only formats, by name. */
@@ -137,11 +165,12 @@ export function render(
     }
     case "pptx":
     case "xlsx":
+    case "pdf":
       throw new Error(
-        `markforge: ${format} is an input format only. MarkForge reads presentations and ` +
-          `spreadsheets but does not generate them, because nobody asked for that and ` +
-          `building it on speculation would be machinery with no user. Convert to md, ` +
-          `docx, or html instead.`,
+        `markforge: ${format} is an input format only. MarkForge reads presentations, ` +
+          `spreadsheets, and PDFs but does not generate them — PDF output needs a layout ` +
+          `engine (ADR-0003 chose Typst) and is not built yet, and nobody asked to ` +
+          `generate a spreadsheet. Convert to md, docx, or html instead.`,
       );
   }
 }
@@ -180,6 +209,36 @@ export function convert(
     document: parsed.document,
     diagnostics,
     decisions,
+  };
+  if (options.explain) result.explanation = explainDecisions(decisions);
+  return result;
+}
+
+/** `convert`, for input formats whose parser is async (currently PDF). */
+export async function convertAsync(
+  bytes: Uint8Array,
+  options: ConvertOptions & { from: Format; to: Format; path?: string },
+): Promise<ConvertResult> {
+  const all = new DiagnosticBag(CORE);
+
+  const parsed = await parseAsync(bytes, options.from, options.path);
+  all.merge(parsed.diagnostics);
+
+  let decisions: Decision[] = [];
+  if (options.infer !== false) {
+    const inferred = inferHeadings(parsed.document, options.infer ?? {});
+    all.merge(inferred.diagnostics);
+    decisions = inferred.decisions;
+  }
+
+  const rendered = render(parsed.document, options.to, options);
+  all.merge(rendered.diagnostics);
+
+  const diagnostics = all.all();
+  parsed.document.diagnostics = diagnostics;
+
+  const result: ConvertResult = {
+    bytes: rendered.bytes, document: parsed.document, diagnostics, decisions,
   };
   if (options.explain) result.explanation = explainDecisions(decisions);
   return result;

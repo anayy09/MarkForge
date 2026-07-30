@@ -154,6 +154,12 @@ jobs:
           set -e
           echo "$out" | grep -q "input format only" || (echo "::error::--to xlsx did not refuse by name" && exit 1)
           test "$code" -eq 1 || (echo "::error::--to xlsx exited $code, expected 1" && exit 1)
+          set +e
+          out=$(node packages/cli/dist/index.js convert fixtures/md/clean-report.md -o /tmp/x.pdf 2>&1)
+          code=$?
+          set -e
+          echo "$out" | grep -q "input format only" || (echo "::error::--to pdf did not refuse by name" && exit 1)
+          test "$code" -eq 1 || (echo "::error::--to pdf exited $code, expected 1" && exit 1)
           echo "Input-only formats refuse with exit 1 and a named reason."
 
       # fmt --check on already-formatted files must exit 0. If it did not, the

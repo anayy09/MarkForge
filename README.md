@@ -13,7 +13,7 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 
 ---
 
-## Status: Phase 2 — five formats read, three written
+## Status: Phase 2 — six formats read, three written
 
 `markforge convert` and `markforge fmt` are real, and every number in
 [docs/FIDELITY.md](docs/FIDELITY.md) is measured rather than claimed.
@@ -25,11 +25,18 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 | HTML | yes | yes |
 | PPTX | yes | — |
 | XLSX | yes | — |
-| PDF | — | — |
+| PDF | yes | — |
 
-PPTX and XLSX are read-only on purpose: nobody asked MarkForge to *generate* a spreadsheet,
-and building it on speculation would be machinery with no user. `--to xlsx` says so by name
-instead of failing somewhere internal.
+PPTX, XLSX, and PDF are read-only. For the first two, nobody asked MarkForge to *generate* a
+spreadsheet and building it on speculation would be machinery with no user. PDF output needs a
+layout engine — [ADR-0003](docs/adr/0003-pdf-engine-typst.md) chose Typst — and is not built
+yet. `--to xlsx` and `--to pdf` say so by name instead of failing somewhere internal.
+
+Reading a PDF is the one place an *adapter* infers rather than recording evidence, because a
+PDF states no structure at all: it has glyphs at coordinates. That inference is deterministic,
+every threshold is derived from the document's own measurements rather than hardcoded, and the
+provenance records `confidence: 0.8` so a consumer can tell a reconstructed heading from a
+declared one.
 
 ```sh
 pnpm install && pnpm build
@@ -37,10 +44,12 @@ pnpm install && pnpm build
 node packages/cli/dist/index.js convert report.md   -o report.docx
 node packages/cli/dist/index.js convert deck.pptx   -o deck.md
 node packages/cli/dist/index.js convert data.xlsx   -o data.html
+node packages/cli/dist/index.js convert paper.pdf   -o paper.md
 node packages/cli/dist/index.js fmt docs/**/*.md --check
 ```
 
-Not yet built: PDF (Phase 2, remaining), the LLM layer (Phase 3), and `agentify` (Phase 4).
+Not yet built: PDF *output* and OCR for scanned PDFs (Phase 3), the LLM layer (Phase 3), and
+`agentify` (Phase 4).
 Those subcommands exist in `--help` and **refuse rather than pretend** — a command that
 silently does nothing is worse than one that says it does not exist yet.
 

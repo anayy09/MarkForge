@@ -16,7 +16,7 @@ import { resolve, relative } from "node:path";
 import {
   ExitCode,
   OUTPUT_FORMATS,
-  convert,
+  convertAsync,
   formatMarkdown,
   formatFromPath,
   isOutputFormat,
@@ -59,7 +59,7 @@ program
   .argument("<input>", "input file")
   .requiredOption("-o, --output <path>", "output file")
   .option("--to <format>", "output format (md, docx, html); inferred from --output otherwise")
-  .option("--from <format>", "input format (md, docx, html, pptx, xlsx); inferred from the input path otherwise")
+  .option("--from <format>", "input format (md, docx, html, pptx, xlsx, pdf); inferred from the input path otherwise")
   .option("--reference-doc <path>", "DOCX reference document supplying named styles")
   .option("--no-infer", "skip structure inference; evidence stays evidence")
   .option("--explain", "print the inference decision log")
@@ -110,7 +110,7 @@ program
         ? new Uint8Array(await readFile(resolve(referenceDocPath)))
         : undefined;
 
-      const result = convert(bytes, {
+      const result = await convertAsync(bytes, {
         from,
         to,
         // Relative, so the recorded provenance does not embed this machine's

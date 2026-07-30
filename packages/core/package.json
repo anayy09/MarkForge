@@ -29,6 +29,7 @@
     "zod": "^3.24.1",
     "@markforge/adapters-html": "workspace:*",
     "@markforge/render-html": "workspace:*",
-    "@markforge/adapters-office": "workspace:*"
+    "@markforge/adapters-office": "workspace:*",
+    "@markforge/adapters-pdf": "workspace:*"
   }
 }
