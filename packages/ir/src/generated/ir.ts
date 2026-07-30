@@ -744,6 +744,10 @@ export interface NodeBase {
   type: string;
   id: NodeId;
   position?: Position;
+  /**
+   * Digest of this node's subtree (docs/SPEC.md section 2.7). Present when a consumer needs change detection; never salient, since it is derived from the node's own content.
+   */
+  contentHash?: string;
 }
 /**
  * unist position, retained where the source has one.

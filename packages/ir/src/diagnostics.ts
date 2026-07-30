@@ -8,26 +8,14 @@
  * difference the diagnostics do not account for is a bug.
  */
 
-export type Severity = "error" | "warn" | "info";
+// The Diagnostic shape is defined by the schema and generated, not declared here
+// (docs/SPEC.md §2.2). `lossy` is a boolean rather than a three-way enum because
+// the invariant that matters is binary: either information was lost or it was not,
+// and `--strict` needs exactly that bit.
+import type { Diagnostic, Producer } from "./generated/ir.js";
+export type { Diagnostic } from "./generated/ir.js";
 
-/** Whether the diagnostic reports actual information loss, as opposed to a note. */
-export type Lossiness = "lossless" | "degraded" | "lost";
-
-export interface Diagnostic {
-  /** `MF-<AREA>-<NNNN>` — see `DiagnosticCode`. */
-  code: string;
-  severity: Severity;
-  lossiness: Lossiness;
-  message: string;
-  /** Node the diagnostic attaches to, when there is one. */
-  nodeId?: string;
-  sourceId?: string;
-  /** Source construct that could not be represented, e.g. `w:smartTag`. */
-  construct?: string;
-  /** What the user can do about it. Omitted when there is nothing useful to say. */
-  remedy?: string;
-  data?: Record<string, unknown>;
-}
+export type Severity = Diagnostic["severity"];
 
 /**
  * Code namespace: `MF-<AREA>-<NNNN>`.
@@ -79,39 +67,47 @@ export const DiagnosticCode = {
 
 export type DiagnosticCodeValue = (typeof DiagnosticCode)[keyof typeof DiagnosticCode];
 
-/** Collects diagnostics during a pipeline stage. */
+/**
+ * Collects diagnostics during a pipeline stage.
+ *
+ * Every diagnostic records its producer, so "which component decided this was
+ * lossy?" is answerable from the document alone.
+ */
 export class DiagnosticBag {
   private readonly items: Diagnostic[] = [];
 
-  add(d: Diagnostic): void {
-    this.items.push(d);
+  constructor(private readonly producedBy: Producer) {}
+
+  add(d: Omit<Diagnostic, "producedBy"> & { producedBy?: Producer }): void {
+    this.items.push({ producedBy: this.producedBy, ...d } as Diagnostic);
   }
 
-  /** Convenience for the common case: a construct that could not be represented. */
+  /** A construct that could not be represented at all. */
   lost(
     code: DiagnosticCodeValue,
     construct: string,
     message: string,
     extra: Partial<Diagnostic> = {},
   ): void {
-    this.add({ code, severity: "warn", lossiness: "lost", construct, message, ...extra });
+    this.add({ code, severity: "warning", lossy: true, construct, message, ...extra });
   }
 
+  /** A construct that survived with reduced fidelity. Still lossy: something changed. */
   degraded(
     code: DiagnosticCodeValue,
     construct: string,
     message: string,
     extra: Partial<Diagnostic> = {},
   ): void {
-    this.add({ code, severity: "warn", lossiness: "degraded", construct, message, ...extra });
+    this.add({ code, severity: "warning", lossy: true, construct, message, ...extra });
   }
 
   info(code: DiagnosticCodeValue, message: string, extra: Partial<Diagnostic> = {}): void {
-    this.add({ code, severity: "info", lossiness: "lossless", message, ...extra });
+    this.add({ code, severity: "info", lossy: false, message, ...extra });
   }
 
   error(code: DiagnosticCodeValue, message: string, extra: Partial<Diagnostic> = {}): void {
-    this.add({ code, severity: "error", lossiness: "lost", message, ...extra });
+    this.add({ code, severity: "error", lossy: true, message, ...extra });
   }
 
   /**
@@ -130,7 +126,7 @@ export class DiagnosticBag {
 
   /** Diagnostics reporting real information loss. Drives `--strict` (exit code 2). */
   lossy(): Diagnostic[] {
-    return this.all().filter((d) => d.lossiness !== "lossless");
+    return this.all().filter((d) => d.lossy);
   }
 
   get size(): number {

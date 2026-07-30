@@ -5,11 +5,31 @@
  * boundary catches an adapter bug at the adapter rather than three packages later
  * as a confusing render failure.
  */
-import Ajv2020 from "ajv/dist/2020.js";
-import addFormats from "ajv-formats";
-import type { ValidateFunction } from "ajv";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import type { ValidateFunction } from "ajv";
+
+/**
+ * The parts of ajv this module uses. Written out rather than imported because ajv's
+ * CJS typings expose a namespace, not a constructable class, under NodeNext — and a
+ * three-method structural type is clearer here than fighting the interop.
+ */
+interface AjvInstance {
+  addVocabulary(keywords: string[]): unknown;
+  compile(schema: object): ValidateFunction;
+}
+
+// ajv and ajv-formats are CommonJS packages whose runtime export is `module.exports
+// = Class` with an added `.default` for interop. Under NodeNext, TypeScript sees the
+// namespace and neither `import X from` nor the namespace itself is constructable.
+// createRequire loads the real CJS value, which is unambiguous at runtime and does
+// not depend on which interop flag is set.
+const require = createRequire(import.meta.url);
+type Ajv2020Ctor = new (opts: Record<string, unknown>) => AjvInstance;
+const Ajv2020: Ajv2020Ctor = require("ajv/dist/2020.js").default ?? require("ajv/dist/2020.js");
+const addFormats: (ajv: AjvInstance) => void =
+  require("ajv-formats").default ?? require("ajv-formats");
 import type { MarkForgeDocument } from "./document.js";
 
 function loadSchema(): object {
@@ -36,8 +56,9 @@ function getValidator(): ValidateFunction {
   // MarkForge annotations (see scripts/add-salient-annotations.mjs). Declared so
   // strict mode still rejects a genuine typo.
   ajv.addVocabulary(["x-salient", "x-salientDoc"]);
-  validator = ajv.compile(loadSchema());
-  return validator;
+  const compiled = ajv.compile(loadSchema());
+  validator = compiled;
+  return compiled;
 }
 
 export interface ValidationResult {

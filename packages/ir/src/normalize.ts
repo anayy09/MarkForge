@@ -63,6 +63,9 @@ const SOFT_HYPHEN = "\u00ad";
  */
 const COLLAPSIBLE_WS = /[ \t\r\n\f\v\u2028\u2029]+/g;
 
+/** Normalisation is a deterministic rule, so its diagnostics say so (SPEC §2.5). */
+const NORMALIZER = { kind: "rule" as const, name: "ir.normalize", version: "0.1.0" };
+
 export interface NormalizeResult {
   diagnostics: DiagnosticBag;
   changed: number;
@@ -74,7 +77,7 @@ export function normalize(
   options: Partial<NormalizeOptions> = {},
 ): NormalizeResult {
   const opts = { ...DEFAULT_NORMALIZE_OPTIONS, ...options };
-  const diagnostics = new DiagnosticBag();
+  const diagnostics = new DiagnosticBag(NORMALIZER);
   let changed = 0;
 
   // Rule 5 first: NFC and soft hyphens. Doing this before any comparison means
@@ -89,7 +92,7 @@ export function normalize(
       diagnostics.info(
         DiagnosticCode.NORM_SOFT_HYPHEN_REMOVED,
         "Removed discretionary (soft) hyphen; it is a rendering hint, not content.",
-        { nodeId: typeof n.id === "string" ? n.id : undefined },
+        typeof n.id === "string" ? { nodeId: n.id } : {},
       );
     }
     if (after !== before) {
@@ -113,30 +116,38 @@ export function normalize(
     });
   }
 
-  // Rule 4: merge adjacent text siblings, then adjacent identical marks. Repeated
-  // to a fixed point because merging two marks can make their children adjacent and
-  // mergeable in turn — a single pass would leave `<em>a</em><em>b</em><em>c</em>`
-  // partly merged, which would break idempotency rather than just being untidy.
+  // Rules 3 and 4 run together to a fixed point.
+  //
+  // They interact, and the interaction is not obvious: trimming a block's edges can
+  // empty a text node, dropping that node can make two marks adjacent, and adjacent
+  // identical marks then merge. An earlier version ran merge-to-fixed-point *then*
+  // trimmed once, which meant `<em/>""<em/>` normalised to `<em/><em/>` on the first
+  // call and `<em/>` on the second — non-idempotent, and only caught because the
+  // property test generates empty nodes that no hand-written fixture would.
+  //
+  // Running all three in one convergence loop removes the ordering question.
   let passes = 0;
   for (;;) {
-    const before = changed;
-    changed += mergeAdjacent(root, diagnostics);
-    if (changed === before) break;
+    let delta = mergeAdjacent(root, diagnostics);
+    delta += dropEmptyText(root);
+    if (opts.trimTrailing) delta += trimBlockEdges(root);
+    changed += delta;
+    if (delta === 0) break;
     if (++passes > 32) {
-      // A merge that never converges is a bug in the merge predicate, not a document
-      // property. Bail loudly rather than hanging.
-      throw new Error("@markforge/ir: normalize did not converge after 32 merge passes");
+      // Non-convergence is a bug in a rule, not a property of the document. Bail
+      // loudly rather than hanging or silently returning a half-normalised tree.
+      throw new Error(
+        "@markforge/ir: normalize did not converge after 32 passes. This is a bug in a " +
+          "normalisation rule — one of them is undoing another's work.",
+      );
     }
   }
 
-  // Rule 1: empty paragraphs become spacing evidence on the following block.
+  // Rule 1 last: it only removes whole paragraphs, so it cannot expose new inline
+  // merges, and running it after trimming means a paragraph of pure whitespace has
+  // already become genuinely empty.
   if (opts.emptyParagraphsToSpacing) {
     changed += absorbEmptyParagraphs(root, sidecar, diagnostics);
-  }
-
-  // Rule 3, second half: trim at block boundaries. Last, so it sees merged text.
-  if (opts.trimTrailing) {
-    changed += trimBlockEdges(root);
   }
 
   return { diagnostics, changed };
@@ -175,17 +186,20 @@ function absorbEmptyParagraphs(
         continue;
       }
       if (pendingSpacing > 0 && typeof child.id === "string") {
-        const existing = sidecar[child.id] ?? {};
+        const existing = sidecar[child.id];
+        const previous = existing?.paragraph?.spaceBeforePt ?? 0;
         sidecar[child.id] = {
+          origin: existing?.origin ?? "directFormatting",
           ...existing,
-          spacingBeforePt: (existing.spacingBeforePt ?? 0) + pendingSpacing,
+          paragraph: { ...existing?.paragraph, spaceBeforePt: previous + pendingSpacing },
         };
         diagnostics.info(
           DiagnosticCode.NORM_EMPTY_PARAGRAPH_REMOVED,
-          `Removed ${pendingFrom.length} empty paragraph(s) used as spacing; recorded ` +
-            `${pendingSpacing}pt of spacingBefore on the following block. Whitespace used ` +
-            `as structure became structure.`,
-          { nodeId: child.id, data: { absorbed: pendingFrom, estimated: true } },
+          `Removed ${pendingFrom.length} empty paragraph(s) used as spacing; recorded an ` +
+            `estimated ${pendingSpacing}pt of spaceBefore on the following block. The value ` +
+            `is an estimate: an empty paragraph's height depends on its font size and line ` +
+            `spacing, which are not always known. Whitespace used as structure became structure.`,
+          { nodeId: child.id },
         );
       }
       pendingSpacing = 0;
@@ -198,7 +212,6 @@ function absorbEmptyParagraphs(
         DiagnosticCode.NORM_EMPTY_PARAGRAPH_REMOVED,
         `Removed ${pendingFrom.length} trailing empty paragraph(s) with no following ` +
           `block to carry the spacing.`,
-        { data: { absorbed: pendingFrom } },
       );
     }
     node.children = next;
@@ -248,7 +261,7 @@ function mergeAdjacent(root: AnyNode, diagnostics: DiagnosticBag): number {
         diagnostics.info(
           DiagnosticCode.NORM_MARKS_MERGED,
           `Merged adjacent identical ${child.type} marks.`,
-          { nodeId: typeof prev.id === "string" ? prev.id : undefined },
+          typeof prev.id === "string" ? { nodeId: prev.id } : {},
         );
         merges++;
         continue;
@@ -259,6 +272,29 @@ function mergeAdjacent(root: AnyNode, diagnostics: DiagnosticBag): number {
   };
   walk(root);
   return merges;
+}
+
+/**
+ * Removes zero-length text nodes.
+ *
+ * They carry no content but do separate their siblings, so leaving them in means
+ * two identical marks either side never merge. Part of the convergence loop rather
+ * than a one-off pass, because removing one can enable a merge that enables another.
+ */
+function dropEmptyText(root: AnyNode): number {
+  let removed = 0;
+  visit(root, (n) => {
+    const kids = n.children;
+    if (!Array.isArray(kids) || VERBATIM.has(n.type)) return;
+    const next = kids.filter(
+      (c) => !(c.type === "text" && typeof c["value"] === "string" && c["value"] === ""),
+    );
+    if (next.length !== kids.length) {
+      removed += kids.length - next.length;
+      n.children = next;
+    }
+  });
+  return removed;
 }
 
 const BLOCK_TYPES = new Set([
@@ -293,11 +329,9 @@ function trimBlockEdges(root: AnyNode): number {
         trimmed++;
       }
     }
-    // Text nodes emptied by trimming are dropped, so they do not survive as
-    // zero-length siblings that a second normalise pass would have to handle.
-    n.children = kids.filter(
-      (c) => !(c.type === "text" && typeof c["value"] === "string" && c["value"] === ""),
-    );
+    // Emptied text nodes are left for dropEmptyText, which runs in the same
+    // convergence loop. Deleting them here too would duplicate the rule in two
+    // places and make the loop's change count wrong.
   });
   return trimmed;
 }

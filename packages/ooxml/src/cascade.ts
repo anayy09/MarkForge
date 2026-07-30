@@ -22,6 +22,17 @@
  * it a heading.
  */
 import type { StyleEvidence, StyleDefinition, NumberingDefinition } from "@markforge/ir";
+
+/**
+ * Evidence without the required `origin` discriminator.
+ *
+ * Intermediate layers genuinely have no single origin — a value that came half from
+ * docDefaults and half from a direct run property is not one or the other. So the
+ * layers are assembled as partials and `origin` is set once, at the end, by
+ * `resolveStyle`, which is the only place that knows whether direct formatting
+ * actually contributed.
+ */
+export type PartialEvidence = Omit<StyleEvidence, "origin">;
 import {
   attr,
   boolVal,
@@ -108,55 +119,79 @@ function findDescendant(el: XmlElement, local: string): XmlElement | undefined {
   return undefined;
 }
 
-/** Reads `w:pPr` and `w:rPr` into evidence. Absent properties stay absent. */
-export function readProperties(pPr: XmlElement | undefined, rPr: XmlElement | undefined): StyleEvidence {
-  const e: StyleEvidence = {};
+/**
+ * Reads `w:pPr` and `w:rPr` into schema-shaped evidence. Absent properties stay
+ * absent — an unset value must not overwrite an inherited one.
+ *
+ * The shape is the schema's nested one (`font`, `paragraph`, `numbering`) rather
+ * than a flat bag. A flat shape is easier to write and was the first thing this
+ * file did; it drifted from the schema immediately and produced documents that
+ * failed validation, which is the drift docs/SPEC.md §2.2 exists to prevent.
+ */
+export function readProperties(
+  pPr: XmlElement | undefined,
+  rPr: XmlElement | undefined,
+): PartialEvidence {
+  const font: NonNullable<StyleEvidence["font"]> = {};
+  const paragraph: NonNullable<StyleEvidence["paragraph"]> = {};
+  const numbering: NonNullable<StyleEvidence["numbering"]> = {};
+  let outlineLevel: number | undefined;
 
   if (pPr) {
     const jc = val(childNamed(pPr, "jc"));
     if (jc) {
-      const map: Record<string, StyleEvidence["alignment"]> = {
-        left: "left",
-        start: "left",
-        center: "center",
-        right: "right",
-        end: "right",
-        both: "justify",
-        justify: "justify",
+      const map: Record<string, NonNullable<StyleEvidence["paragraph"]>["alignment"]> = {
+        left: "left", start: "left", center: "center",
+        right: "right", end: "right", both: "justify", justify: "justify",
       };
       const mapped = map[jc];
-      if (mapped) e.alignment = mapped;
+      if (mapped) paragraph.alignment = mapped;
     }
 
     const ind = childNamed(pPr, "ind");
     if (ind) {
       const left = attr(ind, "left") ?? attr(ind, "start");
+      const right = attr(ind, "right") ?? attr(ind, "end");
       const firstLine = attr(ind, "firstLine");
       const hanging = attr(ind, "hanging");
-      if (left !== undefined) e.indentLeftTwips = Number.parseInt(left, 10);
-      if (firstLine !== undefined) e.indentFirstLineTwips = Number.parseInt(firstLine, 10);
-      // A hanging indent is a negative first-line indent. Storing it as a separate
-      // field would make every consumer handle two representations of one concept.
-      if (hanging !== undefined) e.indentFirstLineTwips = -Number.parseInt(hanging, 10);
+      if (left !== undefined) paragraph.indentLeftPt = twipsToPt(Number.parseInt(left, 10));
+      if (right !== undefined) paragraph.indentRightPt = twipsToPt(Number.parseInt(right, 10));
+      if (firstLine !== undefined) paragraph.firstLineIndentPt = twipsToPt(Number.parseInt(firstLine, 10));
+      // A hanging indent is a negative first-line indent. Two representations of
+      // one concept would mean every consumer has to handle both.
+      if (hanging !== undefined) paragraph.firstLineIndentPt = -twipsToPt(Number.parseInt(hanging, 10));
     }
 
     const spacing = childNamed(pPr, "spacing");
     if (spacing) {
       const before = attr(spacing, "before");
       const after = attr(spacing, "after");
-      if (before !== undefined) e.spacingBeforePt = twipsToPt(Number.parseInt(before, 10));
-      if (after !== undefined) e.spacingAfterPt = twipsToPt(Number.parseInt(after, 10));
+      const line = attr(spacing, "line");
+      const lineRule = attr(spacing, "lineRule");
+      if (before !== undefined) paragraph.spaceBeforePt = twipsToPt(Number.parseInt(before, 10));
+      if (after !== undefined) paragraph.spaceAfterPt = twipsToPt(Number.parseInt(after, 10));
+      if (line !== undefined) {
+        const rule = lineRule === "exact" ? "exact" : lineRule === "atLeast" ? "atLeast" : "auto";
+        paragraph.lineSpacing = {
+          value: rule === "auto" ? Number.parseInt(line, 10) / 240 : twipsToPt(Number.parseInt(line, 10)),
+          rule,
+        };
+      }
     }
 
+    if (boolVal(childNamed(pPr, "keepNext")) !== undefined) paragraph.keepWithNext = true;
+    if (boolVal(childNamed(pPr, "keepLines")) !== undefined) paragraph.keepLines = true;
+    if (boolVal(childNamed(pPr, "pageBreakBefore")) !== undefined) paragraph.pageBreakBefore = true;
+
     const outline = intVal(childNamed(pPr, "outlineLvl"));
-    if (outline !== undefined) e.outlineLevel = outline;
+    if (outline !== undefined) outlineLevel = outline;
 
     const numPr = childNamed(pPr, "numPr");
     if (numPr) {
       const numId = val(childNamed(numPr, "numId"));
       const ilvl = intVal(childNamed(numPr, "ilvl"));
-      if (numId !== undefined) e.numberingId = numId;
-      if (ilvl !== undefined) e.numberingLevel = ilvl;
+      if (numId !== undefined) numbering.numId = numId;
+      if (ilvl !== undefined) numbering.ilvl = ilvl;
     }
   }
 
@@ -164,41 +199,72 @@ export function readProperties(pPr: XmlElement | undefined, rPr: XmlElement | un
     const rFonts = childNamed(rPr, "rFonts");
     if (rFonts) {
       const ascii = attr(rFonts, "ascii") ?? attr(rFonts, "hAnsi") ?? attr(rFonts, "cs");
-      if (ascii !== undefined) e.fontFamily = ascii;
+      if (ascii !== undefined) font.family = ascii;
     }
     const sz = intVal(childNamed(rPr, "sz"));
-    if (sz !== undefined) e.fontSizePt = halfPointsToPt(sz);
+    if (sz !== undefined) font.sizePt = halfPointsToPt(sz);
 
+    // OOXML has no numeric weight: w:b is a boolean. Mapping it to the CSS scale
+    // keeps the IR renderer-agnostic, and 700/400 are the values every consumer
+    // already understands.
     const b = boolVal(childNamed(rPr, "b"));
-    if (b !== undefined) e.bold = b;
+    if (b !== undefined) font.weight = b ? 700 : 400;
     const i = boolVal(childNamed(rPr, "i"));
-    if (i !== undefined) e.italic = i;
+    if (i !== undefined) font.italic = i;
+    const strike = boolVal(childNamed(rPr, "strike"));
+    if (strike !== undefined) font.strike = strike;
     const caps = boolVal(childNamed(rPr, "caps"));
-    if (caps !== undefined) e.allCaps = caps;
+    if (caps !== undefined) font.allCaps = caps;
     const smallCaps = boolVal(childNamed(rPr, "smallCaps"));
-    if (smallCaps !== undefined) e.smallCaps = smallCaps;
-
+    if (smallCaps !== undefined) font.smallCaps = smallCaps;
+    const u = childNamed(rPr, "u");
+    if (u) {
+      const uv = val(u);
+      if (uv !== "none") font.underline = uv ?? "single";
+    }
     const color = val(childNamed(rPr, "color"));
-    if (color !== undefined && color !== "auto") e.color = color;
-    const shd = childNamed(rPr, "shd");
-    const fill = shd ? attr(shd, "fill") : undefined;
-    if (fill !== undefined && fill !== "auto") e.backgroundColor = fill;
+    if (color !== undefined && color !== "auto") font.color = color;
+    const highlight = val(childNamed(rPr, "highlight"));
+    if (highlight !== undefined && highlight !== "none") font.highlight = highlight;
+    else {
+      const shd = childNamed(rPr, "shd");
+      const fill = shd ? attr(shd, "fill") : undefined;
+      if (fill !== undefined && fill !== "auto") font.highlight = fill;
+    }
   }
 
-  return e;
+  const out: PartialEvidence = {};
+  if (Object.keys(font).length) out.font = font;
+  if (Object.keys(paragraph).length) out.paragraph = paragraph;
+  if (Object.keys(numbering).length) out.numbering = numbering;
+  if (outlineLevel !== undefined) out.outlineLevel = outlineLevel;
+  return out;
 }
 
 /**
  * Layers evidence. Later arguments win, but only where they actually specify a
  * value — an absent property must not erase an inherited one, which is the
  * difference between a cascade and a replacement.
+ *
+ * The merge is one level deep, matching the schema's shape: `font`, `paragraph`,
+ * and `numbering` are merged field by field rather than replaced wholesale. A
+ * shallow merge would let a style that sets only `font.family` wipe out an
+ * inherited `font.sizePt`, which is the same bug as walking the chain backwards.
  */
-export function layer(...layers: (StyleEvidence | undefined)[]): StyleEvidence {
-  const out: StyleEvidence = {};
+export function layer(...layers: (PartialEvidence | undefined)[]): PartialEvidence {
+  const out: PartialEvidence = {};
+  const groups = ["font", "paragraph", "numbering", "layout", "cell"] as const;
   for (const l of layers) {
     if (!l) continue;
     for (const [k, v] of Object.entries(l)) {
-      if (v !== undefined) out[k] = v;
+      if (v === undefined) continue;
+      if ((groups as readonly string[]).includes(k) && typeof v === "object" && v !== null) {
+        const prev = (out as Record<string, unknown>)[k];
+        (out as Record<string, unknown>)[k] =
+          prev && typeof prev === "object" ? { ...(prev as object), ...(v as object) } : { ...(v as object) };
+      } else {
+        (out as Record<string, unknown>)[k] = v;
+      }
     }
   }
   return out;
@@ -206,7 +272,7 @@ export function layer(...layers: (StyleEvidence | undefined)[]): StyleEvidence {
 
 export interface CascadeInput {
   styles: Record<string, StyleDefinition>;
-  docDefaults: StyleEvidence;
+  docDefaults: PartialEvidence;
   theme: ThemeFonts;
   numbering: Record<string, NumberingDefinition>;
 }
@@ -219,7 +285,7 @@ export interface ResolveRequest {
   /** Direct `w:rPr` on the run, or the paragraph mark's rPr. */
   rPr?: XmlElement | undefined;
   /** Table style conditional formatting, already selected for the band. */
-  tableConditional?: StyleEvidence | undefined;
+  tableConditional?: PartialEvidence | undefined;
 }
 
 export interface ResolvedStyle {
@@ -274,24 +340,34 @@ export function resolveStyle(input: CascadeInput, req: ResolveRequest): Resolved
   // Layer 4: numbering level properties. Read after styles because a numbering
   // definition's indent overrides the paragraph style's, which is why lists in Word
   // ignore the style's left indent.
-  let numberingLayer: StyleEvidence | undefined;
+  let numberingLayer: PartialEvidence | undefined;
   const direct = readProperties(req.pPr, req.rPr);
-  const numId = direct.numberingId ?? styleLayers.reduce<string | undefined>(
-    (acc, l) => l?.numberingId ?? acc,
-    undefined,
-  );
+  const numId =
+    direct.numbering?.numId ??
+    styleLayers.reduce<string | undefined>((acc, l) => l?.numbering?.numId ?? acc, undefined);
   const ilvl =
-    direct.numberingLevel ??
-    styleLayers.reduce<number | undefined>((acc, l) => l?.numberingLevel ?? acc, undefined);
+    direct.numbering?.ilvl ??
+    styleLayers.reduce<number | undefined>((acc, l) => l?.numbering?.ilvl ?? acc, undefined);
   if (numId !== undefined) {
     const def = input.numbering[numId];
-    const lvl = def?.levels.find((l) => l.level === (ilvl ?? 0));
-    if (lvl?.indentLeftTwips !== undefined) {
-      numberingLayer = { indentLeftTwips: lvl.indentLeftTwips };
+    const lvl = def?.levels.find((l) => l.ilvl === (ilvl ?? 0));
+    if (lvl) {
+      numberingLayer = {
+        numbering: {
+          numId,
+          ilvl: ilvl ?? 0,
+          format: lvl.format,
+          ...(lvl.levelText !== undefined ? { levelText: lvl.levelText } : {}),
+          ...(lvl.startAt !== undefined ? { startAt: lvl.startAt } : {}),
+        },
+        ...(lvl.indentLeftPt !== undefined
+          ? { paragraph: { indentLeftPt: lvl.indentLeftPt } }
+          : {}),
+      };
     }
   }
 
-  const evidence = layer(
+  const merged = layer(
     input.docDefaults, // 1
     ...styleLayers, // 2
     req.tableConditional, // 3
@@ -302,25 +378,40 @@ export function resolveStyle(input: CascadeInput, req: ResolveRequest): Resolved
   // Theme font resolution happens last, on the winning value: resolving per layer
   // would resolve tokens that a later layer overrides anyway.
   let unresolvedThemeFont = false;
-  if (evidence.fontFamily) {
-    const resolved = resolveThemeFont(evidence.fontFamily, input.theme);
+  if (merged.font?.family) {
+    const resolved = resolveThemeFont(merged.font.family, input.theme);
     if (resolved !== undefined) {
       if (resolved.startsWith("+")) unresolvedThemeFont = true;
-      evidence.fontFamily = resolved;
+      merged.font = { ...merged.font, family: resolved };
     }
   }
 
+  // `origin` records the innermost cascade level that actually supplied a value.
+  // `directFormatting` is the documented signal that heading inference is needed
+  // (schema: StyleEvidence.origin), so it is set only when direct w:pPr/w:rPr
+  // genuinely contributed — claiming it whenever a run has properties would make
+  // every document look hand-formatted and defeat the signal.
+  const origin: StyleEvidence["origin"] = Object.keys(direct).length > 0
+    ? "directFormatting"
+    : "styleCascade";
+
+  // `origin` last, not first: style definitions carry their own `origin` and it
+  // rides along through `layer`, so spreading `merged` afterwards would let a style
+  // definition's "styleCascade" overwrite the computed value and permanently hide
+  // direct formatting from inference.
+  const evidence: StyleEvidence = { ...merged, origin };
   if (req.styleId !== undefined) {
     const def = input.styles[req.styleId];
-    evidence.styleId = req.styleId;
-    if (def?.name) evidence.styleName = def.name;
+    evidence.sourceStyleId = req.styleId;
+    if (def?.name) evidence.sourceStyleName = def.name;
+    if (chain.length > 0) evidence.basedOn = [...chain].reverse();
   }
 
   return { evidence, chain, brokenChain, unresolvedThemeFont };
 }
 
 /** Parses `w:docDefaults` into a base evidence layer. */
-export function parseDocDefaults(stylesRoot: XmlElement | undefined): StyleEvidence {
+export function parseDocDefaults(stylesRoot: XmlElement | undefined): PartialEvidence {
   if (!stylesRoot) return {};
   const docDefaults = childNamed(stylesRoot, "docDefaults");
   if (!docDefaults) return {};
@@ -345,7 +436,9 @@ export function parseStyles(stylesRoot: XmlElement | undefined): Record<string, 
       styleId,
       name,
       type,
-      evidence: readProperties(childNamed(style, "pPr"), childNamed(style, "rPr")),
+      // A style definition's own evidence originates from the style cascade by
+      // construction — it *is* a cascade level.
+      evidence: { origin: "styleCascade", ...readProperties(childNamed(style, "pPr"), childNamed(style, "rPr")) },
     };
     const basedOn = val(childNamed(style, "basedOn"));
     if (basedOn !== undefined) def.basedOn = basedOn;

@@ -81,11 +81,11 @@ describe("normalize", () => {
 
     expect(tree.children).toHaveLength(1);
     const survivor = (tree.children as AnyNode[])[0]!;
-    expect(sidecar[survivor.id as string]?.spacingBeforePt).toBe(24);
+    expect(sidecar[survivor.id as string]?.paragraph?.spaceBeforePt).toBe(24);
     const diag = diagnostics.all().find((d) => d.code === "MF-NORM-0001");
     expect(diag).toBeDefined();
-    // The estimate is marked as an estimate rather than presented as measurement.
-    expect(diag!.data?.["estimated"]).toBe(true);
+    // The estimate is described as an estimate rather than presented as measurement.
+    expect(diag!.message).toMatch(/estimate/i);
   });
 
   it("trims block edges without touching interior spacing", () => {
@@ -146,14 +146,37 @@ describe("normalize idempotency (brief §3.5)", () => {
     );
   });
 
-  it("normalisation preserves visible text up to whitespace collapsing", () => {
+  // Stated per block, not per document. Rule 3 trims at *block boundaries*, so
+  // concatenating every block's text into one string and comparing that is not the
+  // invariant — a heading of " !" followed by a heading of "!" legitimately becomes
+  // "!" and "!", and the naive whole-document comparison reads that as "! !" losing
+  // a space. The first version of this test made exactly that mistake and failed on
+  // correct behaviour.
+  it("preserves each block's visible text up to whitespace collapsing and edge trimming", () => {
+    const blockTexts = (tree: AnyNode): string[] =>
+      (tree.children as AnyNode[]).map((b) => textContent(b).replace(/\s+/g, " ").trim());
+
     fc.assert(
       fc.property(document, (tree) => {
-        const before = textContent(tree).replace(/\s+/g, " ").trim();
+        const before = blockTexts(tree);
         const copy = structuredClone(tree);
         normalize(copy);
-        const after = textContent(copy).replace(/\s+/g, " ").trim();
-        expect(after).toBe(before);
+        // Empty paragraphs are deliberately removed (rule 1), so compare only the
+        // blocks that carried visible text in the first place.
+        expect(blockTexts(copy).filter((t) => t !== "")).toEqual(before.filter((t) => t !== ""));
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("never invents or drops non-whitespace characters", () => {
+    fc.assert(
+      fc.property(document, (tree) => {
+        const strip = (n: AnyNode): string => textContent(n).replace(/\s+/g, "");
+        const before = strip(tree);
+        const copy = structuredClone(tree);
+        normalize(copy);
+        expect(strip(copy)).toBe(before);
       }),
       { numRuns: 300 },
     );

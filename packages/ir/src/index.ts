@@ -50,7 +50,6 @@ export {
 export type {
   Diagnostic,
   Severity,
-  Lossiness,
   DiagnosticCodeValue,
 } from "./diagnostics.js";
 
@@ -68,7 +67,6 @@ export type {
   StyleEvidence,
   StyleDefinition,
   NumberingDefinition,
-  NumberingLevel,
   SourceFile,
   Resource,
   Furniture,
@@ -77,11 +75,10 @@ export type {
   NodeId,
   SourceId,
   ResourceId,
-  StyleId,
-  NumberingId,
 } from "./document.js";
 
 export { normalize, DEFAULT_NORMALIZE_OPTIONS } from "./normalize.js";
+export { styleEvidence } from "./document.js";
 export type { NormalizeOptions, NormalizeResult } from "./normalize.js";
 
 export { validateDocument, assertValidDocument } from "./validate.js";

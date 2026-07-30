@@ -1022,6 +1022,10 @@
         },
         "position": {
           "$ref": "#/$defs/Position"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/Sha256Hex",
+          "description": "Digest of this node's subtree (docs/SPEC.md section 2.7). Present when a consumer needs change detection; never salient, since it is derived from the node's own content."
         }
       }
     },

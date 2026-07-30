@@ -331,31 +331,69 @@ for (const d of ["docs/SPEC.md", "docs/PRIOR_ART.md", "docs/CORPUS.md", "docs/TE
 if (!/fixtures\/` is not covered|fixtures\/ is not covered/.test(readme)) fail("README.md does not scope the licence away from fixtures/");
 ok("README.md links all six deliverables, discloses pre-implementation status, and scopes the licence");
 
-// --- 14. No implementation code leaked into Phase 0.
-// `scripts/` is exempt because it holds these Phase 0 checks themselves, and a check that
-// forbids its own existence is not a useful check. The exemption is narrow on purpose: any
-// package manifest anywhere still fails, and so does any code under packages/ or src/, which
-// is where implementation would actually appear.
-const stray = [];
-const manifests = [];
-const walk = (dir) => {
-  for (const e of readdirSync(join(REPO, dir), { withFileTypes: true })) {
-    if (e.name === "node_modules" || e.name === ".git") continue;
-    const p = dir === "." ? e.name : dir + "/" + e.name;
-    if (e.isDirectory()) walk(p);
-    else if (e.name === "package.json" || e.name === "pnpm-lock.yaml") manifests.push(p);
-    else if (/\.(ts|tsx|js|mjs|cjs)$/.test(e.name) && !p.startsWith("scripts/")) stray.push(p);
-  }
-};
-walk(".");
-if (manifests.length) fail(`Phase 0 should contain no package manifests, found: ${manifests.join(", ")}`);
-if (stray.length) fail(`Phase 0 should contain no implementation code, found: ${stray.join(", ")}`);
-if (!manifests.length && !stray.length) {
-  ok("no implementation code or package manifests outside scripts/ (Phase 0 is docs + schemas only)");
-}
+// --- 14. Phase 1 architecture invariants.
+//
+// The Phase 0 version of this check asserted the repository contained *no* code.
+// That was right then and is wrong now: Phase 1's whole job is to add code. It is
+// replaced rather than deleted, because the underlying question — "is the package
+// boundary still real?" — outlives the phase.
 
-// The exemption must not become a hiding place: everything in scripts/ has to be a check or a
-// documented inspection tool, listed in scripts/README.md.
+const PHASE1_PACKAGES = [
+  "ir", "ooxml", "infer", "adapters-docx", "adapters-md",
+  "render-md", "render-docx", "fidelity", "core", "cli",
+];
+
+// 14a. Every package is private until publication is decided (OPEN_QUESTIONS §5),
+// so an accidental `npm publish` is impossible rather than merely unlikely.
+const notPrivate = [];
+for (const name of PHASE1_PACKAGES) {
+  const manifestPath = `packages/${name}/package.json`;
+  if (!existsSync(join(REPO, manifestPath))) { fail(`missing ${manifestPath}`); continue; }
+  const manifest = JSON.parse(read(manifestPath));
+  if (manifest.private !== true) notPrivate.push(name);
+  if (manifest.license !== "Apache-2.0") fail(`${manifestPath}: license must be Apache-2.0 (ADR-0008)`);
+}
+if (notPrivate.length) fail(`packages not marked private: ${notPrivate.join(", ")}`);
+else ok(`all ${PHASE1_PACKAGES.length} packages are private and Apache-2.0 licensed`);
+
+// 14b. The dependency rule from ADR-0009 and SPEC §6: adapters and renderers must
+// not reach the LLM. Enforced as a build failure rather than a policy, because a
+// policy that is only written down is a preference.
+const forbidden = [];
+for (const name of PHASE1_PACKAGES) {
+  if (!name.startsWith("adapters-") && !name.startsWith("render-")) continue;
+  const manifest = JSON.parse(read(`packages/${name}/package.json`));
+  for (const dep of Object.keys(manifest.dependencies ?? {})) {
+    if (dep === "@markforge/llm") forbidden.push(`${name} -> ${dep}`);
+  }
+}
+if (forbidden.length) fail(`adapters/renderers must not depend on the LLM layer: ${forbidden.join(", ")}`);
+else ok("no adapter or renderer depends on @markforge/llm (ADR-0009)");
+
+// 14c. The IR package must not depend on any adapter or renderer. The IR is the
+// contract between them; a dependency in this direction would make it one of them.
+const irManifest = JSON.parse(read("packages/ir/package.json"));
+const irDeps = Object.keys(irManifest.dependencies ?? {});
+const irViolations = irDeps.filter((d) => /^@markforge\/(adapters|render)-/.test(d));
+if (irViolations.length) fail(`@markforge/ir must not depend on adapters or renderers: ${irViolations.join(", ")}`);
+else ok("@markforge/ir depends on no adapter or renderer, so the contract stays neutral");
+
+// 14d. Generated files must not be hand-edited: they carry a banner saying so, and
+// a missing banner means someone removed it to make an edit look legitimate.
+for (const generated of ["packages/ir/src/generated/ir.ts", "packages/core/src/generated/config.ts"]) {
+  if (!existsSync(join(REPO, generated))) { fail(`missing generated file ${generated}`); continue; }
+  const text = read(generated);
+  if (!/GENERATED FILE — DO NOT EDIT/.test(text)) fail(`${generated} has lost its do-not-edit banner`);
+  if (!/Regenerate: pnpm codegen/.test(text)) fail(`${generated} does not say how to regenerate it`);
+}
+ok("generated type modules carry their do-not-edit banner and regeneration command");
+
+// 14e. Build output must never be committed.
+const distTracked = spawnSync("git", ["ls-files", "packages/*/dist"], { cwd: REPO, encoding: "utf8" });
+if ((distTracked.stdout ?? "").trim().length > 0) fail("build output under packages/*/dist is tracked by git");
+else ok("no build output is tracked by git");
+
+// 14f. Everything in scripts/ is a check or a documented tool.
 const scriptFiles = readdirSync(join(REPO, "scripts")).filter((f) => f !== "README.md");
 const scriptsReadme = read("scripts/README.md");
 const undocumented = scriptFiles.filter((f) => !scriptsReadme.includes(f));

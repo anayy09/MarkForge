@@ -8,12 +8,43 @@
 import { unzipSync, zipSync, strFromU8, strToU8 } from "fflate";
 import { parseXml, type XmlElement } from "./xml.js";
 
+/**
+ * The fixed timestamp stamped on every entry, so archives are byte-reproducible.
+ *
+ * Constructed from **local** fields, deliberately. ZIP inherits the MS-DOS date
+ * format, and encoders — fflate included — read `getFullYear`/`getMonth`/`getDate`,
+ * which are local-time getters. A UTC instant such as `Date.UTC(1980, 0, 1)`
+ * therefore encodes differently depending on the machine's timezone: west of
+ * Greenwich it lands in 1979 and is rejected outright, and everywhere else it
+ * silently produces different bytes per timezone. That is precisely the
+ * non-determinism this constant exists to remove.
+ *
+ * Using the local-field constructor makes the encoded value identical on every
+ * machine. 1980-01-02 rather than 01-01 leaves a day of margin so no offset can
+ * push it below the format's floor.
+ */
+export const ZIP_EPOCH = new Date(1980, 0, 2, 0, 0, 0, 0);
+
 export class OpcPackage {
   private readonly entries: Record<string, Uint8Array>;
   private readonly xmlCache = new Map<string, XmlElement>();
 
   private constructor(entries: Record<string, Uint8Array>) {
     this.entries = entries;
+  }
+
+  /**
+   * An empty package, for writers.
+   *
+   * Exposed here rather than letting each writer reach for a zip library so that
+   * the determinism rules in `toBytes` — sorted entries, zeroed mtime — apply to
+   * everything MarkForge produces, not just to what happens to go through this
+   * class.
+   */
+  static create(entries: Record<string, Uint8Array | string> = {}): OpcPackage {
+    const pkg = new OpcPackage({});
+    for (const [path, data] of Object.entries(entries)) pkg.set(path, data);
+    return pkg;
   }
 
   static open(bytes: Uint8Array): OpcPackage {
@@ -77,15 +108,24 @@ export class OpcPackage {
   /**
    * Serialises back to a ZIP.
    *
-   * `mtime: 0` and level 6 are deliberate: docs/SPEC.md §1 requires byte-identical
-   * output for identical input, and ZIP stores a modification time per entry. With
-   * the wall clock in there, the same document written twice produces different
-   * bytes and every determinism test fails for a reason unrelated to content.
+   * Entries are sorted and every timestamp is pinned, because docs/SPEC.md §1
+   * requires byte-identical output for identical input and ZIP stores a
+   * modification time per entry. With the wall clock in there, writing the same
+   * document twice produces different bytes and every determinism test fails for a
+   * reason that has nothing to do with content.
+   *
+   * The timestamp is 1980-01-01, not 0: ZIP inherits MS-DOS's date format, which
+   * has no representation for anything earlier, and fflate rightly refuses to
+   * encode one. This is the conventional epoch for reproducible archives.
+   *
+   * Passed as a Date rather than a number because fflate reads a numeric mtime as
+   * seconds, so handing it milliseconds silently lands in the year 11970 and trips
+   * the same range check from the other direction.
    */
   toBytes(): Uint8Array {
     const ordered: Record<string, Uint8Array> = {};
     for (const key of Object.keys(this.entries).sort()) ordered[key] = this.entries[key]!;
-    return zipSync(ordered, { level: 6, mtime: 0 });
+    return zipSync(ordered, { level: 6, mtime: ZIP_EPOCH });
   }
 }
 

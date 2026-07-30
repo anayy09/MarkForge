@@ -55,8 +55,27 @@ const base = { styles, docDefaults, theme, numbering: {} };
 describe("style cascade", () => {
   it("applies docDefaults as the base layer", () => {
     const r = resolveStyle(base, {});
-    expect(r.evidence.fontSizePt).toBe(10);
-    expect(r.evidence.spacingAfterPt).toBe(6);
+    expect(r.evidence.font?.sizePt).toBe(10);
+    expect(r.evidence.paragraph?.spaceAfterPt).toBe(6);
+    // No named style and no direct properties: the values came from the cascade.
+    expect(r.evidence.origin).toBe("styleCascade");
+  });
+
+  // `origin` is what tells @markforge/infer whether a big bold paragraph is a
+  // styled heading or someone formatting by hand. Claiming "directFormatting"
+  // whenever a run has any properties would destroy the signal.
+  it("reports directFormatting only when direct properties contributed", () => {
+    expect(resolveStyle(base, { styleId: "Heading1" }).evidence.origin).toBe("styleCascade");
+    const rPr = parseXml(`<w:rPr xmlns:w="x"><w:sz w:val="48"/></w:rPr>`);
+    expect(resolveStyle(base, { styleId: "Heading1", rPr }).evidence.origin).toBe("directFormatting");
+  });
+
+  it("records the resolved style name and inheritance chain as evidence", () => {
+    const r = resolveStyle(base, { styleId: "Heading2" });
+    expect(r.evidence.sourceStyleId).toBe("Heading2");
+    expect(r.evidence.sourceStyleName).toBe("heading 2");
+    // basedOn is root-last per the schema's description.
+    expect(r.evidence.basedOn).toEqual(["Heading2", "Heading1", "Normal"]);
   });
 
   // The classic OOXML bug: walking the basedOn chain in the wrong direction makes
@@ -64,22 +83,22 @@ describe("style cascade", () => {
   it("walks basedOn root-first so the nearest style wins", () => {
     const r = resolveStyle(base, { styleId: "Heading1" });
     expect(r.chain).toEqual(["Normal", "Heading1"]);
-    expect(r.evidence.fontSizePt).toBe(16);
-    expect(r.evidence.bold).toBe(true);
+    expect(r.evidence.font?.sizePt).toBe(16);
+    expect(r.evidence.font?.weight).toBe(700);
   });
 
   it("inherits through a two-step chain", () => {
     const r = resolveStyle(base, { styleId: "Heading2" });
     expect(r.chain).toEqual(["Normal", "Heading1", "Heading2"]);
-    expect(r.evidence.fontSizePt).toBe(14);
+    expect(r.evidence.font?.sizePt).toBe(14);
     // bold is inherited from Heading1, which Heading2 does not override
-    expect(r.evidence.bold).toBe(true);
+    expect(r.evidence.font?.weight).toBe(700);
     expect(r.evidence.outlineLevel).toBe(1);
   });
 
   it("resolves theme font tokens against theme1.xml", () => {
-    expect(resolveStyle(base, { styleId: "Heading1" }).evidence.fontFamily).toBe("Calibri Light");
-    expect(resolveStyle(base, { styleId: "Normal" }).evidence.fontFamily).toBe("Calibri");
+    expect(resolveStyle(base, { styleId: "Heading1" }).evidence.font?.family).toBe("Calibri Light");
+    expect(resolveStyle(base, { styleId: "Normal" }).evidence.font?.family).toBe("Calibri");
   });
 
   // Found by inspecting a real machine-generated file (docs/CORPUS.md §2.15): no
@@ -88,29 +107,29 @@ describe("style cascade", () => {
     const noTheme = { ...base, theme: {} };
     const r = resolveStyle(noTheme, { styleId: "Heading1" });
     expect(r.unresolvedThemeFont).toBe(true);
-    expect(r.evidence.fontFamily).toBe("+mj-lt");
-    expect(r.evidence.fontSizePt).toBe(16);
+    expect(r.evidence.font?.family).toBe("+mj-lt");
+    expect(r.evidence.font?.sizePt).toBe(16);
   });
 
   it("direct run properties beat the style chain", () => {
     const rPr = parseXml(`<w:rPr xmlns:w="x"><w:sz w:val="48"/><w:b w:val="0"/></w:rPr>`);
     const r = resolveStyle(base, { styleId: "Heading1", rPr });
-    expect(r.evidence.fontSizePt).toBe(24);
-    expect(r.evidence.bold).toBe(false);
+    expect(r.evidence.font?.sizePt).toBe(24);
+    expect(r.evidence.font?.weight).toBe(400);
   });
 
   it("an absent property does not erase an inherited one", () => {
     const rPr = parseXml(`<w:rPr xmlns:w="x"><w:i/></w:rPr>`);
     const r = resolveStyle(base, { styleId: "Heading1", rPr });
-    expect(r.evidence.italic).toBe(true);
-    expect(r.evidence.bold).toBe(true);
-    expect(r.evidence.fontSizePt).toBe(16);
+    expect(r.evidence.font?.italic).toBe(true);
+    expect(r.evidence.font?.weight).toBe(700);
+    expect(r.evidence.font?.sizePt).toBe(16);
   });
 
   it("reports a missing style rather than throwing", () => {
     const r = resolveStyle(base, { styleId: "NoSuchStyle" });
     expect(r.brokenChain).toBe(true);
-    expect(r.evidence.fontSizePt).toBe(10);
+    expect(r.evidence.font?.sizePt).toBe(10);
   });
 
   it("terminates on a cyclic basedOn chain", () => {
@@ -123,15 +142,15 @@ describe("style cascade", () => {
     // false makes every bold run come out plain.
     const on = parseXml(`<w:rPr xmlns:w="x"><w:b/></w:rPr>`);
     const off = parseXml(`<w:rPr xmlns:w="x"><w:b w:val="0"/></w:rPr>`);
-    expect(resolveStyle(base, { rPr: on }).evidence.bold).toBe(true);
-    expect(resolveStyle(base, { rPr: off }).evidence.bold).toBe(false);
+    expect(resolveStyle(base, { rPr: on }).evidence.font?.weight).toBe(700);
+    expect(resolveStyle(base, { rPr: off }).evidence.font?.weight).toBe(400);
   });
 
   it("resolves a hanging indent as a negative first-line indent", () => {
     const pPr = parseXml(`<w:pPr xmlns:w="x"><w:ind w:left="720" w:hanging="360"/></w:pPr>`);
     const r = resolveStyle(base, { pPr });
-    expect(r.evidence.indentLeftTwips).toBe(720);
-    expect(r.evidence.indentFirstLineTwips).toBe(-360);
+    expect(r.evidence.paragraph?.indentLeftPt).toBe(36);
+    expect(r.evidence.paragraph?.firstLineIndentPt).toBe(-18);
   });
 });
 
@@ -199,10 +218,35 @@ describe("numbering", () => {
   });
 
   it("carries the level indent from the numbering definition", () => {
-    expect(resolveListItem(numbering, "1", 0)?.indentLeftTwips).toBe(720);
+    expect(resolveListItem(numbering, "1", 0)?.indentLeftPt).toBe(36);
   });
 
   it("resolves nested levels", () => {
     expect(resolveListItem(numbering, "1", 1)?.format).toBe("lowerLetter");
+  });
+});
+
+describe("package determinism", () => {
+  it("writes byte-identical archives across calls", async () => {
+    const { OpcPackage } = await import("../src/package.js");
+    const build = () => OpcPackage.create({ "a.xml": "<a/>", "b.xml": "<b/>" }).toBytes();
+    expect(Buffer.from(build())).toEqual(Buffer.from(build()));
+  });
+
+  it("orders entries by path regardless of insertion order", async () => {
+    const { OpcPackage } = await import("../src/package.js");
+    const forward = OpcPackage.create({ "a.xml": "<a/>", "z.xml": "<z/>" }).toBytes();
+    const reverse = OpcPackage.create({ "z.xml": "<z/>", "a.xml": "<a/>" }).toBytes();
+    expect(Buffer.from(forward)).toEqual(Buffer.from(reverse));
+  });
+
+  // The timestamp must be built from local fields: ZIP encoders read local-time
+  // getters, so a UTC instant produces different bytes per timezone — and west of
+  // Greenwich, Date.UTC(1980,0,1) falls below the format's floor and is rejected.
+  it("uses a timestamp whose local fields are fixed, so bytes do not vary by timezone", async () => {
+    const { ZIP_EPOCH } = await import("../src/package.js");
+    expect(ZIP_EPOCH.getFullYear()).toBe(1980);
+    expect(ZIP_EPOCH.getMonth()).toBe(0);
+    expect(ZIP_EPOCH.getDate()).toBe(2);
   });
 });

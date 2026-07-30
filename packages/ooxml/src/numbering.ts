@@ -14,7 +14,13 @@
  *                -> w:abstractNumId
  *   w:abstractNum[abstractNumId] -> w:lvl[ilvl]
  */
-import type { NumberingDefinition, NumberingLevel } from "@markforge/ir";
+import type { NumberingDefinition } from "@markforge/ir";
+
+/** One level of a numbering definition, as the schema declares it. */
+export type NumberingLevel = NumberingDefinition["levels"][number];
+
+/** Twentieths of a point to points. */
+const twipsToPt = (n: number): number => n / 20;
 import { attr, childNamed, childrenNamed, intVal, val, type XmlElement } from "./xml.js";
 
 /**
@@ -34,25 +40,28 @@ export function isOrderedFormat(numFmt: string | undefined): boolean {
 }
 
 function parseLevel(lvl: XmlElement): NumberingLevel {
-  const level = Number.parseInt(attr(lvl, "ilvl") ?? "0", 10);
+  const ilvl = Number.parseInt(attr(lvl, "ilvl") ?? "0", 10);
   const numFmt = val(childNamed(lvl, "numFmt"));
   const lvlText = val(childNamed(lvl, "lvlText"));
   const start = intVal(childNamed(lvl, "start"));
+  const isLgl = childNamed(lvl, "isLgl");
 
   const pPr = childNamed(lvl, "pPr");
   const ind = pPr ? childNamed(pPr, "ind") : undefined;
   const leftRaw = ind ? (attr(ind, "left") ?? attr(ind, "start")) : undefined;
+  const hangingRaw = ind ? attr(ind, "hanging") : undefined;
 
-  const out: NumberingLevel = {
-    level,
-    format: numFmt ?? "bullet",
-    isOrdered: isOrderedFormat(numFmt),
-  };
-  if (lvlText !== undefined) out.text = lvlText;
-  if (start !== undefined) out.start = start;
+  const out: NumberingLevel = { ilvl, format: numFmt ?? "bullet" };
+  if (lvlText !== undefined) out.levelText = lvlText;
+  if (start !== undefined) out.startAt = start;
+  if (isLgl) out.isLegal = true;
   if (leftRaw !== undefined) {
     const n = Number.parseInt(leftRaw, 10);
-    if (Number.isFinite(n)) out.indentLeftTwips = n;
+    if (Number.isFinite(n)) out.indentLeftPt = twipsToPt(n);
+  }
+  if (hangingRaw !== undefined) {
+    const n = Number.parseInt(hangingRaw, 10);
+    if (Number.isFinite(n)) out.hangingIndentPt = twipsToPt(n);
   }
   return out;
 }
@@ -86,27 +95,27 @@ export function parseNumbering(numberingRoot: XmlElement | undefined): ParsedNum
 
     for (const ov of childrenNamed(num, "lvlOverride")) {
       const ilvl = Number.parseInt(attr(ov, "ilvl") ?? "0", 10);
-      const idx = levels.findIndex((l) => l.level === ilvl);
+      const idx = levels.findIndex((l) => l.ilvl === ilvl);
       const replacement = childNamed(ov, "lvl");
       const startOverride = intVal(childNamed(ov, "startOverride"));
 
       if (replacement) {
         const parsed = parseLevel(replacement);
-        parsed.level = ilvl;
+        parsed.ilvl = ilvl;
         if (idx === -1) levels.push(parsed);
         else levels[idx] = parsed;
       }
       if (startOverride !== undefined) {
-        const target = levels.findIndex((l) => l.level === ilvl);
+        const target = levels.findIndex((l) => l.ilvl === ilvl);
         if (target === -1) {
-          levels.push({ level: ilvl, format: "decimal", isOrdered: true, start: startOverride });
+          levels.push({ ilvl, format: "decimal", startAt: startOverride });
         } else {
-          levels[target] = { ...levels[target]!, start: startOverride };
+          levels[target] = { ...levels[target]!, startAt: startOverride };
         }
       }
     }
 
-    levels.sort((a, b) => a.level - b.level);
+    levels.sort((a, b) => a.ilvl - b.ilvl);
     const def: NumberingDefinition = { numberingId: numId, levels };
     if (abstractId !== undefined) def.abstractId = abstractId;
     definitions[numId] = def;
@@ -122,7 +131,7 @@ export interface ListItemInfo {
   format: string;
   /** Present when this item restarts numbering (w:startOverride). */
   restartsAt?: number;
-  indentLeftTwips?: number;
+  indentLeftPt?: number;
 }
 
 /**
@@ -142,16 +151,18 @@ export function resolveListItem(
   const def = numbering.definitions[numberingId];
   if (!def) return undefined;
   const ilvl = level ?? 0;
-  const lvl = def.levels.find((l) => l.level === ilvl) ?? def.levels[0];
+  const lvl = def.levels.find((l) => l.ilvl === ilvl) ?? def.levels[0];
   if (!lvl) return undefined;
 
   const info: ListItemInfo = {
     numberingId,
     level: ilvl,
-    isOrdered: lvl.isOrdered,
+    // The decision this whole module exists for: ordered-vs-unordered comes from
+    // numFmt, never from the paragraph's style name.
+    isOrdered: isOrderedFormat(lvl.format),
     format: lvl.format,
   };
-  if (lvl.start !== undefined && lvl.start !== 1) info.restartsAt = lvl.start;
-  if (lvl.indentLeftTwips !== undefined) info.indentLeftTwips = lvl.indentLeftTwips;
+  if (lvl.startAt !== undefined && lvl.startAt !== 1) info.restartsAt = lvl.startAt;
+  if (lvl.indentLeftPt !== undefined) info.indentLeftPt = lvl.indentLeftPt;
   return info;
 }

@@ -1,13 +1,21 @@
 # scripts/
 
-Phase 0 verification. These are the only executable files in the repository, and they exist to
-check the documents rather than to implement anything — `check-docs.mjs` asserts its own
-exemption is narrow (no package manifests anywhere, no code outside this directory).
+Repository-level verification: the checks that guard the documents and the package
+architecture, as distinct from the unit tests that live beside each package's source.
 
-| Script | Dependencies | What it checks |
+`check-docs.mjs` began as a Phase 0 check asserting the repository contained *no* code. That
+assertion was correct then and wrong the moment Phase 1 started, so it was replaced rather
+than deleted — the underlying question, "is the package boundary still real?", outlives the
+phase. It now asserts that every package is private and Apache-2.0, that no adapter or
+renderer reaches the LLM layer (ADR-0009), that `@markforge/ir` depends on neither, that
+generated files keep their do-not-edit banner, and that no build output is committed.
+
+| Script | Dependencies | What it does |
 | --- | --- | --- |
-| `check-docs.mjs` | none | Deliverables agree with each other and with the brief |
+| `check-docs.mjs` | none | Deliverables agree with each other and with the brief; Phase 1 architecture invariants |
 | `check-schemas.mjs` | `ajv`, `ajv-formats` | The three JSON Schemas compile in strict mode; the worked examples validate |
+| `codegen-types.mjs` | `json-schema-to-typescript` | Generates TypeScript types from the schemas (`pnpm codegen`) |
+| `add-salient-annotations.mjs` | none | One-shot migration that added `x-salient` to the IR schema |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
 
 ## Running them
@@ -15,17 +23,40 @@ exemption is narrow (no package manifests anywhere, no code outside this directo
 ```sh
 node scripts/check-docs.mjs          # works on a fresh clone, no install needed
 
-npm i --no-save ajv ajv-formats      # Phase 0 ships no package.json
+pnpm install                         # ajv is a workspace dev dependency
 node scripts/check-schemas.mjs
+
+pnpm verify                          # docs + schemas + fixtures + typecheck + tests
 ```
 
 `check-schemas.mjs` **skips with exit 0** when ajv is absent, rather than failing: a missing dev
 dependency is not a specification defect, and a check that fails for environmental reasons
-teaches people to ignore it. Phase 1 adds the workspace and both become CI jobs.
+teaches people to ignore it.
 
 Both resolve the repository root from their own location, so neither contains an absolute path.
 That is the same rule `SPEC.md` §1 imposes on MarkForge's own output, and it applies here for the
 same reason: an absolute path makes a result unreproducible on another machine.
+
+## `codegen-types.mjs`
+
+Regenerates `packages/*/src/generated/*.ts` from the JSON Schemas. **Never hand-edit the
+output**: `docs/SPEC.md` §2.2 requires types to be generated because a hand-written type and a
+schema that disagree produce a validator accepting what the compiler rejects. That is not
+hypothetical — an early draft of `packages/ir/src/document.ts` hand-declared `StyleEvidence`
+with a flat `{ fontSizePt, bold }` shape while the schema specified nested
+`{ font: { sizePt, weight } }`, and every document the DOCX adapter produced failed validation
+until the duplication was removed.
+
+`check-docs.mjs` asserts the generated files still carry their do-not-edit banner, so removing
+the banner to make an edit look legitimate fails CI.
+
+## `add-salient-annotations.mjs`
+
+A one-shot migration, kept for the record rather than for re-running. `docs/SPEC.md` §2.7 said
+the salient-attribute allowlist was "declared in the schema"; it was not, and this script made
+the claim true by adding `x-salient` to all 53 node types. Re-running it is safe and
+idempotent, and is the right move if a node type is added — the default for a new property is
+*excluded*, which is the safe direction.
 
 ## `inspect-docx.ps1`
 
