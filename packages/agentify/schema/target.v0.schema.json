@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://markforge.dev/schema/target/v0.json",
+  "title": "AgentTargetProfile",
+  "description": "An agent-context output target, expressed as data (brief section 6.3, ADR-0013). AGENTS.md is the base profile; other flat-Markdown targets declare `extends: \"agents-md\"` and override only what differs. Every path and filename MUST be re-verified against current vendor documentation at implementation time; see docs/TARGETS.md.",
+  "type": "object",
+  "required": ["id", "targetVersion", "displayName", "kind", "outputs", "budget", "verifiedAgainst"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Stable profile id, e.g. agents-md, claude-md, claude-skills, mcp-manifest."
+    },
+    "targetVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "displayName": { "type": "string" },
+    "extends": {
+      "type": "string",
+      "description": "Profile id this one is a delta on. AGENTS.md is the base; see ADR-0013."
+    },
+    "kind": {
+      "enum": ["flatMarkdown", "scopedRuleSet", "skillPackage", "commandSet", "manifest"],
+      "description": "Assembly semantics. scopedRuleSet targets (Cursor .mdc) partition units by glob rather than budgeting one file."
+    },
+    "tier": {
+      "enum": ["firstClass", "stub"],
+      "default": "stub",
+      "description": "firstClass targets carry a traceability gate and fixture tests; stub targets are schema-valid but ungated."
+    },
+    "vendor": { "type": "string" },
+    "docsUrl": { "type": "string", "format": "uri" },
+    "verifiedAgainst": {
+      "type": "object",
+      "required": ["url", "date"],
+      "additionalProperties": false,
+      "description": "Provenance for the filenames and conventions in this profile. Brief section 6.3 forbids trusting training data here.",
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "note": { "type": "string" }
+      }
+    },
+
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "role"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Repo-relative output path. May contain {slug} for scopedRuleSet and skillPackage targets."
+          },
+          "role": { "enum": ["primary", "secondary", "manifest", "asset"] },
+          "condition": {
+            "type": "string",
+            "description": "Optional expression over the unit set, e.g. 'hasCategory(command)'. Absent means always emitted."
+          }
+        }
+      }
+    },
+
+    "budget": {
+      "type": "object",
+      "required": ["primaryTokens", "counter"],
+      "additionalProperties": false,
+      "properties": {
+        "primaryTokens": { "type": "integer", "minimum": 100 },
+        "secondaryTokens": { "type": "integer", "minimum": 0 },
+        "counter": {
+          "type": "object",
+          "required": ["method"],
+          "additionalProperties": false,
+          "description": "Token counting method, named in the run report so an estimate is never mistaken for a measurement.",
+          "properties": {
+            "method": { "enum": ["modelTokenizer", "approximate"] },
+            "model": { "type": "string" },
+            "charsPerToken": { "type": "number", "exclusiveMinimum": 0, "default": 3.8 }
+          }
+        },
+        "overflow": {
+          "enum": ["linkToSecondary", "truncateLowestValue", "fail"],
+          "default": "linkToSecondary"
+        }
+      }
+    },
+
+    "frontMatter": {
+      "type": "object",
+      "required": ["supported"],
+      "additionalProperties": false,
+      "properties": {
+        "supported": { "type": "boolean" },
+        "language": { "enum": ["yaml", "toml"], "default": "yaml" },
+        "required": { "type": "array", "items": { "type": "string" } },
+        "schema": {
+          "type": "object",
+          "description": "JSON Schema for the front matter this target expects. Cursor's glob-scoped .mdc front matter is expressed here.",
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "imports": {
+      "type": "object",
+      "required": ["supported"],
+      "additionalProperties": false,
+      "description": "Whether the target can reference other files, which determines whether progressive disclosure is available.",
+      "properties": {
+        "supported": { "type": "boolean" },
+        "syntax": { "type": "string", "description": "e.g. '@{path}' or '[{title}]({path})'." },
+        "maxDepth": { "type": "integer", "minimum": 1, "default": 1 }
+      }
+    },
+
+    "scoping": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "For scopedRuleSet targets: how units are partitioned across files by path glob.",
+      "properties": {
+        "byGlob": { "type": "boolean", "default": false },
+        "globField": { "type": "string", "description": "Front-matter field carrying the glob, e.g. 'globs'." },
+        "alwaysApplyField": { "type": "string" }
+      }
+    },
+
+    "sections": {
+      "type": "array",
+      "description": "Ordered section template. Ordering is fixed so output is diff-stable (docs/SPEC.md section 10.8).",
+      "items": {
+        "type": "object",
+        "required": ["id", "heading", "categories"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "heading": { "type": "string" },
+          "headingLevel": { "type": "integer", "minimum": 1, "maximum": 6, "default": 2 },
+          "categories": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "constraint", "invariant", "convention", "command", "entity",
+                "glossaryTerm", "decision", "antiPattern", "dependency", "environmentVariable"
+              ]
+            }
+          },
+          "categoryWeight": { "type": "number", "minimum": 0, "default": 1 },
+          "render": { "enum": ["bulletList", "table", "prose", "codeBlock", "definitionList"], "default": "bulletList" },
+          "maxUnits": { "type": "integer", "minimum": 0 },
+          "scaffoldOnly": {
+            "type": "boolean",
+            "default": false,
+            "description": "Marks generated scaffolding exempt from the traceability gate. Templates declare this; it is never inferred (docs/SPEC.md section 10.6)."
+          },
+          "omitWhenEmpty": { "type": "boolean", "default": true }
+        }
+      }
+    },
+
+    "tone": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "voice": { "enum": ["imperative", "declarative"], "default": "imperative" },
+        "person": { "enum": ["second", "third"], "default": "second" },
+        "maxSentenceWords": { "type": "integer", "minimum": 5 }
+      }
+    },
+
+    "traceability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
+        "sentenceSegmenter": { "enum": ["icu", "simple"], "default": "icu" }
+      }
+    },
+
+    "vendorFields": {
+      "type": "object",
+      "description": "Escape hatch for target-specific keys that do not generalize. Keeping them here rather than in code is the point of ADR-0013.",
+      "additionalProperties": true
+    }
+  }
+}

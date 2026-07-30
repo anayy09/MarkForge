@@ -1,0 +1,167 @@
+# Reference Documents
+
+Status: Phase 0 deliverable. Written 2026-07-30. Governs `docx.referenceDoc` (`SPEC.md` §4.2)
+and the three templates MarkForge ships (ADR-0004).
+
+A *reference document* is a `.docx`/`.dotx` whose `styles.xml`, `theme1.xml`, `numbering.xml`,
+and section properties MarkForge copies verbatim, resolving IR roles onto the style ids already
+defined there. It is how "change the heading font once" replaces "touch every heading".
+
+This document covers two things: the templates we ship, and how to use one we cannot ship.
+
+---
+
+## 1. The licensing rule, and why it exists
+
+**MarkForge never redistributes a third-party template.** Publisher templates are freely
+downloadable, which is not the same as licensed for redistribution, and a template inside an
+npm package is a distributed artifact reaching every user — a stricter situation than a test
+fixture.
+
+The distinction is easy to get backwards in a specific way worth naming: **a publisher's open
+licence on its published articles does not extend to its blank template file.** MDPI journals
+are CC BY; the MDPI `.dot` template carries no stated licence. IEEE publishes conference
+templates for authors preparing IEEE submissions and grants no redistribution right.
+
+This costs nothing, because the mechanism does not require us to ship the file:
+
+```
+you download the publisher template  →  docx.referenceDoc points at it  →  publisher-exact output
+```
+
+Third-party templates you use locally belong in `fixtures/local/`, which is gitignored. See
+`fixtures/README.md` for the corpus-wide rules and `CORPUS.md` §1 for the licence-entry format.
+
+---
+
+## 2. Templates MarkForge ships
+
+Three, all authored by us and Apache-2.0, so all three are redistributable without question.
+
+| File | Purpose | Style vocabulary |
+| --- | --- | --- |
+| `academic-manuscript.docx` | **Primary.** Journal/conference manuscript | Full Pandoc set (38 names) |
+| `technical-documentation.docx` | Software documentation, API references | Full Pandoc set |
+| `clean-report.docx` | Business reports, memos | Full Pandoc set |
+
+`academic-manuscript.docx` is the primary template and the Phase 1 round-trip gate document,
+because a manuscript template is construct-complete in a way a report template is not — title
+block, abstract, multi-level numbered sections, display equations, numbered figure and table
+captions, footnotes, and a bibliography in one file. A gate document exercising more constructs
+is a better gate.
+
+### 2.1 What `academic-manuscript.docx` must contain
+
+Structurally modelled on the **IEEE conference proceedings template** (§3.1), which is where
+this specification came from — but authored from scratch with Pandoc style *names*, so it works
+with no `styleMap` at all. Phase 1 authors it against this inventory; a template missing any
+row makes the Phase 1 gate test less than it appears to.
+
+**All 38 Pandoc style names defined** (ADR-0004), specifically including the ones third-party
+templates habitually omit: `Heading 4`–`Heading 9`, `Footnote Text`, `Footnote Reference`,
+`Source Code`, `Verbatim Char`, `Bibliography`, `Table Caption`, `Image Caption`,
+`Captioned Figure`, `TOC Heading`, `Definition Term`, `Definition`, and the `Table` table style.
+
+**Constructs present in the body**, so the round trip exercises them rather than merely
+declaring them available:
+
+| Construct | Requirement |
+| --- | --- |
+| Title block | `Title`, `Subtitle`, `Author`, `Date` |
+| Abstract | `AbstractTitle` + `Abstract`, with an index-terms paragraph |
+| Headings | all of `Heading 1`–`Heading 6` actually used, multi-level auto-numbered |
+| Display equations | **real OMML**, at least three, right-numbered `(1)`–`(3)`, one with a `crossReference` to it |
+| Inline math | at least two, inside a sentence |
+| Figures | 2 figures, `Captioned Figure` + `Image Caption`, captions **below**, one full-width |
+| Tables | 2 tables, `Table Caption` **above**, one with a merged header cell, `Table` style |
+| Lists | ordered and unordered, 3 levels deep, one restarting via `w:startOverride` |
+| Footnotes | at least 3 real footnotes with `Footnote Text` (the IEEE template has none — see §3.1) |
+| Code | one `Source Code` block and one `Verbatim Char` inline span |
+| Block quote | one `Block Text` paragraph |
+| Definition list | one `Definition Term` + `Definition` pair |
+| Bibliography | 5+ `Bibliography` entries with `crossReference` citations to them |
+| Cross-references | to a heading, a figure, a table, and an equation |
+| Furniture | a running header and footer, so `furniture` routing is covered (ADR-0002) |
+| Zero direct formatting | no `w:rPr` outside genuine inline semantics — asserted by test, not by care |
+
+That last row is the one that matters most: the template is our own demonstration that named
+styles suffice. A shipped template containing direct formatting would undercut the argument in
+brief §5.1 that we exist to make.
+
+### 2.2 Verifying a template
+
+```
+markforge check --reference-doc <path>
+```
+
+Reports, offline and with no conversion: which of the 38 Pandoc names the file defines, which
+are missing, what `onMissingStyle: "synthesize"` would generate for each gap, and **a
+`styleMap` skeleton** pre-filled where names match and blank where they do not. Run it on our
+three templates in CI: a shipped template that stops defining the full set is a regression.
+
+---
+
+## 3. Known third-party templates
+
+Links, not copies. Each entry records what the `check` above reports, so adapting one is an
+edit rather than an investigation. **Verify terms yourself before redistributing any of these
+in your own project** — the status column is what we found, not legal advice.
+
+| Template | Obtain from | Redistributable? | Pandoc names defined |
+| --- | --- | --- | --- |
+| IEEE conference proceedings | [ieee.org/conferences/publishing/templates](https://www.ieee.org/conferences/publishing/templates) | **No** — provided for authors preparing IEEE submissions; no redistribution grant | 8 of 38 (§3.1) |
+| MDPI journal template | journal's Instructions for Authors, e.g. [mdpi.com/journal/sensors/instructions](https://www.mdpi.com/journal/sensors/instructions) | **No** — MDPI's CC BY covers published articles, not the template file | not yet measured |
+| PLOS submission template | [journals.plos.org/plosone/s/submission-guidelines](https://journals.plos.org/plosone/s/submission-guidelines) | **No** — no stated licence on the template | not yet measured |
+| Any Pandoc `--reference-doc` | user-supplied | n/a | 38 of 38 by construction |
+
+Rows marked "not yet measured" are honest gaps: they are filled by running §2.2 against the
+file, and no number is written here from assumption.
+
+### 3.1 IEEE conference proceedings template — measured
+
+Inspected 2026-07-30: 43 styles, 112 paragraphs, 2 tables, two-column, Times 10pt, max 8 pages.
+A local copy lives at `fixtures/local/ieee-conference-template.docx` (gitignored).
+
+**Defines 8 of the 38 Pandoc names**: `Normal`, `Heading 1`, `Heading 2`, `Heading 3`,
+`Abstract`, `Caption`, `Default Paragraph Font`, `Hyperlink`.
+
+The other constructs exist under IEEE's own names, so a `styleMap` recovers them:
+
+```ts
+docx: {
+  referenceDoc: "./fixtures/local/ieee-conference-template.docx",
+  styleMap: {
+    "title":             "paper title",
+    "author":            "Author Data",
+    "abstract":          "Abstract",
+    "paragraph":         "Body Text Indent",
+    "blockquote":        "BlockQuote",
+    "list:unordered":    "BulletList",
+    "list:ordered":      "NumberedList",
+    "tableHeaderCell":   "Table Head",
+    "tableCell":         "Table text",
+    "caption:figure":    "caption",
+    "caption:table":     "caption",
+    "figureAttribution": "Source",
+  },
+  onMissingStyle: "synthesize",
+}
+```
+
+**What a `styleMap` cannot fix**, and what therefore forces `synthesize`:
+
+- **Only three heading levels are defined.** IR depth 4–6 has no target.
+- **No `Footnote Text` style, and no footnotes.** `footnotes.xml` and `endnotes.xml` are
+  present and empty; the template instructs authors to avoid footnotes entirely.
+- **No equation style and no OMML anywhere.** The template's own equation example is the
+  literal text `a + b = c.` in a body paragraph. This is why it could not be the model for
+  equation handling in §2.1 despite being the model for everything else.
+- **No `Source Code`, `Bibliography`, `Definition Term`, or `TOC Heading`.**
+
+Two structural quirks worth knowing, both now fixture material (`CORPUS.md` §2.3): `heading 2`
+is `basedOn: Heading1` while `heading 3` is `basedOn: Normal`, an inconsistent cascade a naive
+resolver gets wrong; and there are 101 `w:rPr` blocks across 112 paragraphs, i.e. heavy direct
+formatting alongside the named styles.
+
+It also carries `word/media/image2.tiff`. **No browser renders TIFF**, so the HTML renderer
+needs a stated transcoding policy rather than emitting an `<img>` that silently fails.

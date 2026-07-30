@@ -1,0 +1,196 @@
+{
+  "irVersion": "0.1.0",
+  "id": "n_ccccccccccccccccroot:0",
+  "body": {
+    "type": "root",
+    "id": "n_ccccccccccccccccroot:0",
+    "children": [
+      {
+        "type": "list",
+        "id": "n_cccccccccccccccclsta:0",
+        "ordered": true,
+        "start": 1,
+        "spread": false,
+        "numberingId": "num3",
+        "level": 0,
+        "children": [
+          {
+            "type": "listItem",
+            "id": "n_ccccccccccccccccitaa:0",
+            "spread": false,
+            "children": [
+              {
+                "type": "paragraph",
+                "id": "n_ccccccccccccccccpraa:0",
+                "children": [{ "type": "text", "id": "n_cccccccccccccccctxaa:0", "value": "Provision the cluster." }]
+              },
+              {
+                "type": "list",
+                "id": "n_cccccccccccccccclstb:0",
+                "ordered": true,
+                "start": 1,
+                "spread": false,
+                "numberingId": "num3",
+                "level": 1,
+                "children": [
+                  {
+                    "type": "listItem",
+                    "id": "n_ccccccccccccccccitab:0",
+                    "spread": false,
+                    "children": [
+                      {
+                        "type": "paragraph",
+                        "id": "n_ccccccccccccccccprab:0",
+                        "children": [{ "type": "text", "id": "n_cccccccccccccccctxab:0", "value": "Allocate the node pool." }]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "listItem",
+                    "id": "n_ccccccccccccccccitac:0",
+                    "spread": false,
+                    "children": [
+                      {
+                        "type": "paragraph",
+                        "id": "n_ccccccccccccccccprac:0",
+                        "children": [{ "type": "text", "id": "n_cccccccccccccccctxac:0", "value": "Attach the storage class." }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "listItem",
+            "id": "n_ccccccccccccccccitad:0",
+            "spread": false,
+            "children": [
+              {
+                "type": "paragraph",
+                "id": "n_ccccccccccccccccprad:0",
+                "children": [{ "type": "text", "id": "n_cccccccccccccccctxad:0", "value": "Deploy the workload." }]
+              },
+              {
+                "type": "list",
+                "id": "n_cccccccccccccccclstc:0",
+                "ordered": true,
+                "start": 1,
+                "spread": false,
+                "numberingId": "num3",
+                "level": 1,
+                "children": [
+                  {
+                    "type": "listItem",
+                    "id": "n_ccccccccccccccccitae:0",
+                    "spread": false,
+                    "restartsAt": 1,
+                    "children": [
+                      {
+                        "type": "paragraph",
+                        "id": "n_ccccccccccccccccprae:0",
+                        "children": [{ "type": "text", "id": "n_cccccccccccccccctxae:0", "value": "Apply the manifests." }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "admonition",
+        "id": "n_ccccccccccccccccadmo:0",
+        "kind": "warning",
+        "title": "Numbering restarts",
+        "children": [
+          {
+            "type": "paragraph",
+            "id": "n_ccccccccccccccccpraf:0",
+            "children": [
+              { "type": "text", "id": "n_cccccccccccccccctxaf:0", "value": "The second sublist restarts at 1 because the source declared " },
+              { "type": "inlineCode", "id": "n_cccccccccccccccccdaa:0", "value": "w:startOverride" },
+              { "type": "text", "id": "n_cccccccccccccccctxag:0", "value": " on level 1." }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "furniture": [],
+  "metadata": { "language": "en-US" },
+  "sources": {
+    "s1": {
+      "sourceId": "s1",
+      "displayPath": "fixtures/docx/nested-restarting-lists.docx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "contentHash": "3f8a1c9d2e4b6f70a5c3d1e9b8f7a6d5c4b3a2918f7e6d5c4b3a29185e6f7a8b",
+      "byteLength": 19882,
+      "adapter": { "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    }
+  },
+  "resources": {},
+  "styles": {
+    "ListParagraph": {
+      "styleId": "ListParagraph",
+      "name": "List Paragraph",
+      "type": "paragraph",
+      "basedOn": "Normal",
+      "evidence": { "origin": "styleCascade", "paragraph": { "indentLeftPt": 36 } }
+    }
+  },
+  "numbering": {
+    "num3": {
+      "numberingId": "num3",
+      "abstractId": "abstract7",
+      "levels": [
+        { "ilvl": 0, "format": "decimal", "levelText": "%1.", "startAt": 1, "indentLeftPt": 18, "hangingIndentPt": 18 },
+        { "ilvl": 1, "format": "lowerLetter", "levelText": "%2)", "startAt": 1, "restartAfterLevel": 0, "indentLeftPt": 54, "hangingIndentPt": 18 }
+      ]
+    }
+  },
+  "sidecar": {
+    "n_ccccccccccccccccitaa:0": {
+      "sourceStyleId": "ListParagraph",
+      "sourceStyleName": "List Paragraph",
+      "numbering": { "numId": "num3", "ilvl": 0, "format": "decimal", "levelText": "%1.", "startAt": 1 },
+      "paragraph": { "indentLeftPt": 18, "firstLineIndentPt": -18 },
+      "origin": "styleCascade"
+    },
+    "n_ccccccccccccccccitae:0": {
+      "sourceStyleId": "ListParagraph",
+      "sourceStyleName": "List Paragraph",
+      "numbering": { "numId": "num3", "ilvl": 1, "format": "lowerLetter", "levelText": "%2)", "startAt": 1, "restart": true },
+      "paragraph": { "indentLeftPt": 54, "firstLineIndentPt": -18 },
+      "origin": "styleCascade"
+    }
+  },
+  "provenance": {
+    "n_ccccccccccccccccroot:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccclsta:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[1]" }, "producedBy": { "kind": "rule", "name": "list/numbering-definition", "version": "1" } },
+    "n_ccccccccccccccccitaa:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[1]" }, "producedBy": { "kind": "rule", "name": "list/numbering-definition", "version": "1" } },
+    "n_ccccccccccccccccpraa:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[1]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccctxaa:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[1]/w:r[1]/w:t[1]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccclstb:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[2]" }, "producedBy": { "kind": "rule", "name": "list/numbering-definition", "version": "1" } },
+    "n_ccccccccccccccccitab:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[2]" }, "producedBy": { "kind": "rule", "name": "list/numbering-definition", "version": "1" } },
+    "n_ccccccccccccccccprab:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[2]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccctxab:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[2]/w:r[1]/w:t[1]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_ccccccccccccccccitac:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[3]" }, "producedBy": { "kind": "rule", "name": "list/numbering-definition", "version": "1" } },
+    "n_ccccccccccccccccprac:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[3]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccctxac:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[3]/w:r[1]/w:t[1]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_ccccccccccccccccitad:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[4]" }, "producedBy": { "kind": "rule", "name": "list/numbering-definition", "version": "1" } },
+    "n_ccccccccccccccccprad:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[4]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccctxad:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[4]/w:r[1]/w:t[1]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccclstc:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[5]" }, "producedBy": { "kind": "rule", "name": "list/numbering-definition", "version": "1" } },
+    "n_ccccccccccccccccitae:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[5]" }, "producedBy": { "kind": "rule", "name": "list/numbering-definition", "version": "1" } },
+    "n_ccccccccccccccccprae:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[5]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccctxae:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[5]/w:r[1]/w:t[1]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_ccccccccccccccccadmo:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]" }, "confidence": 0.79, "producedBy": { "kind": "rule", "name": "admonition/style-name", "version": "1" } },
+    "n_ccccccccccccccccpraf:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccctxaf:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]/w:r[1]/w:t[1]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccccdaa:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]/w:r[2]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } },
+    "n_cccccccccccccccctxag:0": { "sourceId": "s1", "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]/w:r[3]/w:t[1]" }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" } }
+  },
+  "diagnostics": []
+}

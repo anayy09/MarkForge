@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://markforge.dev/schema/config/v0.json",
+  "title": "MarkForgeConfig",
+  "description": "Style profile and run configuration (brief section 5.5, docs/SPEC.md section 7). Generated from the Zod schema in @markforge/core so the two cannot drift. Precedence: CLI flags > MARKFORGE_* env > this file > named profile > built-in defaults.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "profile": {
+      "type": "string",
+      "default": "technical-documentation",
+      "description": "Named preset. Every field below overrides the preset."
+    },
+    "strict": {
+      "type": "boolean",
+      "default": false,
+      "description": "Exit 2 when any lossy diagnostic is emitted (brief section 3.3)."
+    },
+    "root": {
+      "type": "string",
+      "default": ".",
+      "description": "Declared root that all recorded paths are relative to. Absolute paths never appear in output (determinism)."
+    },
+
+    "markdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "flavor": {
+          "enum": ["commonmark", "gfm", "mdx", "docusaurus", "mkdocs-material", "obsidian", "pandoc"],
+          "default": "gfm",
+          "description": "Flavour presets are data, not code (docs/SPEC.md section 4.1)."
+        },
+        "headings": { "enum": ["atx", "setext"], "default": "atx" },
+        "bullet": { "enum": ["-", "*", "+"], "default": "-" },
+        "emphasis": { "enum": ["_", "*"], "default": "_" },
+        "strong": { "enum": ["*", "_"], "default": "*" },
+        "fence": { "enum": ["`", "~"], "default": "`" },
+        "fences": { "type": "boolean", "default": true },
+        "listIndent": { "enum": ["one", "tab", "mixed"], "default": "one" },
+        "lineWidth": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "0 disables reflow. Reflowing destroys diff stability, which brief section 6.2 requires."
+        },
+        "frontMatter": { "enum": ["preserve", "yaml", "toml", "none"], "default": "preserve" },
+        "lint": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "config": { "type": "string" },
+            "autofix": { "type": "boolean", "default": true },
+            "maxIterations": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 8,
+              "description": "Autofix runs to a fixed point. Hitting the cap is an error, not a silent stop (docs/SPEC.md section 4.1)."
+            }
+          }
+        }
+      }
+    },
+
+    "whitespace": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Applied once, at the IR level (brief section 5.1). See docs/SPEC.md section 2.8.",
+      "properties": {
+        "emptyParagraphsToSpacing": { "type": "boolean", "default": true },
+        "collapseInteriorWhitespace": { "type": "boolean", "default": true },
+        "preserveHardBreaks": { "type": "boolean", "default": true },
+        "trimTrailing": { "type": "boolean", "default": true },
+        "removeSoftHyphens": { "type": "boolean", "default": true },
+        "preserveNonBreakingSpaces": { "type": "boolean", "default": true }
+      }
+    },
+
+    "docx": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "referenceDoc": {
+          "type": "string",
+          "description": "Path to a .docx or .dotx. Its stylesheets, theme, numbering, and section properties are used; its content is ignored (ADR-0004)."
+        },
+        "styleMap": {
+          "type": "object",
+          "description": "IR role to named style. Defaults use Pandoc's vocabulary verbatim, so any Pandoc reference doc works unchanged.",
+          "additionalProperties": { "type": "string" }
+        },
+        "onMissingStyle": { "enum": ["warn", "error", "synthesize"], "default": "warn" },
+        "revisionMode": { "enum": ["clean", "showInsertions", "showAll"], "default": "clean" },
+        "namedStylesOnly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Forbids direct formatting on blocks. Turning this off reproduces the 'uneven fonts' defect in brief section 5.1."
+        }
+      }
+    },
+
+    "pdf": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "engine": { "const": "typst", "default": "typst", "description": "ADR-0003." },
+        "theme": { "type": "string" },
+        "fonts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["family", "files"],
+            "additionalProperties": false,
+            "properties": {
+              "family": { "type": "string" },
+              "files": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+            }
+          }
+        },
+        "ignoreSystemFonts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Must stay true for byte-identical output across machines."
+        },
+        "standard": { "enum": ["none", "pdf/a-2b", "pdf/a-3b", "pdf/ua-1"], "default": "none" },
+        "revisionMode": { "enum": ["clean", "showInsertions", "showAll"], "default": "clean" }
+      }
+    },
+
+    "html": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stylesheet": { "type": "string" },
+        "singleFile": { "type": "boolean", "default": false },
+        "revisionMode": { "enum": ["clean", "showInsertions", "showAll"], "default": "clean" }
+      }
+    },
+
+    "inference": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "docs/SPEC.md section 5.",
+      "properties": {
+        "headings": { "type": "boolean", "default": true },
+        "lists": { "type": "boolean", "default": true },
+        "tables": { "type": "boolean", "default": true },
+        "ambiguityMargin": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.15,
+          "description": "Score gap below which a decision is declared ambiguous rather than taken silently."
+        },
+        "headingVocabulary": { "type": "string", "description": "Path to localized heading style-name and numbering-pattern data." }
+      }
+    },
+
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Off by default; brief section 3.6 forbids network access as a default.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "baseUrl": { "type": "string", "format": "uri" },
+        "apiKeyEnv": {
+          "type": "string",
+          "description": "Name of the environment variable holding the key. The key value MUST NOT appear in config (brief section 7.2)."
+        },
+        "models": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "One model name per role. There is no registry file: the name is passed straight through as the OpenAI 'model' parameter. Task-to-role mapping is fixed in code (docs/SPEC.md section 6.2).",
+          "properties": {
+            "fast": { "type": "string", "minLength": 1, "default": "gpt-oss-120b" },
+            "strong": { "type": "string", "minLength": 1, "default": "nemotron-3-super-120b-a12b" },
+            "vision": { "type": "string", "minLength": 1, "default": "gemma-4-31b-it" }
+          }
+        },
+        "temperature": { "const": 0, "default": 0 },
+        "seed": { "type": "integer" },
+        "maxRepairs": { "type": "integer", "minimum": 0, "default": 2 },
+        "cache": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dir": { "type": "string", "default": ".markforge/llm-cache" },
+            "mode": { "enum": ["readWrite", "readOnly", "off"], "default": "readWrite" }
+          }
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxTokens": { "type": "integer", "minimum": 0, "default": 200000 },
+            "onExceed": { "enum": ["abort", "degrade"], "default": "abort" }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
+          "then": {
+            "properties": {
+              "baseUrl": { "type": "string", "format": "uri" },
+              "apiKeyEnv": { "type": "string", "minLength": 1 },
+              "models": {
+                "type": "object",
+                "properties": {
+                  "fast": { "type": "string", "minLength": 1 },
+                  "strong": { "type": "string", "minLength": 1 },
+                  "vision": { "type": "string", "minLength": 1 }
+                },
+                "required": ["fast", "strong", "vision"]
+              }
+            },
+            "required": ["baseUrl", "apiKeyEnv", "models"]
+          }
+        }
+      ]
+    },
+
+    "agentify": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "docs/SPEC.md section 10.",
+      "properties": {
+        "targets": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "registry": { "type": "string", "default": "./targets" },
+        "outDir": { "type": "string", "default": "." },
+        "conflicts": { "enum": ["report", "failOnConflict"], "default": "report" },
+        "dedupeThreshold": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.9 },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Inputs to conflict ordering. Conflicts are always reported regardless (brief section 6.1).",
+          "properties": {
+            "sourceRanking": { "type": "array", "items": { "type": "string" } },
+            "preferNewer": { "type": "boolean", "default": true }
+          }
+        },
+        "traceability": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "required": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1,
+              "description": "The verification gate. There is deliberately no bypass flag (docs/SPEC.md section 10.6)."
+            }
+          }
+        },
+        "provenanceManifest": { "type": "string", "default": ".markforge/provenance.json" }
+      }
+    },
+
+    "fidelity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseline": { "type": "string", "default": "./fidelity/baselines.json" },
+        "tolerance": { "type": "number", "minimum": 0, "default": 0.005 },
+        "metrics": {
+          "type": "array",
+          "items": { "enum": ["structural", "textStrict", "textLoose", "tableFull", "tableContent", "inlineStyling"] }
+        },
+        "competitors": {
+          "type": "array",
+          "items": { "enum": ["word-to-markdown-js", "pandoc", "markitdown"] },
+          "description": "Scoreboard columns. brief section 10 requires honesty where we lose, so rows cannot be suppressed."
+        }
+      }
+    },
+
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "format": { "enum": ["json", "markdown", "both"], "default": "json" },
+        "includeInferenceLog": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

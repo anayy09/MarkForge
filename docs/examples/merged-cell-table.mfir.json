@@ -1,0 +1,179 @@
+{
+  "irVersion": "0.1.0",
+  "id": "n_bbbbbbbbbbbbbbbbroot:0",
+  "body": {
+    "type": "root",
+    "id": "n_bbbbbbbbbbbbbbbbroot:0",
+    "children": [
+      {
+        "type": "figure",
+        "id": "n_bbbbbbbbbbbbbbbbfiga:0",
+        "children": [
+          {
+            "type": "table",
+            "id": "n_bbbbbbbbbbbbbbbbtabl:0",
+            "headerRowCount": 2,
+            "headerColCount": 1,
+            "align": ["left", "right", "right"],
+            "children": [
+              {
+                "type": "tableRow",
+                "id": "n_bbbbbbbbbbbbbbbbtrwa:0",
+                "children": [
+                  {
+                    "type": "tableCell",
+                    "id": "n_bbbbbbbbbbbbbbbbclaa:0",
+                    "rowSpan": 2,
+                    "colSpan": 1,
+                    "isHeader": true,
+                    "children": [{ "type": "text", "id": "n_bbbbbbbbbbbbbbbbtxaa:0", "value": "Region" }]
+                  },
+                  {
+                    "type": "tableCell",
+                    "id": "n_bbbbbbbbbbbbbbbbclab:0",
+                    "rowSpan": 1,
+                    "colSpan": 2,
+                    "isHeader": true,
+                    "children": [{ "type": "text", "id": "n_bbbbbbbbbbbbbbbbtxab:0", "value": "Fiscal 2026" }]
+                  }
+                ]
+              },
+              {
+                "type": "tableRow",
+                "id": "n_bbbbbbbbbbbbbbbbtrwb:0",
+                "children": [
+                  {
+                    "type": "tableCell",
+                    "id": "n_bbbbbbbbbbbbbbbbclac:0",
+                    "rowSpan": 1,
+                    "colSpan": 1,
+                    "isHeader": true,
+                    "children": [{ "type": "text", "id": "n_bbbbbbbbbbbbbbbbtxac:0", "value": "H1" }]
+                  },
+                  {
+                    "type": "tableCell",
+                    "id": "n_bbbbbbbbbbbbbbbbclad:0",
+                    "rowSpan": 1,
+                    "colSpan": 1,
+                    "isHeader": true,
+                    "children": [{ "type": "text", "id": "n_bbbbbbbbbbbbbbbbtxad:0", "value": "H2" }]
+                  }
+                ]
+              },
+              {
+                "type": "tableRow",
+                "id": "n_bbbbbbbbbbbbbbbbtrwc:0",
+                "children": [
+                  {
+                    "type": "tableCell",
+                    "id": "n_bbbbbbbbbbbbbbbbclae:0",
+                    "rowSpan": 1,
+                    "colSpan": 1,
+                    "isHeader": true,
+                    "children": [{ "type": "text", "id": "n_bbbbbbbbbbbbbbbbtxae:0", "value": "EMEA" }]
+                  },
+                  {
+                    "type": "tableCell",
+                    "id": "n_bbbbbbbbbbbbbbbbclaf:0",
+                    "rowSpan": 1,
+                    "colSpan": 1,
+                    "isHeader": false,
+                    "children": [{ "type": "text", "id": "n_bbbbbbbbbbbbbbbbtxaf:0", "value": "1,204" }]
+                  },
+                  {
+                    "type": "tableCell",
+                    "id": "n_bbbbbbbbbbbbbbbbclag:0",
+                    "rowSpan": 1,
+                    "colSpan": 1,
+                    "isHeader": false,
+                    "children": [{ "type": "text", "id": "n_bbbbbbbbbbbbbbbbtxag:0", "value": "1,377" }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "caption",
+            "id": "n_bbbbbbbbbbbbbbbbcapt:0",
+            "for": "table",
+            "numberLabel": "Table 3",
+            "children": [{ "type": "text", "id": "n_bbbbbbbbbbbbbbbbtxah:0", "value": "Revenue by region, in thousands of USD." }]
+          }
+        ]
+      }
+    ]
+  },
+  "furniture": [],
+  "metadata": { "language": "en-US", "pageCount": 1 },
+  "sources": {
+    "s1": {
+      "sourceId": "s1",
+      "displayPath": "fixtures/pdf/revenue-multicolumn.pdf",
+      "mediaType": "application/pdf",
+      "contentHash": "3f8a1c9d2e4b6f70a5c3d1e9b8f7a6d5c4b3a2918f7e6d5c4b3a29181a2b3c4d",
+      "byteLength": 91240,
+      "adapter": { "name": "@markforge/adapters-pdf", "version": "0.1.0" }
+    }
+  },
+  "resources": {},
+  "styles": {},
+  "numbering": {},
+  "sidecar": {
+    "n_bbbbbbbbbbbbbbbbclaa:0": {
+      "cell": { "rowIndex": 0, "colIndex": 0, "rowSpan": 2, "colSpan": 1, "widthPt": 96, "verticalMerge": "start" },
+      "layout": { "bbox": { "pageNumber": 1, "x": 72, "y": 640, "width": 96, "height": 34, "space": "pdfPoints", "origin": "bottomLeft" } },
+      "font": { "family": "Helvetica-Bold", "sizePt": 9, "weight": 700 },
+      "origin": "layoutGeometry"
+    },
+    "n_bbbbbbbbbbbbbbbbclab:0": {
+      "cell": { "rowIndex": 0, "colIndex": 1, "rowSpan": 1, "colSpan": 2, "widthPt": 144 },
+      "layout": { "bbox": { "pageNumber": 1, "x": 168, "y": 657, "width": 144, "height": 17, "space": "pdfPoints", "origin": "bottomLeft" } },
+      "font": { "family": "Helvetica-Bold", "sizePt": 9, "weight": 700 },
+      "origin": "layoutGeometry"
+    },
+    "n_bbbbbbbbbbbbbbbbcapt:0": {
+      "font": { "family": "Helvetica-Oblique", "sizePt": 8, "italic": true },
+      "layout": { "bbox": { "pageNumber": 1, "x": 72, "y": 600, "width": 240, "height": 12, "space": "pdfPoints", "origin": "bottomLeft" } },
+      "origin": "layoutGeometry"
+    }
+  },
+  "provenance": {
+    "n_bbbbbbbbbbbbbbbbroot:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-pdf", "version": "0.1.0" } },
+    "n_bbbbbbbbbbbbbbbbfiga:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "confidence": 0.91, "producedBy": { "kind": "rule", "name": "figure/caption-binding", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbtabl:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "page", "pageNumber": 1, "bbox": { "pageNumber": 1, "x": 72, "y": 620, "width": 240, "height": 54, "space": "pdfPoints", "origin": "bottomLeft" } },
+      "confidence": 0.87,
+      "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" }
+    },
+    "n_bbbbbbbbbbbbbbbbtrwa:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbtrwb:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbtrwc:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbclaa:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbclab:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbclac:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbclad:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbclae:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbclaf:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbclag:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbcapt:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "confidence": 0.91, "producedBy": { "kind": "rule", "name": "figure/caption-binding", "version": "1" } },
+    "n_bbbbbbbbbbbbbbbbtxaa:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-pdf", "version": "0.1.0" } },
+    "n_bbbbbbbbbbbbbbbbtxab:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-pdf", "version": "0.1.0" } },
+    "n_bbbbbbbbbbbbbbbbtxac:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-pdf", "version": "0.1.0" } },
+    "n_bbbbbbbbbbbbbbbbtxad:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-pdf", "version": "0.1.0" } },
+    "n_bbbbbbbbbbbbbbbbtxae:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-pdf", "version": "0.1.0" } },
+    "n_bbbbbbbbbbbbbbbbtxaf:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-pdf", "version": "0.1.0" } },
+    "n_bbbbbbbbbbbbbbbbtxag:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-pdf", "version": "0.1.0" } },
+    "n_bbbbbbbbbbbbbbbbtxah:0": { "sourceId": "s1", "locator": { "kind": "page", "pageNumber": 1 }, "producedBy": { "kind": "adapter", "name": "@markforge/adapters-pdf", "version": "0.1.0" } }
+  },
+  "diagnostics": [
+    {
+      "code": "MF-PDF-0014",
+      "severity": "info",
+      "message": "Table reconstructed from ruling lines with confidence 0.87. Two header rows and one row-spanning header column detected. GFM Markdown cannot express either; render-md will flatten the header (MF-RMD-0004).",
+      "lossy": false,
+      "nodeId": "n_bbbbbbbbbbbbbbbbtabl:0",
+      "producedBy": { "kind": "rule", "name": "table/ruling-lines", "version": "1" }
+    }
+  ]
+}

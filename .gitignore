@@ -1,0 +1,62 @@
+# --- Third-party reference documents, never committed -------------------------
+# Publisher manuscript templates are downloadable but not licensed for
+# redistribution (docs/adr/0004-docx-renderer.md). They are useful locally as
+# reference documents and as conversion targets; committing one would put an
+# unrecorded licence assumption into an Apache-2.0 distribution.
+# Put any such file here. docs/TEMPLATES.md records where to obtain them.
+fixtures/local/
+
+# --- Golden corpus discipline --------------------------------------------------
+# Everything under fixtures/ EXCEPT local/ is committed and must carry a licence
+# entry in fixtures/LICENSES.md (docs/CORPUS.md rule 1). Large generated
+# artifacts are produced by script instead of committed.
+fixtures/generated/
+fixtures/**/*.tmp
+
+# --- Build output --------------------------------------------------------------
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# --- Dependencies --------------------------------------------------------------
+node_modules/
+.pnpm-store/
+
+# --- Tooling caches ------------------------------------------------------------
+coverage/
+.vitest/
+.nyc_output/
+playwright-report/
+test-results/
+.eslintcache
+
+# --- MarkForge runtime state ---------------------------------------------------
+# The LLM cache is committable by design when reproducibility is wanted
+# (docs/SPEC.md 6.3), so it is NOT ignored here. Probe results are per-deployment
+# and machine-specific, so they are.
+.markforge/llm-capabilities.json
+
+# --- Secrets -------------------------------------------------------------------
+# Credentials come from the environment only; no key ever belongs in the repo
+# (docs/adr/0009-llm-openai-compatible-only.md).
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Editor and OS -------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.swp
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# --- Office lock files --------------------------------------------------------
+# Word and Excel write these next to a file that is open; they are valid ZIP
+# containers, so a fixture glob will otherwise try to parse them.
+~$*

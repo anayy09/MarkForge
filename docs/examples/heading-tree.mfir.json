@@ -1,0 +1,289 @@
+{
+  "irVersion": "0.1.0",
+  "id": "n_aaaaaaaaaaaaaaaaroot:0",
+  "contentHash": "3f8a1c9d2e4b6f70a5c3d1e9b8f7a6d5c4b3a2918f7e6d5c4b3a29180f1e2d3c",
+  "body": {
+    "type": "root",
+    "id": "n_aaaaaaaaaaaaaaaaroot:0",
+    "children": [
+      {
+        "type": "heading",
+        "id": "n_aaaaaaaaaaaaaaaaheaa:0",
+        "depth": 1,
+        "resolvedLevel": 1,
+        "children": [
+          { "type": "text", "id": "n_aaaaaaaaaaaaaaaatxaa:0", "value": "Deployment Runbook" }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "id": "n_aaaaaaaaaaaaaaaapara:0",
+        "children": [
+          { "type": "text", "id": "n_aaaaaaaaaaaaaaaatxab:0", "value": "This runbook covers the production release path." }
+        ]
+      },
+      {
+        "type": "heading",
+        "id": "n_aaaaaaaaaaaaaaaaheab:0",
+        "depth": 2,
+        "resolvedLevel": 2,
+        "numberLabel": "1.",
+        "children": [
+          { "type": "text", "id": "n_aaaaaaaaaaaaaaaatxac:0", "value": "Preflight checks" }
+        ]
+      },
+      {
+        "type": "heading",
+        "id": "n_aaaaaaaaaaaaaaaaheac:0",
+        "depth": 3,
+        "resolvedLevel": 3,
+        "numberLabel": "1.1",
+        "children": [
+          { "type": "text", "id": "n_aaaaaaaaaaaaaaaatxad:0", "value": "Verify the migration plan" }
+        ]
+      },
+      {
+        "type": "heading",
+        "id": "n_aaaaaaaaaaaaaaaahead:0",
+        "depth": 6,
+        "resolvedLevel": 7,
+        "numberLabel": "1.1.1.1.1.1.1",
+        "children": [
+          { "type": "text", "id": "n_aaaaaaaaaaaaaaaatxae:0", "value": "Rollback trigger thresholds" }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "id": "n_aaaaaaaaaaaaaaaaparb:0",
+        "children": [
+          { "type": "text", "id": "n_aaaaaaaaaaaaaaaatxaf:0", "value": "Abort if error rate exceeds " },
+          {
+            "type": "strong",
+            "id": "n_aaaaaaaaaaaaaaaastra:0",
+            "children": [
+              { "type": "text", "id": "n_aaaaaaaaaaaaaaaatxag:0", "value": "2%" }
+            ]
+          },
+          { "type": "text", "id": "n_aaaaaaaaaaaaaaaatxah:0", "value": " for five consecutive minutes." }
+        ]
+      }
+    ]
+  },
+  "furniture": [
+    {
+      "kind": "footer",
+      "scope": "default",
+      "sectionIndex": 0,
+      "content": {
+        "type": "root",
+        "id": "n_aaaaaaaaaaaaaaaafroo:0",
+        "children": [
+          {
+            "type": "paragraph",
+            "id": "n_aaaaaaaaaaaaaaaafpar:0",
+            "children": [
+              { "type": "text", "id": "n_aaaaaaaaaaaaaaaaftxa:0", "value": "Internal — Deployment Runbook" }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "title": "Deployment Runbook",
+    "authors": ["Platform Team"],
+    "language": "en-US"
+  },
+  "sources": {
+    "s1": {
+      "sourceId": "s1",
+      "displayPath": "fixtures/docx/runbook-direct-formatting.docx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "contentHash": "3f8a1c9d2e4b6f70a5c3d1e9b8f7a6d5c4b3a2918f7e6d5c4b3a29180f1e2d3c",
+      "byteLength": 28714,
+      "adapter": { "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    }
+  },
+  "resources": {},
+  "styles": {
+    "Normal": {
+      "styleId": "Normal",
+      "name": "Normal",
+      "type": "paragraph",
+      "isDefault": true,
+      "evidence": { "origin": "styleCascade", "font": { "family": "Aptos", "sizePt": 11, "weight": 400 } }
+    },
+    "Heading1": {
+      "styleId": "Heading1",
+      "name": "Heading 1",
+      "type": "paragraph",
+      "basedOn": "Normal",
+      "evidence": { "origin": "styleCascade", "outlineLevel": 0, "font": { "family": "Aptos Display", "sizePt": 20, "weight": 700 } }
+    }
+  },
+  "numbering": {},
+  "sidecar": {
+    "n_aaaaaaaaaaaaaaaaheaa:0": {
+      "sourceStyleId": "Heading1",
+      "sourceStyleName": "Heading 1",
+      "basedOn": ["Heading1", "Normal"],
+      "outlineLevel": 0,
+      "font": { "family": "Aptos Display", "sizePt": 20, "weight": 700 },
+      "paragraph": { "alignment": "left", "spaceBeforePt": 18, "spaceAfterPt": 6, "keepWithNext": true },
+      "origin": "styleCascade"
+    },
+    "n_aaaaaaaaaaaaaaaapara:0": {
+      "sourceStyleId": "Normal",
+      "sourceStyleName": "Normal",
+      "font": { "family": "Aptos", "sizePt": 11, "weight": 400 },
+      "paragraph": { "alignment": "left", "spaceAfterPt": 8 },
+      "origin": "styleCascade"
+    },
+    "n_aaaaaaaaaaaaaaaaheab:0": {
+      "sourceStyleId": "Normal",
+      "sourceStyleName": "Normal",
+      "font": { "family": "Aptos", "sizePt": 16, "weight": 700 },
+      "paragraph": { "spaceBeforePt": 14, "keepWithNext": true },
+      "origin": "directFormatting"
+    },
+    "n_aaaaaaaaaaaaaaaaheac:0": {
+      "sourceStyleId": "Normal",
+      "sourceStyleName": "Normal",
+      "font": { "family": "Aptos", "sizePt": 13, "weight": 700 },
+      "paragraph": { "spaceBeforePt": 10, "keepWithNext": true },
+      "origin": "directFormatting"
+    },
+    "n_aaaaaaaaaaaaaaaahead:0": {
+      "sourceStyleId": "Normal",
+      "sourceStyleName": "Normal",
+      "font": { "family": "Aptos", "sizePt": 11, "weight": 700, "italic": true },
+      "paragraph": { "spaceBeforePt": 6, "keepWithNext": true },
+      "origin": "directFormatting"
+    },
+    "n_aaaaaaaaaaaaaaaaparb:0": {
+      "sourceStyleId": "Normal",
+      "sourceStyleName": "Normal",
+      "font": { "family": "Aptos", "sizePt": 11, "weight": 400 },
+      "origin": "styleCascade"
+    }
+  },
+  "provenance": {
+    "n_aaaaaaaaaaaaaaaaroot:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaaheaa:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaatxaa:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[1]/w:r[1]/w:t[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaapara:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[2]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaatxab:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[2]/w:r[1]/w:t[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaaheab:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[3]" },
+      "confidence": 0.94,
+      "producedBy": { "kind": "rule", "name": "heading/font-cluster", "version": "1" },
+      "derivedFrom": ["n_aaaaaaaaaaaaaaaaheab:0"]
+    },
+    "n_aaaaaaaaaaaaaaaatxac:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[3]/w:r[1]/w:t[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaaheac:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[4]" },
+      "confidence": 0.88,
+      "producedBy": { "kind": "rule", "name": "heading/numbering-pattern", "version": "1" }
+    },
+    "n_aaaaaaaaaaaaaaaatxad:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[4]/w:r[1]/w:t[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaahead:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[5]" },
+      "confidence": 0.61,
+      "producedBy": { "kind": "rule", "name": "heading/numbering-pattern", "version": "1" }
+    },
+    "n_aaaaaaaaaaaaaaaatxae:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[5]/w:r[1]/w:t[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaaparb:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaatxaf:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]/w:r[1]/w:t[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaastra:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]/w:r[2]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaatxag:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]/w:r[2]/w:t[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaatxah:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[6]/w:r[3]/w:t[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaafroo:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/footer1.xml", "xpath": "/w:ftr" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaafpar:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/footer1.xml", "xpath": "/w:ftr/w:p[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    },
+    "n_aaaaaaaaaaaaaaaaftxa:0": {
+      "sourceId": "s1",
+      "locator": { "kind": "ooxml", "part": "word/footer1.xml", "xpath": "/w:ftr/w:p[1]/w:r[1]/w:t[1]" },
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "MF-INFER-0001",
+      "severity": "warning",
+      "message": "Heading level for 'Rollback trigger thresholds' is ambiguous: candidates 6 (score 0.63) and 7 (score 0.61) are within the ambiguity margin. Chose 7 on numbering depth. Enable the LLM tie-breaker or set inference.ambiguityMargin to change this.",
+      "lossy": false,
+      "nodeId": "n_aaaaaaaaaaaaaaaahead:0",
+      "locator": { "kind": "ooxml", "part": "word/document.xml", "xpath": "/w:document/w:body/w:p[5]" },
+      "producedBy": { "kind": "rule", "name": "heading/monotonicity", "version": "1" }
+    },
+    {
+      "code": "MF-DOCX-0031",
+      "severity": "info",
+      "message": "Document headings carry direct formatting rather than named heading styles; heading levels were inferred. See --explain for the evidence per heading.",
+      "lossy": false,
+      "producedBy": { "kind": "adapter", "name": "@markforge/adapters-docx", "version": "0.1.0" }
+    }
+  ]
+}
