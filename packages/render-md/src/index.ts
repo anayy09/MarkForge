@@ -79,7 +79,13 @@ function buildOptions(opts: Required<MarkdownRenderOptions>): ToMarkdownOptions 
     // Escape only what must be escaped. Over-escaping is a common source of
     // non-idempotency: the escape character itself gets escaped on the next pass.
     resourceLink: false,
-    rule: "-",
+    // `*`, not `-`. A thematic break written as `---` at the start of a document is
+    // ambiguous with a YAML front-matter opening fence, and with the front-matter
+    // extension enabled the parser resolves it the other way: a document beginning
+    // with a `---` rule followed by a list re-parses with the list flattened into a
+    // paragraph, so `fmt` is not idempotent. `***` has no such ambiguity. Found by
+    // the generated-document property test, not by any of the 35 hand-written cases.
+    rule: "*",
     ruleSpaces: false,
     tightDefinitions: true,
     incrementListMarker: true,

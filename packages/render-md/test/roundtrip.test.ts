@@ -80,6 +80,21 @@ describe("md → ir → md", () => {
     expect(out).toContain("a    b");
   });
 
+  // A thematic break emitted as `---` at the start of a document is ambiguous with a
+  // YAML front-matter opening fence, and the parser resolves it as front matter,
+  // flattening the following block. The renderer must never emit that ambiguity.
+  //
+  // Note what this does *not* claim: an input of "---\n\n- item" is genuinely
+  // ambiguous Markdown, and how a parser reads it is not the renderer's to fix. The
+  // guarantee is one-directional — anything MarkForge *writes* re-parses to what it
+  // meant.
+  it("never emits a thematic break that could be read as front matter", () => {
+    const doc = parseMarkdown("***\n\n- item\n").document;
+    const out = renderMarkdown(doc).markdown;
+    expect(out).not.toMatch(/^---/);
+    expect(selectType(parseMarkdown(out).document.body, "list")).toHaveLength(1);
+  });
+
   it("always ends with exactly one trailing newline", () => {
     for (const src of ["# a", "# a\n", "# a\n\n\n"]) {
       const out = fmt(src);
