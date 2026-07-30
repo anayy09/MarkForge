@@ -22,6 +22,7 @@
     "mdast-util-to-markdown": "^2.1.2",
     "mdast-util-gfm": "^3.0.0",
     "mdast-util-frontmatter": "^2.0.1",
-    "mdast-util-math": "^3.0.0"
+    "mdast-util-math": "^3.0.0",
+    "@markforge/adapters-md": "workspace:*"
   }
 }

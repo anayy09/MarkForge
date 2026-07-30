@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../ir"
+    },
+    {
+      "path": "../adapters-md"
     }
   ]
 }

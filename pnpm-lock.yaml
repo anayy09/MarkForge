@@ -152,6 +152,9 @@ importers:
 
   packages/render-md:
     dependencies:
+      '@markforge/adapters-md':
+        specifier: workspace:*
+        version: link:../adapters-md
       '@markforge/ir':
         specifier: workspace:*
         version: link:../ir
