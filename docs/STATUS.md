@@ -159,6 +159,38 @@ The measured numbers in `FIDELITY.md` now cover eight deliberately defective DOC
 documents alongside the clean ones, so they are no longer only a claim about easy input.
 They remain a claim about *authored* input: nothing in the corpus was found in the wild.
 
+## CI had never passed, from Phase 1 until now
+
+Worth its own section, because it invalidates how every earlier "done" in this document
+was arrived at. Every CI run on `main` failed — the merges of PRs #1, #2, and #3 included
+— and each failed in **setup**, before install, in under ten seconds. Red that fast reads
+as infrastructure noise, so it was never chased. Phase 1 added `packageManager` to
+`package.json` while the workflow also pinned `version: 11`, and `pnpm/action-setup@v4`
+refuses when both are present.
+
+Fixing that one line exposed four more defects, each latent since the phase that
+introduced it, none reachable by any local run:
+
+1. **The test suite could not pass on a clone.** `packages/ooxml/test/real-docx.test.ts`
+   reads two gitignored fixtures. It guarded them with `describe.skipIf` *and* carried a
+   comment insisting CI must be reproducible from a clone — but `skipIf` skips the tests,
+   not the suite body, so `readFileSync` at body level threw during collection.
+2. **Node 20 was in the test matrix and could never work.** pnpm 11.9.0 needs a builtin
+   Node 20 lacks. `engines.node` claimed `>=20.11`, which was simply untrue.
+3. **The scoreboard staleness gate could not pass.** It byte-compares a file that records
+   its pandoc version, while installing whatever apt shipped. Same code, pandoc 3.10: *1
+   metric-win to MarkForge, 23 tied*; Ubuntu's pandoc: *12 to MarkForge, 12 tied*.
+4. **`normalize` was not idempotent** — a stated Phase 1 gate. Rule 3 collapsed whitespace
+   per text node *before* the merge, so `["! ", " ", "!"]` merged into `"!  !"` and nothing
+   revisited it. Caught at fast-check seed 1458972494, on CI and not locally purely
+   because the seed is random per run. Seeds are now pinned in all four property files.
+
+The lesson matches the one about aggregate fidelity scores: **a check that has never run
+is not a check.** A green local `pnpm verify` and a red CI badge were both visible for
+three phases, and the local one was believed. Every gate in `.github/workflows/ci.yml`
+should be assumed unverified until it has been seen to pass *and* seen to fail for the
+right reason.
+
 ## What to fix first
 
 In the order that removes the most risk:
