@@ -402,8 +402,7 @@ fixtures["messy-combined.docx"] = docx({
 
 const SHARED_SOURCE = `# Generated Document Profile
 
-This document exists in several producer variants built from this one source, so a
-fidelity difference between them isolates the generator rather than the content.
+This document exists in several producer variants built from this one source, so a fidelity difference between them isolates the generator rather than the content.
 
 ## Findings
 
@@ -413,10 +412,10 @@ fidelity difference between them isolates the generator rather than the content.
 - First bulleted item.
 - Second bulleted item.
 
-| Metric | Value |
-| ------ | ----- |
+| Metric     | Value |
+| ---------- | ----- |
 | Throughput | 1,450 |
-| Latency | 240ms |
+| Latency    | 240ms |
 
 A closing paragraph with **bold** and _italic_ text.
 `;
@@ -567,7 +566,20 @@ for (const [name, bytes] of Object.entries(fixtures)) {
 // look like our regression. The shared Markdown source is committed instead, so the
 // variant is reproducible by anyone with pandoc.
 const sourcePath = join(REPO, "fixtures/md/generated-profile-source.md");
-if (!CHECK) writeFileSync(sourcePath, SHARED_SOURCE, "utf8");
+if (CHECK) {
+  // Checked like the DOCX fixtures. Leaving it out meant the one committed file the
+  // generator writes in a *text* format could drift silently, and it did: it was
+  // committed unformatted and broke the `fmt` fixed-point gate in CI.
+  const current = existsSync(sourcePath) ? readFileSync(sourcePath, "utf8") : "";
+  if (current !== SHARED_SOURCE) {
+    console.log("STALE fixtures/md/generated-profile-source.md");
+    stale += 1;
+  } else {
+    console.log("ok    fixtures/md/generated-profile-source.md");
+  }
+} else {
+  writeFileSync(sourcePath, SHARED_SOURCE, "utf8");
+}
 
 if (CHECK) {
   console.log(
@@ -578,11 +590,19 @@ if (CHECK) {
   process.exit(stale === 0 ? 0 : 1);
 }
 
-const pandocProbe = spawnSync(
+// Same candidate list as `run-scoreboard.mjs`. The previous probe checked only a
+// hard-coded Windows install path, so it could succeed on one machine and reported
+// "pandoc absent" everywhere else, including CI.
+const PANDOC_CANDIDATES = [
+  "pandoc",
   join(process.env["LOCALAPPDATA"] ?? "", "Pandoc", "pandoc.exe"),
-  ["--version"],
-  { encoding: "utf8" },
-);
+  "C:/Program Files/Pandoc/pandoc.exe",
+  "/usr/bin/pandoc",
+  "/usr/local/bin/pandoc",
+];
+const pandocProbe = PANDOC_CANDIDATES.map((c) =>
+  spawnSync(c, ["--version"], { encoding: "utf8" }),
+).find((r) => r.status === 0) ?? { status: 1 };
 console.log(
   pandocProbe.status === 0
     ? "\nnote  a Pandoc variant can be produced from fixtures/md/generated-profile-source.md;\n" +

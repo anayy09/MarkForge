@@ -1,7 +1,6 @@
 # Generated Document Profile
 
-This document exists in several producer variants built from this one source, so a
-fidelity difference between them isolates the generator rather than the content.
+This document exists in several producer variants built from this one source, so a fidelity difference between them isolates the generator rather than the content.
 
 ## Findings
 
@@ -11,9 +10,9 @@ fidelity difference between them isolates the generator rather than the content.
 - First bulleted item.
 - Second bulleted item.
 
-| Metric | Value |
-| ------ | ----- |
+| Metric     | Value |
+| ---------- | ----- |
 | Throughput | 1,450 |
-| Latency | 240ms |
+| Latency    | 240ms |
 
 A closing paragraph with **bold** and _italic_ text.

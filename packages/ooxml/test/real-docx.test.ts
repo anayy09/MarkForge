@@ -8,10 +8,34 @@ import { parseNumbering, resolveListItem } from "../src/numbering.js";
 // they cannot be redistributed (fixtures/LICENSES.md). So they skip rather than
 // fail when absent: CI must be reproducible from a clone, and a test that requires
 // an unobtainable file would make it not be.
+//
+// `describe.skipIf` is not enough on its own, and that is the whole point of the
+// helper below. skipIf skips the *tests*; vitest still runs the describe callback
+// during collection, so a `readFileSync` at the top of the body throws ENOENT and
+// fails the file before any skip decision applies. That is exactly what happened —
+// the guard was here from the start and CI still could not get past collection,
+// because CI had never run at all. Registering the suite only when the file exists
+// is what actually makes the body lazy.
 const IEEE = "fixtures/local/ieee-conference-template.docx";
 const SAMPLE1 = "fixtures/local/sample001.docx";
 
-describe.skipIf(!existsSync(IEEE))("IEEE conference template (local only)", () => {
+/**
+ * Registers a suite only when its fixture is present, and leaves a visible skip when
+ * it is not — so "0 tests ran" cannot be mistaken for "everything passed".
+ */
+function describeWithFixture(path: string, name: string, body: () => void): void {
+  if (existsSync(path)) {
+    describe(name, body);
+    return;
+  }
+  describe.skip(`${name} — skipped, ${path} not present`, () => {
+    it("needs a fixture that cannot be redistributed", () => {
+      expect(existsSync(path)).toBe(false);
+    });
+  });
+}
+
+describeWithFixture(IEEE, "IEEE conference template (local only)", () => {
   const pkg = OpcPackage.open(new Uint8Array(readFileSync(IEEE)));
   const styles = parseStyles(pkg.xml(Part.STYLES));
   const docDefaults = parseDocDefaults(pkg.xml(Part.STYLES));
@@ -42,7 +66,7 @@ describe.skipIf(!existsSync(IEEE))("IEEE conference template (local only)", () =
   });
 });
 
-describe.skipIf(!existsSync(SAMPLE1))("machine-generated DOCX (local only)", () => {
+describeWithFixture(SAMPLE1, "machine-generated DOCX (local only)", () => {
   const pkg = OpcPackage.open(new Uint8Array(readFileSync(SAMPLE1)));
 
   // CORPUS.md §2.15: this class of file has no theme part at all.

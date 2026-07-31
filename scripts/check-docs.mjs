@@ -402,6 +402,24 @@ if (existsSync(join(REPO, "docs/SCOREBOARD.md"))) {
     fail("docs/SCOREBOARD.md is missing the shared-parser control CORPUS.md §3 requires");
   }
   ok("docs/SCOREBOARD.md discloses bias in both directions and bounds its own claim");
+
+  // The scoreboard's numbers depend on the competitor's version, so CI pins pandoc and
+  // byte-compares the committed file. That only holds while the pin and the version the
+  // file records agree — and if they drift, the failure is a confusing diff in our own
+  // numbers rather than an obvious "wrong pandoc", so it is worth a named check.
+  const recorded = /Competitor: pandoc ([0-9][^.\s]*(?:\.[0-9]+)*)/.exec(board);
+  const workflow = existsSync(join(REPO, ".github/workflows/ci.yml"))
+    ? read(".github/workflows/ci.yml")
+    : "";
+  const pinned = /PANDOC_VERSION:\s*"([^"]+)"/.exec(workflow);
+  if (!recorded) fail("docs/SCOREBOARD.md does not record which pandoc version produced it");
+  else if (!pinned) fail(".github/workflows/ci.yml does not pin PANDOC_VERSION");
+  else if (recorded[1] !== pinned[1]) {
+    fail(
+      `pandoc version drift: docs/SCOREBOARD.md records ${recorded[1]} but CI pins ` +
+        `${pinned[1]}. Regenerate the scoreboard with the pinned version, or move the pin.`,
+    );
+  } else ok(`CI pins pandoc ${pinned[1]}, matching the version docs/SCOREBOARD.md records`);
 } else {
   fail("docs/SCOREBOARD.md is missing — run `node scripts/run-scoreboard.mjs`");
 }

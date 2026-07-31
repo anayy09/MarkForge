@@ -46,7 +46,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        # 22 and 24, not 20. pnpm 11.9.0 - the version package.json pins - uses a
+        # builtin module Node 20 does not have and dies with
+        # ERR_UNKNOWN_BUILTIN_MODULE before install even starts, so the Node 20 entry
+        # was never capable of passing. package.json's engines field now says >=22
+        # too; claiming >=20.11 while the toolchain requires 22 was a false promise.
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -123,8 +128,20 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
-      - name: Install pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc
+      # Pinned, not apt's floating version. docs/SCOREBOARD.md records which pandoc
+      # produced it, and the staleness gate below byte-compares that file — so an
+      # unpinned competitor would make our own numbers look like they had changed
+      # every time Ubuntu bumped a package. Keep PANDOC_VERSION and the "Competitor:"
+      # line in docs/SCOREBOARD.md in step.
+      - name: Install pandoc (pinned)
+        env:
+          PANDOC_VERSION: "3.10"
+        run: |
+          set -euo pipefail
+          deb="pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          curl -fsSLO "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/${deb}"
+          sudo dpkg -i "$deb"
+          pandoc --version | head -1
 
       # Guards the metrics where the two tools tie today. Does not assert a win on
       # structural, because there is not one — see docs/SCOREBOARD.md.
