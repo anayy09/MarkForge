@@ -32,9 +32,9 @@ jobs:
       - name: Enforce fixture licences
         run: node scripts/check-fixtures.mjs
 
+      # No `version:` here on purpose. package.json pins pnpm via packageManager,
+      # and action-setup@v4 fails outright when both are given.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - run: pnpm install --frozen-lockfile
 
       - name: Validate the JSON Schemas
@@ -52,9 +52,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      # No `version:` here on purpose. package.json pins pnpm via packageManager,
+      # and action-setup@v4 fails outright when both are given.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - run: pnpm install --frozen-lockfile
 
       - name: Typecheck
@@ -90,9 +90,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # No `version:` here on purpose. package.json pins pnpm via packageManager,
+      # and action-setup@v4 fails outright when both are given.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
@@ -117,9 +117,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # No `version:` here on purpose. package.json pins pnpm via packageManager,
+      # and action-setup@v4 fails outright when both are given.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
@@ -143,9 +143,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # No `version:` here on purpose. package.json pins pnpm via packageManager,
+      # and action-setup@v4 fails outright when both are given.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
