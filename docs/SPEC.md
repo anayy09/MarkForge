@@ -812,14 +812,31 @@ llm: {
     fast:   "gpt-oss-120b",                 // classification, extraction, alt text
     strong: "nemotron-3-super-120b-a12b",   // synthesis, conflict analysis, summarization
     vision: "gemma-4-31b-it",               // scanned pages, ambiguous table geometry
+    embed:  "nomic-embed-text-v1.5",        // near-duplicate context units (§10.4)
   },
+  // Optional. Overrides the §6.2 defaults, per task.
+  taskRoles: { "heading-tiebreak": "strong" },
 }
 ```
 
-Three roles, `fast | strong | vision`, each a bare model-name string passed straight through
-as the OpenAI `model` parameter. **The task → role mapping is fixed in code**, listed in §6.2;
-only the model name per role is configurable. Adding a model means editing one string, which
-is the whole point of not having a registry.
+Four roles, `fast | strong | vision | embed`, each a bare model-name string passed straight
+through as the OpenAI `model` parameter. Adding a model means editing one string, which is
+the whole point of not having a registry.
+
+**The role names are closed; the task → role bindings are open** (OPEN_QUESTIONS §7c). The two
+differ in how they fail. A role is a capability distinction the code has to know how to *use* —
+`vision` takes image parts, `embed` calls a different endpoint shape — so a fifth role is
+properly a code change. A binding is only a preference, and bindings are where experience
+actually changes its mind: a heading tie-break worth sending to `strong` on one corpus belongs
+on `fast` for another, and that should be a config edit rather than a patch. So §6.2's table is
+the default, `llm.taskRoles` overrides it per key, and an unknown task name is rejected rather
+than silently ignored.
+
+`embed` exists from the start rather than being added in Phase 4 because §10.4 merges
+near-duplicate context units, and lexical similarity cannot do that job: the same constraint
+stated in a PRD and in an ADR shares almost no tokens. `nomic-embed-text-v1.5` over
+`sfr-embedding-mistral` because context units are short by construction, so 8K context is
+ample and the smaller model is cheaper at the volume deduplication implies.
 
 `Navigator-Models.xlsx` was read once, in-memory, to choose those three defaults (brief §7.2
 required reading rather than assuming its schema; the inventory is recorded in
@@ -835,7 +852,8 @@ fallback to `--no-llm`, because silently producing different output is worse tha
 
 ### 6.2 Task → role mapping
 
-Fixed in code, not configurable — the roles are the extension point:
+Defaults, overridable per task via `llm.taskRoles` (§6.1). The table below is
+`DEFAULT_TASK_ROLES` in `@markforge/llm`:
 
 | Task (all from brief §7.1's permitted list) | Role |
 | --- | --- |
@@ -848,6 +866,7 @@ Fixed in code, not configurable — the roles are the extension point:
 | Glossary extraction (§10.3) | `strong` |
 | Scanned-page transcription (§3.3) | `vision` |
 | Table structure recovery when geometry is ambiguous (ADR-0012) | `vision` |
+| Near-duplicate context-unit merging (§10.4) | `embed` |
 
 **No fallback chains.** If a call fails after its repair attempts, the call fails and the
 deterministic fallback for that task applies, with a diagnostic. A fallback chain silently

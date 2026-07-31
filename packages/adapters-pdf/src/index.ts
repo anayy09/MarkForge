@@ -65,11 +65,29 @@ export interface PdfParseOptions {
  * shape threw, so the only way to reach the scan branch was to catch an error and reopen
  * the file, which is control flow by exception and doubles the work.
  *
- * `parsePdf` still throws for the scan case (OPEN_QUESTIONS §7i), because a caller that
- * asked for a document and cannot be handed one deserves an error rather than a union.
+ * `parsePdf` still throws when *every* page is a scan (OPEN_QUESTIONS §7i), because a
+ * caller that asked for a document and cannot be handed one deserves an error rather than
+ * a union. A document where only *some* pages are scans is a `text` result: see below.
  */
 export type PdfReadResult =
-  | { kind: "text"; document: MarkForgeDocument; diagnostics: DiagnosticBag }
+  | {
+      kind: "text";
+      document: MarkForgeDocument;
+      /**
+       * Page images for pages that had no text layer in an otherwise readable document.
+       * Empty for the ordinary case.
+       *
+       * The mixed document is the common real one — a born-digital report with a signed
+       * cover sheet, a photocopied appendix, a submission bundle — and the two obvious
+       * rules both fail it. Throwing loses the readable 90 percent; passing silently
+       * drops the scanned pages, which violates brief §3.3. So the readable pages
+       * convert, each unreadable page becomes an `unknown` placeholder node carrying its
+       * page number and a lossy diagnostic (so `--strict` exits non-zero), and its image
+       * is handed back here for a recogniser to fill in.
+       */
+      scannedPages: PageImage[];
+      diagnostics: DiagnosticBag;
+    }
   | {
       kind: "scan";
       /** One PNG per page, for a recogniser. Empty when no raster could be extracted. */
@@ -82,7 +100,7 @@ export type PdfReadResult =
 const DEFAULT_MAX_PAGES = 200;
 
 /**
- * Below this many characters per page, we call it a scan.
+ * Below this many characters, a *page* is a scan.
  *
  * Some scanned PDFs carry a few characters of junk text — a stamp, a watermark, a
  * form field — so "zero characters" is the wrong test. But the threshold has to stay
@@ -90,6 +108,11 @@ const DEFAULT_MAX_PAGES = 200;
  * positive on the most annoying possible input. A scan that carries a watermark and
  * squeaks past this will produce a document containing the watermark, which is at
  * least honest about what the text layer held.
+ *
+ * **Applied per page, not to a document average** (OPEN_QUESTIONS §7i). An average
+ * hides exactly the case that matters: forty readable pages and four scanned ones
+ * average out well above the threshold, so the document passes and four pages vanish
+ * with no diagnostic anywhere. The per-page test cannot express that outcome.
  */
 const SCAN_THRESHOLD_CHARS_PER_PAGE = 8;
 
@@ -165,13 +188,18 @@ export async function readPdf(
   // Two passes: the first measures the document so heading detection compares
   // against the *document's* body size rather than each page's. A page of nothing but
   // a large heading would otherwise treat that heading as body text.
-  const pages: { pageNumber: number; layout: ReturnType<typeof analysePage> }[] = [];
+  const pages: {
+    pageNumber: number;
+    layout: ReturnType<typeof analysePage>;
+    chars: number;
+  }[] = [];
 
   for (let pageNumber = 1; pageNumber <= maxPages; pageNumber++) {
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 1 });
     const content = await page.getTextContent();
 
+    let pageChars = 0;
     const runs: TextRun[] = [];
     for (const item of content.items) {
       // Whitespace-only items are pdf.js's gap fillers, not content: they carry no
@@ -192,6 +220,7 @@ export async function readPdf(
         fontName: "fontName" in item && typeof item.fontName === "string" ? item.fontName : "",
       });
       totalChars += item.str.trim().length;
+      pageChars += item.str.trim().length;
     }
 
     // pdf.js clips text extending past the MediaBox and reports the survivors with
@@ -213,14 +242,37 @@ export async function readPdf(
     }
 
     const layout = analysePage(runs, viewport.width);
-    pages.push({ pageNumber, layout });
+    pages.push({ pageNumber, layout, chars: pageChars });
     for (const column of layout.columns) for (const line of column.lines) allHeights.push(line.height);
 
     page.cleanup();
   }
 
   const charsPerPage = maxPages > 0 ? totalChars / maxPages : 0;
-  if (charsPerPage < SCAN_THRESHOLD_CHARS_PER_PAGE) {
+
+  // The scan test is per page (OPEN_QUESTIONS §7i). Three outcomes, not two: every page
+  // a scan, no page a scan, or the mixed document that both simpler rules get wrong.
+  const scannedPageNumbers = pages
+    .filter((p) => p.chars < SCAN_THRESHOLD_CHARS_PER_PAGE)
+    .map((p) => p.pageNumber);
+  const allScanned = maxPages > 0 && scannedPageNumbers.length === maxPages;
+
+  const rasterise = async (pageNumbers: number[]): Promise<PageImage[]> => {
+    const images: PageImage[] = [];
+    for (const pageNumber of pageNumbers) {
+      const page = await pdf.getPage(pageNumber);
+      const image = await pageImage(
+        page as unknown as Parameters<typeof pageImage>[0],
+        pageNumber,
+        { ops: pdfjs.OPS as unknown as Record<string, number>, diagnostics },
+      );
+      if (image) images.push(image);
+      page.cleanup();
+    }
+    return images;
+  };
+
+  if (allScanned) {
     // A scan. The routing decision itself is recorded as an `info` diagnostic, which
     // ADR-0012 requires: "we OCR'd this" is a fact about the output that a reader
     // should not have to infer from the provenance table.
@@ -232,25 +284,44 @@ export async function readPdf(
         `picture, recorded with a confidence in provenance.`,
     );
 
-    const images: PageImage[] = [];
-    for (let pageNumber = 1; pageNumber <= maxPages; pageNumber++) {
-      const page = await pdf.getPage(pageNumber);
-      const image = await pageImage(
-        page as unknown as Parameters<typeof pageImage>[0],
-        pageNumber,
-        { ops: pdfjs.OPS as unknown as Record<string, number>, diagnostics },
-      );
-      if (image) images.push(image);
-      page.cleanup();
-    }
+    const images = await rasterise(scannedPageNumbers);
     await pdf.destroy();
 
     return { kind: "scan", pages: images, charsPerPage, pageCount: maxPages, diagnostics };
   }
 
+  // The mixed document: some pages readable, some not. Rasterise only the unreadable
+  // ones, so a recogniser can be pointed at exactly the pages that need it.
+  const scannedSet = new Set(scannedPageNumbers);
+  const scannedImages = scannedPageNumbers.length > 0 ? await rasterise(scannedPageNumbers) : [];
+  if (scannedPageNumbers.length > 0) {
+    diagnostics.info(
+      DiagnosticCode.PDF_NO_TEXT_LAYER,
+      `Page(s) ${scannedPageNumbers.join(", ")} of ${maxPages} have no usable text layer ` +
+        `while the rest do. The readable pages were converted; each unreadable page is a ` +
+        `placeholder node in reading position, and its image was extracted for a ` +
+        `recogniser. This document is incomplete until those pages are transcribed.`,
+    );
+  }
+
   const documentBodyHeight = median(allHeights) ?? 11;
+  const placeholders: { node: AnyNode; pageNumber: number }[] = [];
 
   for (const { pageNumber, layout } of pages) {
+    if (scannedSet.has(pageNumber)) {
+      // In reading position, so the placeholder sits where the page's content would
+      // have been rather than being appended as a footnote to the document.
+      const node: AnyNode = {
+        type: "unknown",
+        originalType: "pdf:scanned-page",
+        raw: `Page ${pageNumber} is a scanned image with no text layer.`,
+      };
+      pageOf.set(node, pageNumber);
+      placeholders.push({ node, pageNumber });
+      blocks.push(node);
+      continue;
+    }
+
     if (layout.columns.length > 1) {
       diagnostics.info(
         DiagnosticCode.INFER_AMBIGUOUS_HEADING,
@@ -292,8 +363,27 @@ export async function readPdf(
     attachSideTables(doc, sourceId, evidence, pageOf);
   }
 
+  // Emitted after the last `assignIds`, so each diagnostic names the node it describes.
+  // Rule A6 requires every `unknown` node to carry a lossy diagnostic with its id, and
+  // that lossiness is also what makes `--strict` exit non-zero on a mixed document —
+  // which is the half of §7i that keeps "no silent loss" true.
+  for (const { node, pageNumber } of placeholders) {
+    const nodeId = (node as { id?: unknown }).id;
+    diagnostics.lost(
+      DiagnosticCode.PDF_NO_TEXT_LAYER,
+      "pdf:scanned-page",
+      `Page ${pageNumber} has no text layer and was not transcribed, so its content is ` +
+        `absent from this document. Transcribe it with \`markforge convert --ocr\` ` +
+        `(tesseract locally, or --llm for a vision model).`,
+      {
+        ...(typeof nodeId === "string" ? { nodeId } : {}),
+        locator: { kind: "page", pageNumber },
+      },
+    );
+  }
+
   doc.diagnostics = diagnostics.all();
-  return { kind: "text", document: doc, diagnostics };
+  return { kind: "text", document: doc, scannedPages: scannedImages, diagnostics };
 }
 
 /**

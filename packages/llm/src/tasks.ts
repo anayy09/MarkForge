@@ -114,7 +114,7 @@ export async function breakHeadingTie(
 
   const result = await session.structured<{ chosen: string; rationale: string }>({
     task: HEADING_TIEBREAK_TASK,
-    role: "fast",
+    role: session.roleFor(HEADING_TIEBREAK_TASK),
     prompt,
     user,
     schema,
@@ -211,7 +211,7 @@ export async function transcribePage(
 
   const result = await session.structured<{ blocks: TranscribedBlock[]; confidence: number }>({
     task: TRANSCRIPTION_TASK,
-    role: "vision",
+    role: session.roleFor(TRANSCRIPTION_TASK),
     prompt,
     user,
     schema: TRANSCRIPTION_SCHEMA,

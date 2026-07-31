@@ -30,9 +30,27 @@ export interface LlmCapabilities {
   guidedDecoding: boolean;
   /** `seed` is accepted rather than rejected as an unknown parameter. */
   seed: boolean;
+  /**
+   * When the probe ran, ISO 8601. A capability record describes one deployment on one
+   * day, and a university gateway is redeployed without announcement — so this is not
+   * bookkeeping, it is the field that lets a stale record be recognised as stale.
+   */
+  probedAt: string;
   /** What each probe actually observed, so a surprising result is auditable. */
   evidence: string[];
 }
+
+/**
+ * How long a probe result is trusted.
+ *
+ * Seven days is a judgement, not a measurement: long enough that `check --llm` is not a
+ * daily chore, short enough that a redeploy is noticed within a working week. The cost
+ * of being wrong in one direction is two throwaway calls; in the other it is either a
+ * silent downgrade to the repair loop or a `response_format` the deployment has stopped
+ * accepting, which is the exact class of silent quality difference the probe exists to
+ * prevent.
+ */
+export const CAPABILITIES_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Assumed when no probe has run: the safe assumption is the weaker endpoint. */
 export function conservativeCapabilities(baseUrl: string): LlmCapabilities {
@@ -41,6 +59,10 @@ export function conservativeCapabilities(baseUrl: string): LlmCapabilities {
     probedModel: "(unprobed)",
     guidedDecoding: false,
     seed: false,
+    // The epoch, so that if this in-memory fallback is ever written to disk it reads as
+    // already expired and provokes a real probe, rather than pinning "unprobed" in place
+    // for a week.
+    probedAt: new Date(0).toISOString(),
     evidence: [
       "No probe has run, so guided decoding and seed are assumed unavailable. " +
         "The repair loop is the primary mechanism until `markforge check --llm` says otherwise.",
@@ -156,7 +178,14 @@ export async function probeCapabilities(
     }
   }
 
-  return { baseUrl, probedModel: model, guidedDecoding, seed, evidence };
+  return {
+    baseUrl,
+    probedModel: model,
+    guidedDecoding,
+    seed,
+    probedAt: new Date().toISOString(),
+    evidence,
+  };
 }
 
 /**
@@ -207,18 +236,40 @@ export function saveCapabilities(path: string, capabilities: LlmCapabilities): v
 }
 
 /**
- * Reads a previous probe, if it describes the endpoint we are about to use.
+ * Reads a previous probe, if it still describes the endpoint we are about to use.
  *
- * A cached probe for a different `baseUrl` is discarded rather than trusted: pointing
- * at a new gateway and inheriting the old one's capabilities is exactly the silent
- * wrongness the probe exists to prevent.
+ * Two ways a record stops being evidence, and both discard it rather than trusting it:
+ *
+ *   1. **The endpoint moved.** Pointing at a new gateway and inheriting the old one's
+ *      capabilities is exactly the silent wrongness the probe exists to prevent.
+ *   2. **The record went stale.** A capability is a property of a deployment, and a
+ *      university gateway is redeployed without announcement. An expired record would
+ *      either downgrade us to the repair loop for no reason, or keep sending a
+ *      `response_format` the deployment no longer accepts.
+ *
+ * A record with no `probedAt`, or an unparseable one, is treated as expired — it was
+ * written by an older build that could not express its own age, so its age is unknown,
+ * and unknown age is not evidence.
  */
-export function loadCapabilities(path: string, baseUrl: string): LlmCapabilities | undefined {
+export function loadCapabilities(
+  path: string,
+  baseUrl: string,
+  options: { maxAgeMs?: number; now?: number } = {},
+): LlmCapabilities | undefined {
   if (!existsSync(path)) return undefined;
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as LlmCapabilities;
     if (parsed.baseUrl !== baseUrl) return undefined;
     if (typeof parsed.guidedDecoding !== "boolean" || typeof parsed.seed !== "boolean") return undefined;
+
+    const maxAgeMs = options.maxAgeMs ?? CAPABILITIES_MAX_AGE_MS;
+    const probedAt = typeof parsed.probedAt === "string" ? Date.parse(parsed.probedAt) : NaN;
+    if (Number.isNaN(probedAt)) return undefined;
+    const age = (options.now ?? Date.now()) - probedAt;
+    // A future timestamp means a clock changed under us, which is no more trustworthy
+    // than an expired one.
+    if (age < 0 || age > maxAgeMs) return undefined;
+
     return parsed;
   } catch {
     return undefined;

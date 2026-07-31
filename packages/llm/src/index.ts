@@ -39,6 +39,7 @@ export {
   saveCapabilities,
   conservativeCapabilities,
   CAPABILITIES_PATH,
+  CAPABILITIES_MAX_AGE_MS,
 } from "./capabilities.js";
 export type { LlmCapabilities } from "./capabilities.js";
 
@@ -56,6 +57,7 @@ export {
   resolveApiKey,
   digestOf,
   DEFAULT_MAX_REPAIRS,
+  DEFAULT_TASK_ROLES,
   DEFAULT_BUDGET_TOKENS,
 } from "./session.js";
 export type { LlmRunReport, SessionOptions } from "./session.js";
@@ -90,6 +92,12 @@ export const DEFAULT_MODELS = {
   fast: "gpt-oss-120b",
   strong: "nemotron-3-super-120b-a12b",
   vision: "gemma-4-31b-it",
+  // Phase 4 §10.4 merges near-duplicate context units. Lexical similarity cannot do
+  // that job: the same constraint stated in a PRD and in an ADR shares almost no
+  // tokens, and only an embedding puts them near each other. 8K context is ample —
+  // context units are short by construction — which makes this the cheaper of the two
+  // embedding models in the catalog at the volume deduplication implies.
+  embed: "nomic-embed-text-v1.5",
 } as const;
 
 export const DEFAULT_BASE_URL = "https://api.ai.it.ufl.edu/v1";

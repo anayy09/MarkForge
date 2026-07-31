@@ -46,6 +46,11 @@ export function withLlmOptions<T extends CommandLike>(command: T): T {
     .option("--llm-model-fast <name>", "model for classification and tie-breaks", DEFAULT_MODELS.fast)
     .option("--llm-model-strong <name>", "model for synthesis", DEFAULT_MODELS.strong)
     .option("--llm-model-vision <name>", "model for scanned pages", DEFAULT_MODELS.vision)
+    .option(
+      "--llm-model-embed <name>",
+      "model for near-duplicate detection between context units",
+      DEFAULT_MODELS.embed,
+    )
     .option("--llm-cache-dir <dir>", "content-addressed response cache", DEFAULT_CACHE_DIR)
     .option(
       "--llm-cache-mode <mode>",
@@ -69,6 +74,7 @@ export interface LlmFlags {
   llmModelFast?: string;
   llmModelStrong?: string;
   llmModelVision?: string;
+  llmModelEmbed?: string;
   llmCacheDir?: string;
   llmCacheMode?: string;
   llmMaxTokens?: string;
@@ -124,6 +130,7 @@ export function buildSession(flags: LlmFlags): BuiltSession {
       fast: flags.llmModelFast ?? DEFAULT_MODELS.fast,
       strong: flags.llmModelStrong ?? DEFAULT_MODELS.strong,
       vision: flags.llmModelVision ?? DEFAULT_MODELS.vision,
+      embed: flags.llmModelEmbed ?? DEFAULT_MODELS.embed,
     },
     cache: { dir: cacheDir, mode: cacheMode },
     budget: { maxTokens: parseCount(flags.llmMaxTokens, 200_000, "--llm-max-tokens") },

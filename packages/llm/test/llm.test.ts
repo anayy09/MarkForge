@@ -11,6 +11,9 @@
  * else's server is configured a particular way.
  */
 import { describe, it, expect } from "vitest";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   ChatClient,
   LlmCallFailed,
@@ -22,6 +25,7 @@ import {
   cacheKey,
   conservativeCapabilities,
   fill,
+  loadCapabilities,
   loadPrompt,
   probeCapabilities,
   resolveApiKey,
@@ -53,7 +57,12 @@ function fakeTransport(
   return { transport, requests };
 }
 
-const MODELS = { fast: "fast-model", strong: "strong-model", vision: "vision-model" };
+const MODELS = {
+  fast: "fast-model",
+  strong: "strong-model",
+  vision: "vision-model",
+  embed: "embed-model",
+};
 
 function session(
   transport: Transport,
@@ -488,5 +497,125 @@ describe("the cache entry", () => {
     expect(JSON.stringify(entry)).not.toContain("base64");
     // No timestamp anywhere: the cache is committable, and a clock would make it churn.
     expect(JSON.stringify(entry)).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+// OPEN_QUESTIONS §7c. The role names are closed and the bindings are open, and the
+// distinction only earns its keep if changing a binding actually changes which model is
+// called — so that is what these assert, rather than the shape of the map.
+describe("task to role bindings", () => {
+  it("defaults to the SPEC §6.2 table", () => {
+    const s = session(fakeTransport(() => ({ content: "{}" })).transport);
+    expect(s.roleFor("heading-tiebreak")).toBe("fast");
+    expect(s.roleFor("page-transcription")).toBe("vision");
+    expect(s.roleFor("conflict-analysis")).toBe("strong");
+    expect(s.roleFor("context-unit-dedup")).toBe("embed");
+  });
+
+  it("sends a rebound task to the model of its new role", async () => {
+    const { transport, requests } = fakeTransport(() => ({
+      content: '{"chosen":"paragraph","rationale":"reads as a sentence"}',
+    }));
+    const result = await breakHeadingTie(
+      session(transport, { taskRoles: { "heading-tiebreak": "strong" } }),
+      {
+        nodeId: "n_x:0",
+        text: "Note that the following applies",
+        candidates: [
+          { interpretation: "heading4", score: 0.536, reasons: ["bold"] },
+          { interpretation: "paragraph", score: 0.464, reasons: ["default"] },
+        ],
+        precedingHeadings: [1],
+        followingText: "Access arrangements were unchanged.",
+      },
+    );
+
+    expect(requests[0]?.["model"]).toBe("strong-model");
+    // And the provenance says so, so "which model decided this" stays answerable.
+    expect(result.producedBy.model).toBe("strong-model");
+  });
+
+  it("rebinds one task without disturbing the others", () => {
+    const s = session(fakeTransport(() => ({ content: "{}" })).transport, {
+      taskRoles: { "heading-tiebreak": "strong" },
+    });
+    expect(s.roleFor("heading-tiebreak")).toBe("strong");
+    expect(s.roleFor("page-transcription")).toBe("vision");
+  });
+
+  it("throws on an unbound task rather than defaulting", () => {
+    const s = session(fakeTransport(() => ({ content: "{}" })).transport);
+    // A typo silently falling through to `fast` would send work to the wrong model and
+    // surface only as slightly worse output.
+    expect(() => s.roleFor("heading-tiebrake")).toThrow(/no role is bound/);
+    expect(() => s.roleFor("heading-tiebrake")).toThrow(/heading-tiebreak/);
+  });
+
+  it("carries embed in the model set, for Phase 4 near-duplicate merging", () => {
+    const s = session(fakeTransport(() => ({ content: "{}" })).transport);
+    expect(s.models.embed).toBe("embed-model");
+  });
+});
+
+// OPEN_QUESTIONS §7d. A capability record describes one deployment on one day. The probe
+// exists to stop silent quality differences, so a record it can no longer vouch for has
+// to be discarded rather than believed.
+describe("capability records go stale", () => {
+  const BASE = "https://gateway.invalid/v1";
+  const write = (record: unknown): string => {
+    const dir = mkdtempSync(join(tmpdir(), "markforge-caps-"));
+    const path = join(dir, "llm-capabilities.json");
+    writeFileSync(path, JSON.stringify(record), "utf8");
+    return path;
+  };
+  const record = (over: Record<string, unknown> = {}) => ({
+    baseUrl: BASE,
+    probedModel: "fast-model",
+    guidedDecoding: true,
+    seed: true,
+    probedAt: new Date().toISOString(),
+    evidence: [],
+    ...over,
+  });
+
+  it("accepts a recent record for the same endpoint", () => {
+    expect(loadCapabilities(write(record()), BASE)?.guidedDecoding).toBe(true);
+  });
+
+  it("discards a record older than the maximum age", () => {
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    expect(loadCapabilities(write(record({ probedAt: old })), BASE)).toBeUndefined();
+  });
+
+  it("keeps a record that is old but still inside the window", () => {
+    const recent = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString();
+    expect(loadCapabilities(write(record({ probedAt: recent })), BASE)).toBeDefined();
+  });
+
+  it("discards a record written for a different endpoint", () => {
+    expect(loadCapabilities(write(record()), "https://elsewhere.invalid/v1")).toBeUndefined();
+  });
+
+  it("discards a record with no probedAt, because unknown age is not evidence", () => {
+    const legacy = record();
+    delete (legacy as { probedAt?: unknown }).probedAt;
+    expect(loadCapabilities(write(legacy), BASE)).toBeUndefined();
+  });
+
+  it("discards a record dated in the future, because a clock moved", () => {
+    const ahead = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    expect(loadCapabilities(write(record({ probedAt: ahead })), BASE)).toBeUndefined();
+  });
+
+  it("stamps a real probe with the time it ran", async () => {
+    const { transport } = fakeTransport(() => ({ content: '{"catCount":1,"verdict":"fluffy"}' }));
+    const client = new ChatClient({ baseUrl: BASE, apiKey: "k", transport });
+    const probed = await probeCapabilities(client, BASE, "fast-model");
+    expect(Date.now() - Date.parse(probed.probedAt)).toBeLessThan(60_000);
+  });
+
+  it("treats the unprobed fallback as already expired", () => {
+    const conservative = conservativeCapabilities(BASE);
+    expect(loadCapabilities(write(conservative), BASE)).toBeUndefined();
   });
 });

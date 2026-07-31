@@ -30,6 +30,16 @@ export interface SessionOptions {
   /** The key *value*, already read from the environment by the caller. */
   apiKey?: string;
   models: Record<Role, string>;
+  /**
+   * Which role serves each task, overriding `DEFAULT_TASK_ROLES` per key.
+   *
+   * The role names are closed and the bindings are open, because they fail differently.
+   * A fourth role needs code that knows how to use it; a rebinding needs nothing but a
+   * decision, and the bindings are where experience actually changes its mind — a
+   * heading tie-break worth sending to `strong` on one corpus belongs on `fast` for
+   * another. That should be a config edit, not a patch.
+   */
+  taskRoles?: Record<string, Role>;
   cache?: { dir?: string; mode?: CacheMode };
   budget?: { maxTokens?: number; onExceed?: "abort" | "degrade" };
   maxRepairs?: number;
@@ -60,8 +70,31 @@ export interface LlmRunReport {
 export const DEFAULT_MAX_REPAIRS = 2;
 export const DEFAULT_BUDGET_TOKENS = 200_000;
 
+/**
+ * The SPEC §6.2 table, as defaults rather than as law.
+ *
+ * Every task on brief §7.1's permitted list appears here, including the seven Phase 4
+ * has not built yet — listing a binding costs one line and makes the mapping legible in
+ * one place, where discovering it task by task as each is implemented would not.
+ * `alt-text` is bound to `fast` because its usual input is surrounding text; when the
+ * image itself is the input the caller passes `vision` explicitly.
+ */
+export const DEFAULT_TASK_ROLES: Record<string, Role> = {
+  "document-role-classification": "fast",
+  "context-unit-extraction": "fast",
+  "alt-text": "fast",
+  "heading-tiebreak": "fast",
+  "context-unit-summarization": "strong",
+  "conflict-analysis": "strong",
+  "glossary-extraction": "strong",
+  "page-transcription": "vision",
+  "table-structure-recovery": "vision",
+  "context-unit-dedup": "embed",
+};
+
 export class LlmSession {
   readonly models: Record<Role, string>;
+  readonly taskRoles: Record<string, Role>;
   readonly capabilities: LlmCapabilities;
   readonly cacheMode: CacheMode;
   private readonly client: ChatClient | undefined;
@@ -83,6 +116,7 @@ export class LlmSession {
 
   constructor(options: SessionOptions) {
     this.models = options.models;
+    this.taskRoles = { ...DEFAULT_TASK_ROLES, ...options.taskRoles };
     this.capabilities = options.capabilities ?? conservativeCapabilities(options.baseUrl);
     this.cacheMode = options.cache?.mode ?? "readWrite";
     this.maxRepairs = options.maxRepairs ?? DEFAULT_MAX_REPAIRS;
@@ -108,6 +142,26 @@ export class LlmSession {
   /** True when this session cannot reach the network at all. */
   get offline(): boolean {
     return this.client === undefined;
+  }
+
+  /**
+   * The role bound to a task.
+   *
+   * An unbound task is an error rather than a silent default. A typo in `llm.taskRoles`
+   * that quietly fell through to `fast` would send work to the wrong model and show up
+   * only as output that got slightly worse, which is the least debuggable failure this
+   * layer can produce.
+   */
+  roleFor(task: string): Role {
+    const role = this.taskRoles[task];
+    if (role === undefined) {
+      throw new Error(
+        `llm: no role is bound to task "${task}". Known tasks: ` +
+          `${Object.keys(this.taskRoles).sort().join(", ")}. Bind it in llm.taskRoles, or ` +
+          `add it to DEFAULT_TASK_ROLES if it is a permitted task from brief §7.1.`,
+      );
+    }
+    return role;
   }
 
   async structured<T>(request: StructuredRequest): Promise<StructuredResult<T>> {

@@ -63,7 +63,15 @@ function validatorFor(schema: object): ValidateFunction {
   return fn;
 }
 
-export type Role = "fast" | "strong" | "vision";
+/**
+ * The closed set of roles (SPEC §6.1).
+ *
+ * Closed on purpose: a role is a capability distinction the code has to know how to
+ * *use* — `vision` takes image parts, `embed` calls a different endpoint shape — so
+ * adding one is properly a code change. Which task uses which role is the open part,
+ * and lives in `SessionOptions.taskRoles`.
+ */
+export type Role = "fast" | "strong" | "vision" | "embed";
 
 export interface StructuredRequest {
   /** Task name: names the cache directory and the failure diagnostic. */

@@ -224,13 +224,39 @@ small deviation from brief §5.2's "header and footer stripping". Stripping woul
 
 Added on 2026-07-30, from the answers above:
 
-**7c. The `fast | strong | vision` role set, and the task → role mapping being fixed in code.**
-The reviewer specified "select some powerful models and use them"; three roles is my
-interpretation of how many distinctions are worth having. It is the part of ADR-0009 most
-likely to need widening — a fourth role would be a code change, not a config edit.
+**7c. The role set, and where the task → role mapping lives. — RULED ON 2026-07-31: modify.**
+
+*Original entry:* the `fast | strong | vision` role set was my interpretation of how many
+distinctions are worth having, with the task mapping fixed in code; a fourth role would be a
+code change rather than a config edit.
+
+*Verdict:* the count was not the problem. The reviewer identified the right risk and I had
+applied it to the wrong dimension — a fourth role being a code change is tolerable, but every
+individual task binding being a code change is not, because the bindings are where experience
+actually changes its mind. Two changes, both landed:
+
+- **`embed` added now**, defaulting to `nomic-embed-text-v1.5`. §10.4 merges near-duplicate
+  context units and lexical similarity cannot do it: the same constraint written in a PRD and
+  in an ADR shares almost no tokens. Discovering this in Phase 4 is exactly the retrofit cost
+  this entry warned about, so it was paid up front.
+- **The mapping moved to `llm.taskRoles`**, with the §6.2 table as defaults. Role names stay
+  closed, bindings open. An unbound or misspelled task throws rather than defaulting, because a
+  typo silently falling through to `fast` would surface only as slightly worse output.
+
+`SPEC.md` §6.1–6.2, `schema/markforge.config.v0.schema.json`, `DEFAULT_TASK_ROLES` in
+`@markforge/llm`.
 
 **7d. `markforge check --llm` capability probing** was invented to close question 3 rather than
 leaving it open. It adds a command flag and a cache file that the brief does not mention.
+
+*Affirmed 2026-07-31, with one requirement now met:* **the record has to be able to go stale.**
+`.markforge/llm-capabilities.json` records `baseUrl` and `probedAt`, and `loadCapabilities`
+discards it when the endpoint differs, when the record is older than `CAPABILITIES_MAX_AGE_MS`
+(seven days), when `probedAt` is absent — an older build could not express its own age, and
+unknown age is not evidence — or when it is dated in the future, which means a clock moved. A
+university gateway is redeployed without announcement, and a stale record would either
+downgrade silently to the repair loop or keep sending a `response_format` the deployment had
+stopped accepting: the exact failure the probe exists to prevent.
 
 Added during Phase 2:
 
@@ -254,9 +280,28 @@ would mean refusing to read PDFs. The inference is deterministic, thresholds der
 document's own measurements, and provenance carries `confidence: 0.8` so the guess is labelled
 as one. ADR-0012 anticipated this; it is recorded here as an explicit A5 exception.
 
-**7i. A PDF with no text layer throws rather than returning an empty document.** OCR is Phase 3.
-Until then, a conversion that "succeeds" with three words of a forty-page scan is worse than one
-that says what is wrong, so the adapter names the phase that will fix it and stops.
+**7i. A PDF with no text layer throws rather than returning an empty document. — RULED ON
+2026-07-31: modify. The check is per page, not per document.**
+
+*Original entry:* a conversion that "succeeds" with three words of a forty-page scan is worse
+than one that says what is wrong, so the adapter stopped and named the phase that would fix it.
+
+*Verdict:* throwing on a fully scanned PDF is right and is unchanged. The document-level
+boolean was wrong for the common real case — a born-digital PDF with scanned pages inserted, a
+submission bundle with a signed cover sheet, an appendix photocopied into an otherwise clean
+report. Averaging characters over the document puts those comfortably above the threshold, so
+the old rule converted them and the scanned pages vanished with no diagnostic anywhere, which
+is precisely the silent loss brief §3.3 forbids. The rule is now:
+
+- text coverage is computed **per page**;
+- **all** pages below threshold → throw, as before;
+- **some** pages below threshold → convert the readable pages, emit an `unknown` placeholder
+  node per affected page in reading position, and hand back that page's image for a recogniser.
+
+Each placeholder carries a lossy diagnostic naming its node id and page number, which satisfies
+adapter rule A6 and is what makes `--strict` exit non-zero. This keeps no-silent-loss and keeps
+the tool useful on documents that actually exist. `packages/adapters-pdf/src/index.ts`; the
+mixed case is covered by its own suite in `packages/adapters-pdf/test/pdf.test.ts`.
 
 **7j. `parseAsync`/`convertAsync` exist alongside the synchronous pair.** PDF extraction is
 inherently asynchronous, and making every conversion async would force every caller to await a

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parsePdf, readPdf, groupIntoLines, detectColumns, joinBlockText, type TextRun, type Line } from "../src/index.js";
 import { buildPdf, paragraphPage } from "./helpers.js";
-import { selectType, textContent, validateDocument } from "@markforge/ir";
+import { checkUnknownNodesDiagnosed, selectType, textContent, validateDocument } from "@markforge/ir";
 
 const run = (text: string, x: number, y: number, height = 10, width = text.length * 5): TextRun => ({
   text, x, y, width, height, fontName: "F1",
@@ -305,6 +305,75 @@ describe("PDF adapter", () => {
     // and that is itself reported as a loss rather than as an empty success.
     expect(result.pages).toHaveLength(0);
     expect(result.diagnostics.lossy().some((d) => d.code === "MF-PDF-0002")).toBe(true);
+  });
+
+  // The case the document-level rule got wrong (OPEN_QUESTIONS §7i): a born-digital
+  // report with a scanned page dropped into it. Averaging characters over the document
+  // puts this comfortably above the threshold, so the old rule converted it and page 2
+  // vanished with no diagnostic anywhere — a silent loss, which brief §3.3 forbids.
+  describe("a document that is only partly scanned", () => {
+    const mixed = () =>
+      buildPdf([
+        { items: [{ text: "First page of a readable report with a text layer.", x: 72, y: 72 }] },
+        { items: [] },
+        { items: [{ text: "Third page, also readable, after the inserted scan.", x: 72, y: 72 }] },
+      ]);
+
+    it("converts the readable pages instead of refusing the whole document", async () => {
+      const { document } = await parsePdf(mixed());
+      const text = textContent(document.body);
+      expect(text).toContain("First page of a readable report");
+      expect(text).toContain("Third page, also readable");
+    });
+
+    it("leaves a placeholder for the scanned page, in reading position", async () => {
+      const { document } = await parsePdf(mixed());
+      const placeholders = selectType(document.body, "unknown");
+      expect(placeholders).toHaveLength(1);
+      expect((placeholders[0] as { originalType?: string }).originalType).toBe("pdf:scanned-page");
+
+      // Between the two readable pages, not appended at the end: the reader should see
+      // where the missing content belongs.
+      const children = (document.body as { children: { id?: string }[] }).children;
+      const at = children.findIndex((c) => c.id === (placeholders[0] as { id?: string }).id);
+      expect(at).toBeGreaterThan(0);
+      expect(at).toBeLessThan(children.length - 1);
+    });
+
+    it("reports the loss as lossy and names both the node and the page", async () => {
+      const { document, diagnostics } = await parsePdf(mixed());
+      const placeholder = selectType(document.body, "unknown")[0] as { id?: string };
+      const lost = diagnostics
+        .lossy()
+        .filter((d) => d.code === "MF-PDF-0001" && d.construct === "pdf:scanned-page");
+
+      expect(lost).toHaveLength(1);
+      expect(lost[0]!.nodeId).toBe(placeholder.id);
+      expect(lost[0]!.locator).toMatchObject({ kind: "page", pageNumber: 2 });
+      // Lossiness is what makes `--strict` exit non-zero on this document.
+      expect(lost[0]!.lossy).toBe(true);
+    });
+
+    it("satisfies adapter rule A6: every unknown node is diagnosed by id", async () => {
+      const { document } = await parsePdf(mixed());
+      expect(checkUnknownNodesDiagnosed(document).ok).toBe(true);
+    });
+
+    it("hands back the scanned page's image only, so OCR is not re-run on readable pages", async () => {
+      const result = await readPdf(mixed());
+      expect(result.kind).toBe("text");
+      if (result.kind !== "text") return;
+      // These synthetic pages carry no raster, so the list is empty and the failure to
+      // extract one is itself reported — the same honesty as the all-scanned branch.
+      expect(result.scannedPages.every((p) => p.pageNumber === 2)).toBe(true);
+      expect(result.diagnostics.all().some((d) => d.code === "MF-PDF-0002")).toBe(true);
+    });
+
+    it("still throws when every page is a scan", async () => {
+      await expect(parsePdf(buildPdf([{ items: [] }, { items: [] }]))).rejects.toThrow(
+        /no usable text layer/,
+      );
+    });
   });
 
   it("reads multi-column pages column by column, not interleaved", async () => {
