@@ -285,6 +285,98 @@ function textOf(node: AnyNode): string {
   return out.trim();
 }
 
+/**
+ * Rebuilds blockquotes from the style names a DOCX carries.
+ *
+ * DOCX has no blockquote element. A quotation is a paragraph in a named style —
+ * `Block Text` in Pandoc's vocabulary, `Quote` or `BlockQuote` in others — and our
+ * writer emits exactly that. Without this, `> quoted` round-tripped to a plain
+ * paragraph and the blockquote was gone: the reader saw a styled paragraph and had no
+ * grounds to call it anything else.
+ *
+ * This is reading, not guessing. The style name states the author's intent, so the
+ * decision is recorded but never marked ambiguous. Consecutive quoted paragraphs
+ * merge into one blockquote, which is what the source had.
+ */
+export function inferBlockquotes(doc: MarkForgeDocument): InferResult {
+  const diagnostics = new DiagnosticBag(INFERRER);
+  const decisions: Decision[] = [];
+  let changed = 0;
+
+  const isQuoteStyle = (name: string | undefined): boolean => {
+    if (!name) return false;
+    const normalised = name.toLowerCase().replace(/\s+/g, "");
+    return normalised === "blocktext" || normalised === "quote" || normalised === "blockquote";
+  };
+
+  const rebuild = (node: AnyNode): void => {
+    const kids = node.children;
+    if (!Array.isArray(kids)) return;
+    for (const child of kids) rebuild(child as AnyNode);
+
+    const out: AnyNode[] = [];
+    let run: AnyNode[] = [];
+    const flush = (): void => {
+      if (run.length === 0) return;
+      out.push({ type: "blockquote", children: run });
+      changed += run.length;
+      run = [];
+    };
+
+    for (const child of kids as AnyNode[]) {
+      const id = typeof child.id === "string" ? child.id : undefined;
+      const evidence = id !== undefined ? doc.sidecar[id] : undefined;
+      if (child.type === "paragraph" && isQuoteStyle(evidence?.sourceStyleName)) {
+        run.push(child);
+        if (id !== undefined) {
+          decisions.push({
+            nodeId: id,
+            question: "Is this paragraph part of a blockquote?",
+            candidates: [
+              {
+                interpretation: "blockquote",
+                score: 1,
+                reasons: [`style name "${evidence?.sourceStyleName}" declares a quotation`],
+              },
+            ],
+            chosen: "blockquote",
+            decidedBy: "named quotation style",
+            ambiguous: false,
+          });
+        }
+        continue;
+      }
+      flush();
+      out.push(child);
+    }
+    flush();
+    node.children = out;
+  };
+
+  rebuild(doc.body as unknown as AnyNode);
+  return { decisions, diagnostics, changed };
+}
+
+/**
+ * Every inference pass, in the order they must run.
+ *
+ * Headings first: blockquote reconstruction wraps paragraphs, and a heading inside a
+ * wrapper would no longer be a direct child of the root where heading inference looks
+ * for it.
+ */
+export function inferAll(doc: MarkForgeDocument, options: InferOptions = {}): InferResult {
+  const headings = inferHeadings(doc, options);
+  const quotes = inferBlockquotes(doc);
+  const diagnostics = new DiagnosticBag(INFERRER);
+  diagnostics.merge(headings.diagnostics);
+  diagnostics.merge(quotes.diagnostics);
+  return {
+    decisions: [...headings.decisions, ...quotes.decisions],
+    diagnostics,
+    changed: headings.changed + quotes.changed,
+  };
+}
+
 /** Formats decisions for `convert --explain` (SPEC §8). */
 export function explainDecisions(decisions: Decision[]): string {
   if (decisions.length === 0) return "No inference decisions were made.\n";
