@@ -1,0 +1,26 @@
+{
+  "key": "211911d55b01d71ddf37d82d99172025e7615b5e2308975cc0082bd6cd39b0ae",
+  "task": "heading-tiebreak",
+  "model": "gpt-oss-120b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "ae5acff3be692913a697f657e1f729824bcc639ebc3b3b3702da36532fbd90ba",
+  "inputPreview": "Note that the following applies to all three sites",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 400,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "b5eef36ec0c818379e6620c98102a76a5ea6d25cafdbfe88d44a94dfeb22bd7b",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{ \"chosen\": \"paragraph\", \"rationale\": \"The text is a complete sentence that comments on what follows rather than naming the following content, so it functions as prose, not a label.\" }",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 509,
+      "completionTokens": 202,
+      "totalTokens": 711
+    }
+  }
+}

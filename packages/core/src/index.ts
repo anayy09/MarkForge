@@ -8,6 +8,7 @@
  */
 import {
   DiagnosticBag,
+  DiagnosticCode,
   type Diagnostic,
   type MarkForgeDocument,
 } from "@markforge/ir";
@@ -18,7 +19,15 @@ import { renderDocx, type DocxRenderOptions } from "@markforge/render-docx";
 import { parseHtmlDocument } from "@markforge/adapters-html";
 import { renderHtml, DEFAULT_STYLESHEET, type HtmlRenderOptions } from "@markforge/render-html";
 import { parsePptx, parseXlsx } from "@markforge/adapters-office";
-import { inferAll, explainDecisions, type Decision, type InferOptions } from "@markforge/infer";
+import {
+  inferAll,
+  explainDecisions,
+  resolveAmbiguities,
+  type Decision,
+  type HeadingTiebreaker,
+  type InferOptions,
+} from "@markforge/infer";
+import { documentFromPages, type Recognizer } from "@markforge/adapters-ocr";
 
 const CORE = { kind: "rule" as const, name: "@markforge/core", version: "0.1.0" };
 
@@ -74,6 +83,26 @@ export function formatFromPath(path: string): Format | undefined {
   }
 }
 
+/**
+ * The optional assistance the deterministic pipeline will accept.
+ *
+ * **Both fields are functions, and neither type comes from `@markforge/llm`.** Core does
+ * not import the LLM layer at all — not for a policy reason but for two structural ones:
+ * ADR-0015 requires this package to run unchanged in a browser, where `node:fs` (which the
+ * prompt loader and the cache need) does not exist; and ADR-0009's rule that the conversion
+ * path cannot reach a model is only enforceable if the path has no such import to enforce
+ * against. So the CLI composes: it builds these two functions from a session and hands them
+ * in. `@markforge/llm` exports `headingTiebreaker` and `visionRecognizer` for exactly this.
+ *
+ * Absent assistance is `--no-llm`, which is the default (brief §3.6).
+ */
+export interface Assist {
+  /** Resolves an ambiguous heading level from its own candidate set (SPEC §5.1). */
+  headingTiebreak?: HeadingTiebreaker;
+  /** Transcribes a page image when a PDF has no text layer (SPEC §3.3). */
+  recognize?: Recognizer;
+}
+
 export interface ConvertOptions {
   from?: Format;
   to?: Format;
@@ -84,6 +113,8 @@ export interface ConvertOptions {
   html?: HtmlRenderOptions;
   /** Collect the inference decision log for `--explain`. */
   explain?: boolean;
+  /** Optional, opt-in, and off by default. See `Assist`. */
+  assist?: Assist;
 }
 
 export interface ConvertResult {
@@ -133,12 +164,53 @@ export async function parseAsync(
   bytes: Uint8Array,
   format: Format,
   path?: string,
+  assist?: Assist,
 ): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
-  if (format === "pdf") {
-    const { parsePdf } = await import("@markforge/adapters-pdf");
-    return parsePdf(bytes, path !== undefined ? { path } : {});
-  }
+  if (format === "pdf") return parsePdfOrScan(bytes, path, assist);
   return parse(bytes, format, path);
+}
+
+/**
+ * Reads a PDF, routing to a recogniser when it turns out to be a scan.
+ *
+ * The routing decision belongs here rather than in either adapter: `adapters-pdf` may not
+ * depend on `adapters-ocr` and vice versa (SPEC §11), so this is the one place that knows
+ * both exist. `readPdf` reports which kind of PDF it found in a single pass, and the scan
+ * branch carries the page images with it.
+ */
+async function parsePdfOrScan(
+  bytes: Uint8Array,
+  path: string | undefined,
+  assist: Assist | undefined,
+): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
+  const { readPdf } = await import("@markforge/adapters-pdf");
+  const result = await readPdf(bytes, path !== undefined ? { path } : {});
+  if (result.kind === "text") {
+    return { document: result.document, diagnostics: result.diagnostics };
+  }
+
+  if (!assist?.recognize) {
+    throw new Error(
+      `markforge: "${path ?? "this PDF"}" has no text layer ` +
+        `(${Math.round(result.charsPerPage)} character(s) per page across ` +
+        `${result.pageCount} page(s)) — it is a scan, and ${result.pages.length} page ` +
+        `image(s) were extracted but no recogniser was supplied. Pass --ocr to transcribe ` +
+        `it locally with tesseract, or --llm to use a vision model. Returning an empty ` +
+        `document would look like a successful conversion.`,
+    );
+  }
+
+  const ocr = await documentFromPages(result.pages, assist.recognize, {
+    ...(path !== undefined ? { path } : {}),
+    sourceBytes: bytes,
+    mediaType: "application/pdf",
+  });
+  // Both bags: the PDF adapter's says why OCR happened, the OCR adapter's says what it
+  // produced and how confident it was. Dropping either would make the output's provenance
+  // incomplete in one direction or the other.
+  ocr.diagnostics.merge(result.diagnostics);
+  ocr.document.diagnostics = ocr.diagnostics.all();
+  return ocr;
 }
 
 /** Renders the IR into bytes. Throws for input-only formats, by name. */
@@ -188,6 +260,17 @@ export function convert(
 ): ConvertResult {
   const all = new DiagnosticBag(CORE);
 
+  if (options.assist?.headingTiebreak || options.assist?.recognize) {
+    // A tie-break is a network call, so it cannot happen inside a synchronous function.
+    // Naming the alternative beats silently ignoring the option, which would produce a
+    // deterministic document while the caller believed a model had been consulted.
+    throw new Error(
+      "markforge: assistance (heading tie-breaking, OCR) is asynchronous. Use " +
+        "convertAsync instead of convert, or drop the assist option to convert " +
+        "deterministically.",
+    );
+  }
+
   const parsed = parse(bytes, options.from, options.path);
   all.merge(parsed.diagnostics);
 
@@ -221,7 +304,7 @@ export async function convertAsync(
 ): Promise<ConvertResult> {
   const all = new DiagnosticBag(CORE);
 
-  const parsed = await parseAsync(bytes, options.from, options.path);
+  const parsed = await parseAsync(bytes, options.from, options.path, options.assist);
   all.merge(parsed.diagnostics);
 
   let decisions: Decision[] = [];
@@ -229,6 +312,30 @@ export async function convertAsync(
     const inferred = inferAll(parsed.document, options.infer ?? {});
     all.merge(inferred.diagnostics);
     decisions = inferred.decisions;
+
+    // The one place a model may influence a conversion (brief §5.3, §7.1): decisions the
+    // deterministic scorer already declared too close to call, resolved from their own
+    // candidate set. With no tie-breaker the rule's choice stands and the ambiguity is
+    // already reported as a warning by `inferAll`, so the two paths differ only here.
+    if (inferred.ambiguous.length > 0) {
+      if (options.assist?.headingTiebreak) {
+        const resolved = await resolveAmbiguities(
+          parsed.document,
+          inferred.ambiguous,
+          options.assist.headingTiebreak,
+        );
+        all.merge(resolved.diagnostics);
+        decisions = [...decisions, ...resolved.decisions];
+      } else {
+        all.info(
+          DiagnosticCode.LLM_DISABLED_AMBIGUITY_STANDS,
+          `${inferred.ambiguous.length} heading decision(s) were too close to call and the ` +
+            `highest-scoring candidate was used. This run had no tie-breaker, which is the ` +
+            `default: pass --llm to let a model choose among the candidates, and see ` +
+            `--explain for the scores.`,
+        );
+      }
+    }
   }
 
   const rendered = render(parsed.document, options.to, options);
@@ -287,6 +394,7 @@ export const ExitCode = {
   TRACEABILITY: 5,
 } as const;
 
-export type { Decision } from "@markforge/infer";
+export type { Decision, AmbiguousDecision, HeadingTiebreaker, TiebreakAnswer } from "@markforge/infer";
 export { explainDecisions } from "@markforge/infer";
+export type { PageImage, RecognizedPage, Recognizer } from "@markforge/adapters-ocr";
 export type { MarkForgeConfig } from "./generated/config.js";

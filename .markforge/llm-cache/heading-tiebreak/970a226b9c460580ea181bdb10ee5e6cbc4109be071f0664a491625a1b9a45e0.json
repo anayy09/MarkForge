@@ -1,0 +1,26 @@
+{
+  "key": "970a226b9c460580ea181bdb10ee5e6cbc4109be071f0664a491625a1b9a45e0",
+  "task": "heading-tiebreak",
+  "model": "gpt-oss-120b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "41e9bb4e3cf073d570793708d8c30839b2be829ba334a1e5b0280c9ceeb23853",
+  "inputPreview": "What was measured",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 400,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "b5eef36ec0c818379e6620c98102a76a5ea6d25cafdbfe88d44a94dfeb22bd7b",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"chosen\": \"heading4\",\n  \"rationale\": \"The phrase “What was measured” functions as a label introducing the subsequent list of measurements, matching the heading characteristics (short, bold, slightly larger) and fitting the existing level‑4 hierarchy.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 515,
+      "completionTokens": 194,
+      "totalTokens": 709
+    }
+  }
+}

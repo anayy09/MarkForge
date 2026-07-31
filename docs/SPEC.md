@@ -522,8 +522,13 @@ z-order and position into the sidecar.
 formats and formulas into the sidecar; formula results as cell text with the formula
 retained.
 
-**OCR**: `tesseract.js`, per-word confidence propagated to `provenance.confidence` (brief
-§5.2), `producedBy: {kind:"ocr", ...}`.
+**OCR**: `tesseract.js`, confidence propagated to `provenance.confidence` (brief §5.2),
+`producedBy: {kind:"ocr", ...}` — or `{kind:"model", ...}` when a vision model transcribed the
+page. The recogniser is an **injected function**, not an import
+([ADR-0017](adr/0017-ocr-recognizer-boundary.md)): one of the two engines is the LLM layer,
+which `adapters-*` may not depend on (§11), so `@markforge/core` composes the two and the
+boundary stays mechanically enforceable. tesseract's language data must be supplied locally or
+downloaded with explicit consent, because brief §3.6 makes no network call a default.
 
 **RST, Notion, Confluence, EPUB**: Phase 2+; contract identical.
 
@@ -875,7 +880,12 @@ is mandatory rather than advisory.
   regex-parsed.
 - **Content-addressed cache**, key `sha256(inputContent + modelId + promptVersion +
   canonicalJson(params))`. A cached run is byte-reproducible and free. The cache is
-  committable so CI is deterministic and offline (brief §10).
+  committable so CI is deterministic and offline (brief §10). Runtime details — what
+  `params` contains, why the prompt's *content digest* joins its version in the key, and
+  the `cache.mode: "readOnly"` offline mode that needs no API key — are in
+  [ADR-0016](adr/0016-llm-runtime-cache-and-offline-mode.md). Measured against this
+  deployment, guided decoding and `seed` are both available (`OPEN_QUESTIONS.md` §3), so
+  the repair loop is a fallback here rather than the primary mechanism.
 - Per-call token accounting aggregated into the run report; exceeding `budget.maxTokens`
   aborts rather than silently continuing.
 - Every LLM-derived node carries `producedBy: {model, promptVersion}` (§2.5).

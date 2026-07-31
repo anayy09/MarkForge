@@ -179,6 +179,50 @@
       "census": []
     },
     {
+      "fixture": "scanned-source",
+      "loop": "md->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": []
+    },
+    {
+      "fixture": "scanned-source",
+      "loop": "md->docx->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": []
+    },
+    {
+      "fixture": "scanned-source",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": []
+    },
+    {
+      "fixture": "scanned-source",
+      "loop": "md->html->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": []
+    },
+    {
       "fixture": "tables",
       "loop": "md->md",
       "structural": 1,
@@ -301,6 +345,28 @@
     },
     {
       "fixture": "generated-run-per-word",
+      "loop": "docx->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": []
+    },
+    {
+      "fixture": "messy-ambiguous-headings",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": []
+    },
+    {
+      "fixture": "messy-ambiguous-headings",
       "loop": "docx->html",
       "structural": 1,
       "textSensitive": 1,
@@ -592,6 +658,75 @@
     {
       "fixture": "spans-ground-truth",
       "loop": "html->md->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": []
+    },
+    {
+      "fixture": "scanned-150dpi-nollm",
+      "loop": "scan->md",
+      "structural": 0,
+      "textSensitive": 0,
+      "textInsensitive": 0,
+      "tableF1": 0,
+      "tableContentF1": 0,
+      "spanF1": 0,
+      "census": {
+        "gained": [],
+        "lost": [
+          {
+            "type": "*",
+            "count": 0,
+            "note": "the file could not be read"
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "scanned-150dpi",
+      "loop": "scan->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": []
+    },
+    {
+      "fixture": "ambiguous-headings-nollm",
+      "loop": "docx->truth",
+      "structural": 0.9608,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 0,
+      "census": [
+        {
+          "nodeType": "heading",
+          "expected": 4,
+          "actual": 5
+        },
+        {
+          "nodeType": "paragraph",
+          "expected": 8,
+          "actual": 7
+        },
+        {
+          "nodeType": "strong",
+          "expected": 1,
+          "actual": 0
+        }
+      ]
+    },
+    {
+      "fixture": "ambiguous-headings",
+      "loop": "docx->truth",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,

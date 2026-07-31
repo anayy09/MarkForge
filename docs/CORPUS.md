@@ -238,6 +238,60 @@ so OCR accuracy becomes measurable rather than eyeballed.
 **Metrics:** text (whitespace-insensitive primarily), with per-DPI baselines. Expected to lose
 to marker; see ADR-0010 and ADR-0012.
 
+**Status, Phase 3: the synthesized three are built; the two found scans are not.**
+`scripts/build-scanned-fixtures.mjs` rasterizes `md/scanned-source.md` at all three DPIs with
+seeded skew and speckle, and writes PDFs whose pages are one bitonal image each with no text
+layer at all. Only 150 DPI is committed (18 KB); the other two are produced into gitignored
+`generated/` per §4's size rule, and CI runs the script.
+
+Three things bound what these fixtures prove, and they are worth stating plainly because the
+numbers in `FIDELITY.md` are only as honest as this paragraph:
+
+1. **The glyphs are a 5x7 bitmap font authored inside the builder, not a real typeface.** There
+   is no font rasterizer in this repository, and shipping a TTF we are not licensed to
+   redistribute would trade a documented limitation for an undocumented licence risk. So
+   *absolute* OCR accuracy on these files does not predict accuracy on a real scan. What they do
+   measure, exactly and repeatably: one engine against another on identical bytes, and one DPI
+   against another.
+2. **They are bitonal**, like a document scanner's default or a fax, so skew produces hard
+   jaggies rather than antialiased edges. That is realistic, and it is also what keeps 600 DPI
+   inside a sane file size.
+3. **The two genuinely scanned public-domain documents are still absent.** Sourcing them means
+   downloading and licence-checking a real artifact, which the build cannot do offline. Until
+   they exist, every OCR number here is a number about *our own* raster — which is the same
+   caveat §2.3 carries, and it is a real gap rather than a rounding error.
+
+**What the measurement said** (`FIDELITY.md`, `scan->md`): the deterministic path scores **0.0%
+on every metric**, because it does not produce a poor document — it produces none, and refuses
+by name. The cached vision path scores **100% structural and 100% text** on the 150 DPI file:
+`gemma-4-31b-it` transcribed all fifteen blocks including heading levels and list items. That is
+the Phase 3 done-criterion for the scanned subset, and the gap is as large as it is because the
+deterministic baseline on a scan is zero rather than mediocre.
+
+### 2.7.1 The ambiguous subset — *authored, and it did not exist*
+
+Phase 3's done-criterion names two subsets: scanned *and ambiguous*. The ambiguous one turned
+out not to exist. Running every committed fixture through `convert --json` produced **zero**
+`MF-INFER-0001` diagnostics, so "the LLM improves fidelity on the ambiguous subset" had no
+subset to improve, and the tie-break had nothing to decide.
+
+The reason is instructive: §2.3's fixtures are *badly* formatted, which is not the same as
+*ambiguously* formatted. A 14pt bold line among 11pt body text is unmistakable, and the scorer
+says so with a margin of 0.4.
+
+`docx/messy-ambiguous-headings.docx` (built by `build-messy-fixtures.mjs`) is the missing case,
+constructed to arithmetic rather than to taste: four lines at 12pt bold against an 11pt body
+score 0.536 against 0.464, a margin of 0.073, inside the 0.15 `ambiguityMargin`. Three are
+section labels; one is a bold lead-in sentence that is body text. They carry identical
+formatting, so no font rule can separate them and the deterministic path is wrong about one of
+them by construction. `expected/ambiguous-headings-truth.md` is the answer key.
+
+**What the measurement said** (`FIDELITY.md`, `docx->truth`): deterministic **96.1%**
+structural with span F1 **0.0%**; LLM-assisted **100%** on every metric. The census names the
+difference — five headings where there should be four, seven paragraphs where there should be
+eight, and a `strong` node destroyed because promotion consumed the bold that was its own
+evidence.
+
 ### 2.8 Slide decks — *authored*
 
 **Catches:** PPTX slide/notes/shape mapping, reading order within a slide, text boxes.

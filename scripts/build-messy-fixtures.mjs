@@ -320,6 +320,58 @@ fixtures["messy-mixed-fonts.docx"] = docx({
     ),
 });
 
+// --- 5b. Genuinely ambiguous headings --------------------------------------
+// Built for Phase 3, and built because the corpus turned out not to contain the thing
+// Phase 3's done-criterion is measured on: running every existing fixture through
+// `convert --json` produced **zero** `MF-INFER-0001` diagnostics, so "the LLM path
+// improves fidelity on the ambiguous subset" had no subset to improve. The existing
+// §2.3 fixtures are *badly* formatted, which turns out to be a different thing from
+// *ambiguously* formatted — a 14pt bold line among 11pt body text is unambiguous, and
+// the scorer says so with a margin of 0.4.
+//
+// Ambiguity is arithmetic, so this fixture is built to hit it rather than hoped into
+// existence. `scoreHeading` gives a heading candidate bold (+0.2), short (+0.1), no
+// terminal punctuation (+0.1), and `min(0.5, (ratio - 1) * 1.5)` for size; the paragraph
+// candidate scores `1 - that`. A margin under `ambiguityMargin` (0.15) needs a heading
+// score in (0.5, 0.575], which means a size ratio just over 1.0: **12pt bold in an 11pt
+// document**, scoring 0.536 against 0.464 for a margin of 0.073.
+//
+// The document deliberately mixes the two answers at the same formatting, which is what
+// makes it a test of judgement rather than of thresholds: "Scope" and "Method" are
+// section labels, while "Note that the following applies to all three sites" is a bold
+// lead-in sentence that is body text. No font-size rule can separate them, and the
+// deterministic path is wrong about one of them by construction. That is precisely the
+// case brief §5.3 reserves for the LLM.
+const AMBIGUOUS_SIZE = `<w:b/><w:sz w:val="24"/>`; // 12pt bold against an 11pt default
+fixtures["messy-ambiguous-headings.docx"] = docx({
+  styles: stylesXml(NORMAL),
+  body:
+    para(run("Site Assessment", `<w:b/><w:sz w:val="36"/>`)) +
+    para(run("This paragraph is ordinary body text at the document default size. ")) +
+    // A real section label at the ambiguous size.
+    para(run("Scope", AMBIGUOUS_SIZE)) +
+    para(run("Three sites were assessed against the current standard. ")) +
+    // A bold lead-in sentence at the same size, which is *not* a heading. Same evidence,
+    // opposite answer.
+    para(run("Note that the following applies to all three sites", AMBIGUOUS_SIZE)) +
+    para(run("Access arrangements were unchanged from the previous assessment. ")) +
+    para(run("Method", AMBIGUOUS_SIZE)) +
+    para(run("Each site was walked with the standard checklist. ")) +
+    // Two further body paragraphs, and they are load-bearing rather than filler: body size
+    // is the *median* over paragraphs (`inferHeadings`), so with four 12pt lines against
+    // five 11pt ones the median came out 11.5, the ratio fell to 1.043, and the heading
+    // score to 0.465 — below the 0.5 that even offers a heading candidate. The first draft
+    // of this fixture produced no ambiguity at all for exactly that reason. Enough 11pt
+    // paragraphs to make 11 the unambiguous median is what puts the ratio at 1.091 and the
+    // margin at 0.073.
+    para(run("Readings were taken at the start and end of each visit. ")) +
+    para(run("No site required a follow-up visit within the assessment window. ")) +
+    // A question, bold and short: reads as a heading in a FAQ and as body text in prose.
+    // Included because it is the case a human would also hesitate over.
+    para(run("What was measured", AMBIGUOUS_SIZE)) +
+    para(run("Temperature, humidity, and airflow at three fixed points per site. ")),
+});
+
 // --- 6. Everything at once -------------------------------------------------
 // The combined document CORPUS.md §2.3 asks for. Its score is expected to be the
 // lowest in the corpus; the point is that it is *measured* rather than avoided.

@@ -99,6 +99,89 @@ blind to run-level formatting, a per-run rather than per-document missing-theme 
 `## **TEXT**` from a fully-bold heading, and — the largest — merged table cells silently
 flattened by GFM pipe syntax with no diagnostic. See **Corpus coverage** below.
 
+## Phase 3 — the LLM layer
+
+**Done when** `--no-llm` and cached-LLM runs are both byte-reproducible and the LLM path
+measurably improves fidelity on the scanned and ambiguous subsets.
+
+| Deliverable | State |
+| --- | --- |
+| `@markforge/llm`: OpenAI-compatible client, no vendor SDK | done |
+| Credentials from the environment only, missing key is a startup error | done |
+| Prompts as versioned files, version **and content digest** in the cache key | done |
+| Schema-validated structured output with a bounded repair loop | done |
+| Content-addressed, committable cache; offline `readOnly` mode | done |
+| Per-call token accounting and a `maxTokens` ceiling that refuses before spending | done |
+| Endpoint capability probe recorded in `.markforge/llm-capabilities.json` | done — `markforge check --llm` |
+| LLM tie-breaking within the deterministic candidate set | done |
+| Vision/OCR path (ADR-0012) | done for the vision recogniser; tesseract **implemented but never measured** |
+| `CORPUS.md` §2.7 scanned fixtures | partial — 3 synthesized, the 2 found scans absent |
+| Non-blocking live drift job | done |
+| Model registry, routing policy, capability tags | **not deliverables** — descoped by the reviewer (ADR-0009) |
+
+**The done-criterion is met, and both halves are checked in CI rather than asserted.**
+
+*Reproducibility.* Two cached-LLM runs of the same input, with `MODEL_API_KEY` unset and
+`--llm-cache-mode readOnly`, produce byte-identical output — for the scanned PDF and for the
+ambiguous DOCX. The key being absent is the point: if anything on that path reached the network
+the job would fail rather than quietly succeed.
+
+*Improvement.* Measured in `docs/FIDELITY.md`, from the committed cache, offline:
+
+| Subset | Deterministic | Cached LLM |
+| --- | --- | --- |
+| `scanned-150dpi` (`scan->md`) | 0.0% on every metric | 100% structural, 100% text |
+| `ambiguous-headings` (`docx->truth`) | 96.1% structural, span F1 0.0% | 100% on every metric |
+
+The scanned gap is that large because the deterministic baseline on a scan is *zero*: the adapter
+refuses by name rather than returning three words of a forty-page document. Stating it as
+"0% → 100%" is accurate and would be misleading without that sentence.
+
+### What building it found
+
+**The ambiguous subset did not exist.** Phase 3's criterion names it, and running every
+committed fixture through `convert --json` produced **zero** ambiguous decisions — so the
+tie-break had nothing to decide and the criterion was unmeasurable rather than unmet. §2.3's
+fixtures are *badly* formatted, which turns out to be a different thing from *ambiguously*
+formatted. `messy-ambiguous-headings.docx` was built to the arithmetic of `scoreHeading` (12pt
+bold against an 11pt body scores 0.536 to 0.464, margin 0.073) rather than to taste, and the
+first attempt still produced no ambiguity: with four 12pt lines against five 11pt ones the
+*median* body size came out 11.5, which dropped the score below the 0.5 that even offers a
+heading candidate. Two more body paragraphs fixed it.
+
+**The first prompt made the model wrong for a coherent reason.** v1 carried the deterministic
+rules' instruction not to skip heading levels. The candidate set offered `heading4` or
+`paragraph`, the preceding heading was level 1, and the model demoted a genuine section label
+because the only heading on offer would have skipped levels — and said so in its rationale. The
+prompt had asked it to weigh something it could not act on. v2 states the division of labour
+instead (decide label or prose; take the level as given) and gets all four decisions right. The
+prompt version is in the cache key, so the change invalidated the recorded answers, which is
+the mechanism working.
+
+**The capability probe reported the wrong answer twice, and the second one was dangerous.**
+Sending a *valid* `seed` proved nothing, because the gateway ignores unknown parameters — a
+valid seed and a nonsense field look identical in the response. And run with a deliberately
+wrong key, the probe concluded "guided decoding unavailable" and **wrote that to the
+capabilities file**, so a typo'd credential would have left a confident wrong claim that every
+later run inherited. The mechanism whose entire purpose is to avoid assuming had produced an
+assumption. It now refuses to conclude anything from an authentication failure, a rate limit, a
+missing model, or an unreachable endpoint. Both defects were found by running the gate against
+ground truth established by hand first, which is the only reason they were visible at all.
+
+**`objs.has()` is not a precondition for `objs.get()`.** Page-image extraction gated on
+pdf.js's `has`, which reports whether an object is *already resolved* rather than whether it
+exists — so every scanned page came back "no raster this reader can extract", a plausible
+diagnostic for a file that was fine. Found by running the pipeline end to end after a scratch
+script had already proved the extraction worked.
+
+**Three smaller ones**, each caught the same way. An empty completion was treated as a transport
+failure, so a reasoning model that spent its token ceiling on reasoning looked like a broken
+endpoint. Library error messages that name the tool arrived double-prefixed as
+`markforge: markforge: …`. And `packages/core/test/assist.test.ts` computed the repository root
+with `new URL(...).pathname`, which on Windows yields `/C:/Users/...`, `existsSync` said false,
+and **every fixture-backed test in the file skipped silently** — the failure mode this document's
+last section is about, in a file written to check for it.
+
 ## Unbuilt CLI surface
 
 `SPEC.md` §8 specifies seven subcommands. Two work. The other five refuse by name rather
@@ -107,7 +190,7 @@ than pretending, which is the right behaviour but is not delivery.
 | Command | State |
 | --- | --- |
 | `convert`, `fmt` | done |
-| `check` | **not done** — including `check --reference-doc`, which `SPEC.md` §4.2.1 specifies and `TEMPLATES.md` §2.2 documents as though it exists |
+| `check` | **partial, and no longer a lie** — validates documents against the IR schema, reports reference-document style coverage (`--reference-doc`), and probes the LLM endpoint (`--llm`). Corpus fidelity baselines stay in `scripts/run-fidelity.mjs`, and `check --help` says so rather than implying otherwise |
 | `diff`, `init`, `serve`, `agentify` | not done, by phase |
 
 ## Renderer gaps that lose content today
@@ -135,7 +218,8 @@ from the style name and the paragraph border, exactly as blockquotes already are
 
 ## Corpus coverage
 
-`CORPUS.md` names 15 categories. Phase 1 required eight of them; five exist.
+`CORPUS.md` names 15 categories. Phase 1 required eight of them; five exist. Phase 3 added
+§2.7 and the ambiguous fixture §2.3 was missing.
 
 | Category | State |
 | --- | --- |
@@ -145,9 +229,9 @@ from the style name and the paragraph border, exactly as blockquotes already are
 | 2.11 emoji and Unicode | done |
 | 2.13 Markdown flavours | partial — one flavour |
 | 2.2 manuscripts with footnotes and equations | not done |
-| 2.3 badly formatted real-world documents | done — 6 fixtures, asserted defect by defect |
+| 2.3 badly formatted real-world documents | done — 7 fixtures, asserted defect by defect (the seventh is the Phase 3 ambiguous subset) |
 | 2.6 multi-column PDFs | not done |
-| 2.7 scanned PDFs | not done — blocks the Phase 3 OCR criterion |
+| 2.7 scanned PDFs | **partial** — 3 synthesized (1 committed, 2 generated); the 2 found scans absent |
 | 2.8 slide decks | not done |
 | 2.9 spreadsheets | not done |
 | 2.10 RTL and CJK | partial, inside 2.11; native-speaker review not done |

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parsePdf, groupIntoLines, detectColumns, joinBlockText, type TextRun, type Line } from "../src/index.js";
+import { parsePdf, readPdf, groupIntoLines, detectColumns, joinBlockText, type TextRun, type Line } from "../src/index.js";
 import { buildPdf, paragraphPage } from "./helpers.js";
 import { selectType, textContent, validateDocument } from "@markforge/ir";
 
@@ -277,11 +277,34 @@ describe("PDF adapter", () => {
   });
 
   // Returning an almost-empty document that looks like a successful conversion is
-  // the worst outcome, so a scan fails loudly and names the phase that will fix it.
+  // the worst outcome, so a scan fails loudly and names the route that reads it.
+  //
+  // This assertion used to require the phrase "OCR is Phase 3". It is now Phase 3 and
+  // OCR exists, so the message names the recogniser route instead — the durable
+  // invariant is that the error says what to do, not that it names a phase.
   it("refuses a PDF with no usable text layer rather than returning nothing", async () => {
     const blank = buildPdf([{ items: [] }, { items: [] }]);
     await expect(parsePdf(blank)).rejects.toThrow(/no usable text layer/);
-    await expect(parsePdf(blank)).rejects.toThrow(/OCR is Phase 3/);
+    await expect(parsePdf(blank)).rejects.toThrow(/readPdf and a recogniser/);
+  });
+
+  // The same file through the route that does not throw. This is the branch
+  // @markforge/core takes, and it must reach the OCR handoff in one pass over the PDF
+  // rather than by catching the error above and reopening the file.
+  it("reports a scan as a scan through readPdf, with a diagnostic naming the decision", async () => {
+    const blank = buildPdf([{ items: [] }, { items: [] }]);
+    const result = await readPdf(blank);
+    expect(result.kind).toBe("scan");
+    if (result.kind !== "scan") return;
+    expect(result.pageCount).toBe(2);
+    expect(result.charsPerPage).toBe(0);
+    expect(
+      result.diagnostics.all().some((d) => d.code === "MF-PDF-0001" && d.severity === "info"),
+    ).toBe(true);
+    // These synthetic pages carry no raster at all, so there is nothing to transcribe
+    // and that is itself reported as a loss rather than as an empty success.
+    expect(result.pages).toHaveLength(0);
+    expect(result.diagnostics.lossy().some((d) => d.code === "MF-PDF-0002")).toBe(true);
   });
 
   it("reads multi-column pages column by column, not interleaved", async () => {

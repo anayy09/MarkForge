@@ -63,6 +63,25 @@ export const DiagnosticCode = {
   RENDER_TABLE_SPANS_FLATTENED: "MF-RENDER-0006",
   RENDER_TABLE_AS_HTML: "MF-RENDER-0007",
 
+  // --- PDF ----------------------------------------------------------------
+  PDF_NO_TEXT_LAYER: "MF-PDF-0001",
+  PDF_PAGE_IMAGE_UNAVAILABLE: "MF-PDF-0002",
+
+  // --- OCR and vision transcription ---------------------------------------
+  OCR_PAGE_TRANSCRIBED: "MF-OCR-0001",
+  OCR_LOW_CONFIDENCE: "MF-OCR-0002",
+  OCR_EMPTY_PAGE: "MF-OCR-0003",
+  OCR_ENGINE_UNAVAILABLE: "MF-OCR-0004",
+
+  // --- LLM layer ----------------------------------------------------------
+  // The LLM is assistive, so its failures are never fatal: each of these records that
+  // the deterministic result stands, which is what makes "did a model change this
+  // document?" answerable from the diagnostics alone.
+  LLM_CALL_FAILED: "MF-LLM-0001",
+  LLM_TIEBREAK_APPLIED: "MF-LLM-0002",
+  LLM_BUDGET_EXCEEDED: "MF-LLM-0003",
+  LLM_DISABLED_AMBIGUITY_STANDS: "MF-LLM-0004",
+
   // --- IR -----------------------------------------------------------------
   IR_SCHEMA_INVALID: "MF-IR-0001",
   IR_PROVENANCE_MISSING: "MF-IR-0002",

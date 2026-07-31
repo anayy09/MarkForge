@@ -26,6 +26,8 @@ behalf and is open to reversal at review.
 | [0013](0013-target-registry-agents-md-base.md) | Target registry: AGENTS.md as base, others as deltas | **Confirmed** |
 | [0014](0014-node-ids-and-hashing.md) | Node ids and content hashing | Proposed |
 | [0015](0015-browser-build-boundaries.md) | Browser build boundaries | Proposed |
+| [0016](0016-llm-runtime-cache-and-offline-mode.md) | LLM runtime: committable cache, offline `readOnly` mode, failure semantics | Accepted |
+| [0017](0017-ocr-recognizer-boundary.md) | The OCR path: an injected recogniser, and tesseract's language data | Accepted |
 
 ## Records that deviate from the brief
 

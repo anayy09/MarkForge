@@ -45,6 +45,7 @@ import {
   type Line,
   type TextRun,
 } from "./layout.js";
+import { pageImage, type PageImage } from "./pages.js";
 
 const ADAPTER = { kind: "adapter" as const, name: "@markforge/adapters-pdf", version: "0.1.0" };
 
@@ -54,6 +55,29 @@ export interface PdfParseOptions {
   /** Page cap, so a thousand-page report cannot hang a conversion. */
   maxPages?: number;
 }
+
+/**
+ * What a PDF turned out to be.
+ *
+ * A PDF is either a document with a text layer or a picture of one, and which it is
+ * cannot be known until it has been opened. Returning the answer rather than throwing on
+ * one branch lets `@markforge/core` route a scan to OCR in a single pass — the earlier
+ * shape threw, so the only way to reach the scan branch was to catch an error and reopen
+ * the file, which is control flow by exception and doubles the work.
+ *
+ * `parsePdf` still throws for the scan case (OPEN_QUESTIONS §7i), because a caller that
+ * asked for a document and cannot be handed one deserves an error rather than a union.
+ */
+export type PdfReadResult =
+  | { kind: "text"; document: MarkForgeDocument; diagnostics: DiagnosticBag }
+  | {
+      kind: "scan";
+      /** One PNG per page, for a recogniser. Empty when no raster could be extracted. */
+      pages: PageImage[];
+      charsPerPage: number;
+      pageCount: number;
+      diagnostics: DiagnosticBag;
+    };
 
 const DEFAULT_MAX_PAGES = 200;
 
@@ -69,10 +93,16 @@ const DEFAULT_MAX_PAGES = 200;
  */
 const SCAN_THRESHOLD_CHARS_PER_PAGE = 8;
 
-export async function parsePdf(
+/**
+ * Reads a PDF, and says which kind of PDF it was.
+ *
+ * `parsePdf` is this function plus a throw on the scan branch; everything below is one
+ * pass over the file either way.
+ */
+export async function readPdf(
   bytes: Uint8Array,
   options: PdfParseOptions = {},
-): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
+): Promise<PdfReadResult> {
   const diagnostics = new DiagnosticBag(ADAPTER);
 
   // The legacy build is the one that runs in Node without a DOM. Imported lazily so
@@ -191,16 +221,31 @@ export async function parsePdf(
 
   const charsPerPage = maxPages > 0 ? totalChars / maxPages : 0;
   if (charsPerPage < SCAN_THRESHOLD_CHARS_PER_PAGE) {
-    // Failing loudly rather than returning an almost-empty document. A conversion
-    // that "succeeds" with three words of a forty-page scan is worse than one that
-    // says what is wrong.
-    await pdf.destroy();
-    throw new Error(
-      `adapters-pdf: this PDF has no usable text layer (${Math.round(charsPerPage)} ` +
-        `characters per page across ${maxPages} page(s)). It is almost certainly a scan. ` +
-        `OCR is Phase 3 (docs/adr/0012-pdf-adapter-stack.md); until then MarkForge cannot ` +
-        `read it, and returning an empty document would look like success.`,
+    // A scan. The routing decision itself is recorded as an `info` diagnostic, which
+    // ADR-0012 requires: "we OCR'd this" is a fact about the output that a reader
+    // should not have to infer from the provenance table.
+    diagnostics.info(
+      DiagnosticCode.PDF_NO_TEXT_LAYER,
+      `No usable text layer (${Math.round(charsPerPage)} character(s) per page across ` +
+        `${maxPages} page(s)), so this file is a scan and its pages were extracted as ` +
+        `images for a recogniser. Everything downstream of here is a reading of a ` +
+        `picture, recorded with a confidence in provenance.`,
     );
+
+    const images: PageImage[] = [];
+    for (let pageNumber = 1; pageNumber <= maxPages; pageNumber++) {
+      const page = await pdf.getPage(pageNumber);
+      const image = await pageImage(
+        page as unknown as Parameters<typeof pageImage>[0],
+        pageNumber,
+        { ops: pdfjs.OPS as unknown as Record<string, number>, diagnostics },
+      );
+      if (image) images.push(image);
+      page.cleanup();
+    }
+    await pdf.destroy();
+
+    return { kind: "scan", pages: images, charsPerPage, pageCount: maxPages, diagnostics };
   }
 
   const documentBodyHeight = median(allHeights) ?? 11;
@@ -248,7 +293,32 @@ export async function parsePdf(
   }
 
   doc.diagnostics = diagnostics.all();
-  return { document: doc, diagnostics };
+  return { kind: "text", document: doc, diagnostics };
+}
+
+/**
+ * Reads a PDF that has a text layer. Throws, by name, when it does not.
+ *
+ * Unchanged behaviour from Phase 2 (OPEN_QUESTIONS §7i) except for the last sentence of
+ * the message: OCR is no longer "a later phase", it is a route this build has, and the
+ * error now says how to take it.
+ */
+export async function parsePdf(
+  bytes: Uint8Array,
+  options: PdfParseOptions = {},
+): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
+  const result = await readPdf(bytes, options);
+  if (result.kind === "scan") {
+    throw new Error(
+      `adapters-pdf: this PDF has no usable text layer ` +
+        `(${Math.round(result.charsPerPage)} characters per page across ` +
+        `${result.pageCount} page(s)). It is almost certainly a scan, and returning an ` +
+        `almost-empty document would look like success. Its ${result.pages.length} page ` +
+        `image(s) can be transcribed: use readPdf and a recogniser, or run ` +
+        `\`markforge convert --ocr\` (tesseract locally, or --llm for a vision model).`,
+    );
+  }
+  return { document: result.document, diagnostics: result.diagnostics };
 }
 
 /**
@@ -424,3 +494,5 @@ export {
   joinBlockText,
 } from "./layout.js";
 export type { TextRun, Line, Column, PageLayout } from "./layout.js";
+export { encodePng } from "./pages.js";
+export type { PageImage } from "./pages.js";

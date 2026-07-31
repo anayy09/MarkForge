@@ -96,7 +96,7 @@ stores the variable *name*; the value never appears in config or in any committe
 A missing variable while `llm.enabled` is `true` is a **startup error**, not a silent
 downgrade to `--no-llm` — producing quietly different output would be worse than failing.
 
-## 3. Structured outputs and `seed` — resolved by probing rather than asking
+## 3. Structured outputs and `seed` — **answered by probing, 2026-07-31**
 
 Whether the gateway accepts `response_format: {type:"json_schema"}` and `seed` is a property
 of the deployment, not of anyone's intent, so it is **discovered, not configured**.
@@ -105,7 +105,37 @@ of the deployment, not of anyone's intent, so it is **discovered, not configured
 bounded repair loop when guided decoding is unavailable (`SPEC.md` §6.3). The run report states
 which mode was used, so a quality difference is visible rather than silent.
 
-This removes the item from the blocking list: Phase 3 no longer needs the answer in advance.
+**The answer, measured on 2026-07-31 against `https://api.ai.it.ufl.edu/v1`:**
+
+| Capability | Answer | Evidence |
+| --- | --- | --- |
+| `response_format: {type:"json_schema"}` | **Supported and enforced** | A prose-only request (`"Write one plain English sentence about cats. No JSON."`) carrying a strict schema returned `{"catCount": 0, "verdict": "fluffy"}`. A grammar beat the prompt. |
+| Guided decoding is a real grammar, not a filter | **Confirmed** | A schema with `"type": "not-a-real-type"` is rejected with `Grammar error: Invalid type`, so a grammar is compiled per request. The gateway is LiteLLM in front of vLLM. |
+| `seed` | **Accepted and validated** | `seed: "not-a-number"` returns HTTP 400 `int_parsing … ('body', 'seed')`, while an unknown parameter (`bogus_param_xyz_9`) is silently ignored. The endpoint parses `seed`; it does not merely tolerate it. |
+| Reproducibility at temperature 0 | **Observed, but not attributable to the seed** | Repeated identical calls returned identical content with *and* without a seed. Temperature 0 is doing the work; the seed's effect is unobservable and is not claimed. |
+
+Verified on all three configured models — `gpt-oss-120b`, `nemotron-3-super-120b-a12b`, and
+`gemma-4-31b-it` — not just the default. The consequence for design is the good one: the
+repair loop is a genuine fallback here rather than the primary mechanism, which is what
+ADR-0009's consequences section hoped for and could not assume.
+
+**Two things the probe got wrong before it got them right**, recorded because they are the
+kind of error a capability probe is uniquely able to make convincingly:
+
+1. **Sending a *valid* seed proves nothing.** The first probe sent `seed: 20260731`, got a
+   200, and concluded support. But this gateway ignores unknown parameters, so a valid seed
+   and a nonsense field are indistinguishable from the response. The discriminating test is a
+   deliberate type error, which only a validating endpoint rejects.
+2. **A 401 is not evidence about a schema.** The first probe, run with a deliberately wrong
+   key, reported "guided decoding unavailable" and **wrote that to the capabilities file** —
+   a confident wrong answer that every later run would have inherited, produced by the one
+   mechanism whose purpose is to prevent exactly that. `probeCapabilities` now refuses to
+   conclude anything from an authentication failure, a rate limit, a missing model, or an
+   unreachable endpoint: only a 400 rejecting the parameter, or a 200 honouring it, is
+   evidence. Regression-tested in `packages/llm/test/llm.test.ts`.
+
+This removes the item from the blocking list: Phase 3 did not need the answer in advance, and
+now has it.
 
 ## 4. DOCX reference documents — resolved, with one deviation from the instruction
 

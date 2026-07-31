@@ -128,6 +128,17 @@ interface RenderContext {
   hyperlinks: string[];
 }
 
+/**
+ * The named styles a reference document defines.
+ *
+ * Exported for `markforge check --reference-doc` (SPEC §4.2.1): the command needs the same
+ * list the renderer resolves against, and reading `styles.xml` a second way in the CLI
+ * would let the two disagree about what a template offers.
+ */
+export function readAvailableStyles(referenceDoc: Uint8Array): AvailableStyle[] {
+  return collectStyles(OpcPackage.open(referenceDoc));
+}
+
 function collectStyles(pkg: OpcPackage): AvailableStyle[] {
   const root = pkg.xml(Part.STYLES);
   if (!root) return [];

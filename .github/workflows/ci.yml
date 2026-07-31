@@ -84,6 +84,13 @@ jobs:
       - name: Messy corpus fixtures are current
         run: node scripts/build-messy-fixtures.mjs --check
 
+      # The scanned corpus (CORPUS.md §2.7) matters more than the messy one for staleness:
+      # the committed LLM cache is keyed on the *page image's digest*, so a rasteriser that
+      # drifted by one pixel would miss every recorded vision response and look like a model
+      # failure rather than a fixture change.
+      - name: Scanned corpus fixtures are current
+        run: node scripts/build-scanned-fixtures.mjs --check
+
       - name: Test
         run: pnpm run test
 
@@ -212,6 +219,59 @@ jobs:
           test "$code" -eq 1 || (echo "::error::--to pdf exited $code, expected 1" && exit 1)
           echo "Input-only formats refuse with exit 1 and a named reason."
 
+      # Phase 3's done-criterion, half of it: `--no-llm` and a cached-LLM run must both be
+      # byte-reproducible. The LLM half runs with **no API key in the environment at all** and
+      # `--llm-cache-mode readOnly`, which is what makes it a real check rather than a rehearsal
+      # — if anything on this path reached the network it would fail here, not silently succeed.
+      - name: Cached-LLM runs are byte-reproducible, and offline
+        run: |
+          set -e
+          unset MODEL_API_KEY
+          node packages/cli/dist/index.js convert fixtures/pdf/scanned-150dpi.pdf \
+            -o /tmp/scan-a.md --llm --llm-cache-mode readOnly --quiet
+          node packages/cli/dist/index.js convert fixtures/pdf/scanned-150dpi.pdf \
+            -o /tmp/scan-b.md --llm --llm-cache-mode readOnly --quiet
+          cmp /tmp/scan-a.md /tmp/scan-b.md \
+            || (echo "::error::two cached-LLM runs of the same scan differ" && exit 1)
+          node packages/cli/dist/index.js convert fixtures/docx/messy-ambiguous-headings.docx \
+            -o /tmp/amb-a.md --llm --llm-cache-mode readOnly --quiet
+          node packages/cli/dist/index.js convert fixtures/docx/messy-ambiguous-headings.docx \
+            -o /tmp/amb-b.md --llm --llm-cache-mode readOnly --quiet
+          cmp /tmp/amb-a.md /tmp/amb-b.md \
+            || (echo "::error::two cached-LLM tie-break runs differ" && exit 1)
+          echo "Cached-LLM output is byte-identical across runs, with no key present."
+
+      # The other half: the LLM must *change* something, or the measurement is vacuous. A
+      # cached tie-break demotes one bold lead-in sentence that the deterministic path promotes,
+      # so the two outputs must differ — and if they ever stop differing, the ambiguous subset
+      # has stopped testing anything.
+      - name: The LLM path differs from the deterministic one, and only where it should
+        run: |
+          set -e
+          unset MODEL_API_KEY
+          node packages/cli/dist/index.js convert fixtures/docx/messy-ambiguous-headings.docx \
+            -o /tmp/amb-nollm.md --quiet
+          node packages/cli/dist/index.js convert fixtures/docx/messy-ambiguous-headings.docx \
+            -o /tmp/amb-llm.md --llm --llm-cache-mode readOnly --quiet
+          if cmp -s /tmp/amb-nollm.md /tmp/amb-llm.md; then
+            echo "::error::--llm produced the same document as --no-llm on the ambiguous subset;"
+            echo "::error::either the cache is missing or the fixture stopped being ambiguous"
+            exit 1
+          fi
+          diff /tmp/amb-nollm.md /tmp/amb-llm.md || true
+          echo "The tie-break changed the document, as the committed cache says it should."
+
+      # A scan with neither route must refuse by name rather than write an empty file.
+      - name: A scan refuses without a recogniser
+        run: |
+          set +e
+          out=$(node packages/cli/dist/index.js convert fixtures/pdf/scanned-150dpi.pdf -o /tmp/x.md 2>&1)
+          code=$?
+          set -e
+          echo "$out" | grep -q "no text layer" || (echo "::error::a scan did not refuse by name" && exit 1)
+          test "$code" -eq 1 || (echo "::error::a scan exited $code, expected 1" && exit 1)
+          echo "A scan with no recogniser refuses with exit 1 and names both routes."
+
       # fmt --check on already-formatted files must exit 0. If it did not, the
       # formatter would report its own output as needing formatting.
       - name: fmt is a fixed point on the corpus
@@ -222,3 +282,55 @@ jobs:
             || (echo "::error::fmt changed the corpus; commit the formatted files" && exit 1)
           node packages/cli/dist/index.js fmt fixtures/md/*.md --check --quiet
           echo "fmt reaches a fixed point on every corpus fixture."
+
+  # Brief §10: "A separate, non-blocking live job detects model drift." Non-blocking is the
+  # whole design — it calls a real gateway, so it can fail for reasons that have nothing to do
+  # with this repository, and a required check that goes red when someone else's server is busy
+  # trains people to ignore red.
+  #
+  # It answers one question the committed cache cannot: are the recorded responses still what
+  # the models produce? A cached run stays green forever by construction, which is what makes it
+  # a test — and also what makes it blind to a model that has changed its mind.
+  llm-drift:
+    name: Live model drift (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    # Never on a pull request: a fork's PR cannot see the secret, and a job that always fails
+    # for outside contributors is worse than no job.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+
+      # Skips itself, loudly, when the secret is absent — rather than failing and looking like
+      # drift. "The check did not run" and "the models changed" must not look the same.
+      - name: Probe the endpoint and compare against the committed cache
+        env:
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+        run: |
+          set -e
+          if [ -z "${MODEL_API_KEY:-}" ]; then
+            echo "::notice::MODEL_API_KEY is not configured, so live drift was not measured."
+            exit 0
+          fi
+          node packages/cli/dist/index.js check --llm
+
+          # A fresh cache directory, so every call is live. The committed cache is untouched:
+          # this job reports drift, it does not re-record it. Re-recording is a human decision
+          # because it changes committed measurements.
+          node packages/cli/dist/index.js convert fixtures/docx/messy-ambiguous-headings.docx \
+            -o /tmp/amb-live.md --llm --llm-cache-dir /tmp/live-cache --quiet
+          node packages/cli/dist/index.js convert fixtures/docx/messy-ambiguous-headings.docx \
+            -o /tmp/amb-cached.md --llm --llm-cache-mode readOnly --quiet
+          if cmp -s /tmp/amb-live.md /tmp/amb-cached.md; then
+            echo "::notice::No drift: live answers match the committed cache."
+          else
+            echo "::warning::Model drift detected on the ambiguous subset."
+            diff /tmp/amb-cached.md /tmp/amb-live.md || true
+            echo "::warning::Re-record with --llm-cache-mode readWrite and commit if the new answers are better."
+          fi
