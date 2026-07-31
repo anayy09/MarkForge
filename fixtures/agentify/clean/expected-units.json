@@ -1,0 +1,177 @@
+{
+  "set": "clean",
+  "note": "Authored ground truth for CORPUS.md §2.14(a). Five documents, five roles. The unit list is what a correct extractor should find, written before the extractor existed.",
+  "roles": {
+    "product-spec.md": "productSpec",
+    "architecture.md": "decisionRecord",
+    "api-contract.html": "apiContract",
+    "runbook.md": "runbook",
+    "conventions.docx": "codingConventions"
+  },
+  "units": [
+    {
+      "category": "constraint",
+      "text": "A batch must be acknowledged within two seconds.",
+      "sources": [
+        "product-spec.md",
+        "architecture.md"
+      ]
+    },
+    {
+      "category": "invariant",
+      "text": "A batch is committed whole or not at all; partial ingestion never occurs.",
+      "sources": [
+        "product-spec.md",
+        "architecture.md"
+      ]
+    },
+    {
+      "category": "constraint",
+      "text": "Rejected batches remain retrievable for thirty days.",
+      "sources": [
+        "product-spec.md",
+        "api-contract.html"
+      ]
+    },
+    {
+      "category": "constraint",
+      "text": "Operators can replay any accepted batch without engineering involvement.",
+      "sources": [
+        "product-spec.md",
+        "api-contract.html"
+      ]
+    },
+    {
+      "category": "decision",
+      "text": "Ingestion is queue-backed; batches are acknowledged before processing.",
+      "rationale": "Synchronous validation cannot meet the acknowledgement budget under load.",
+      "sources": [
+        "architecture.md"
+      ]
+    },
+    {
+      "category": "decision",
+      "text": "Schemas are declared by the customer, never inferred.",
+      "rationale": "Inference was the dominant incident source in the previous system.",
+      "sources": [
+        "product-spec.md",
+        "architecture.md"
+      ]
+    },
+    {
+      "category": "environmentVariable",
+      "text": "NIMBUS_QUEUE_URL=amqp://queue.internal:5672",
+      "sources": [
+        "runbook.md"
+      ]
+    },
+    {
+      "category": "environmentVariable",
+      "text": "NIMBUS_BATCH_TIMEOUT_MS=30000",
+      "sources": [
+        "runbook.md"
+      ]
+    },
+    {
+      "category": "environmentVariable",
+      "text": "NIMBUS_MAX_BATCH_MB=64",
+      "sources": [
+        "runbook.md"
+      ]
+    },
+    {
+      "category": "command",
+      "text": "pnpm install --frozen-lockfile",
+      "sources": [
+        "runbook.md"
+      ]
+    },
+    {
+      "category": "command",
+      "text": "pnpm build",
+      "sources": [
+        "runbook.md"
+      ]
+    },
+    {
+      "category": "command",
+      "text": "pnpm deploy --env production",
+      "sources": [
+        "runbook.md"
+      ]
+    },
+    {
+      "category": "command",
+      "text": "curl -sf https://ingest.internal/healthz",
+      "sources": [
+        "runbook.md"
+      ]
+    },
+    {
+      "category": "command",
+      "text": "nimbusctl queue drain --wait",
+      "sources": [
+        "runbook.md"
+      ]
+    },
+    {
+      "category": "convention",
+      "text": "Modules are named for what they do, not for the pattern they use.",
+      "sources": [
+        "conventions.docx"
+      ]
+    },
+    {
+      "category": "convention",
+      "text": "Never swallow an error to keep a request alive.",
+      "sources": [
+        "conventions.docx"
+      ]
+    },
+    {
+      "category": "convention",
+      "text": "Every bug fix ships with the test that would have caught it.",
+      "sources": [
+        "conventions.docx"
+      ]
+    },
+    {
+      "category": "convention",
+      "text": "A new runtime dependency requires a written reason in the pull request.",
+      "sources": [
+        "conventions.docx"
+      ]
+    },
+    {
+      "category": "antiPattern",
+      "text": "Do not delete queued batches; they are the only copy until the warehouse commit succeeds.",
+      "sources": [
+        "runbook.md"
+      ]
+    }
+  ],
+  "nearDuplicates": [
+    {
+      "why": "The same latency constraint stated in a PRD and in an ADR. Almost no shared content words, so a lexical threshold cannot merge them and an embedding must. Measured Jaccard is asserted by the --check run below.",
+      "a": {
+        "source": "product-spec.md",
+        "text": "No user should ever wait more than two seconds for a batch to be acknowledged."
+      },
+      "b": {
+        "source": "architecture.md",
+        "text": "The p95 acknowledgement budget for a single submission is 2000 milliseconds."
+      }
+    },
+    {
+      "why": "Whole-batch atomicity, stated as a requirement and as a decision rationale.",
+      "a": {
+        "source": "product-spec.md",
+        "text": "A batch that fails validation must be rejected whole. Partial ingestion is never acceptable."
+      },
+      "b": {
+        "source": "architecture.md",
+        "text": "A submission is committed in one transaction or not at all."
+      }
+    }
+  ]
+}

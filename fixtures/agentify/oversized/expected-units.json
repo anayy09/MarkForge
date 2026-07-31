@@ -1,0 +1,13 @@
+{
+  "set": "oversized",
+  "note": "Authored ground truth for CORPUS.md §2.14(c). Sized to overflow a small target budget so §10.5's progressive disclosure has something to disclose.",
+  "roles": {
+    "engineering-handbook.md": "codingConventions",
+    "glossary.md": "domainGlossary"
+  },
+  "expected": {
+    "conventionUnits": 30,
+    "glossaryTermUnits": 8,
+    "note": "Thirty conventions and eight glossary terms. With any target budget below roughly half the total, the primary file must carry the highest-value units and link the rest — and every unit must still appear somewhere, because dropping one silently would violate brief §3.3 as surely as losing a paragraph does."
+  }
+}

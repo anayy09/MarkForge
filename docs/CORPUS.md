@@ -386,6 +386,30 @@ that forces budget overflow into secondary files. Each set ships with an
 **Metrics:** traceability (must be 1.0), conflict recall, and a diff-stability check that
 mutating one sentence in one source produces a single-region `git diff`.
 
+**Status, before Phase 4 starts: all three sets are built and committed.**
+`scripts/build-agentify-corpus.mjs` authors them; `--check` fails if a committed byte drifted.
+Ten documents across Markdown, HTML, and DOCX — mixed on purpose, because §10.1 claims ingest
+is nothing but the adapters and a single-format corpus would not test that claim. All ten
+parse with zero lossy diagnostics today.
+
+**The answer keys are authored, not captured.** Each set ships an `expected-units.json`
+written before the extractor exists, recording what a correct implementation *should* find. A
+file captured from a run would be a regression snapshot: it would tell you the output changed,
+never that it was wrong, and it would bless whatever the first implementation happened to do.
+
+**The near-duplicate pairs are measured, and that measurement is a gate.** §10.4 merges
+near-duplicates, and OPEN_QUESTIONS §7c argued the merge needs embeddings because a constraint
+restated in another document shares almost no tokens. The corpus has to earn that claim rather
+than illustrate it, so the generator computes content-word Jaccard for each pair and **fails
+if any scores at or above 0.2** — at which point a text threshold would already merge it and
+the pair would prove nothing. Both pairs currently score **0.000**.
+
+That gate exists because of what Phase 3 found the hard way. §2.7.1's ambiguous subset did not
+exist: every fixture ran through the scorer with zero ambiguous decisions, so the criterion
+naming it was unmeasurable rather than unmet, and the fixture had to be built to the
+arithmetic of `scoreHeading` rather than to taste. A corpus that looks like it exercises
+something is not evidence that it does.
+
 ### 2.15 Library- and LLM-generated documents — *authored via generators*
 
 **Catches:** the defect profile of DOCX files produced by software rather than by Word, which is

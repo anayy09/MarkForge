@@ -208,6 +208,35 @@ with `new URL(...).pathname`, which on Windows yields `/C:/Users/...`, `existsSy
 and **every fixture-backed test in the file skipped silently** — the failure mode this document's
 last section is about, in a file written to check for it.
 
+## Phase 4 — the Agent Context Compiler
+
+**Not started.** `packages/agentify` is deliberately unscaffolded — it holds
+`schema/target.v0.schema.json` and nothing else, because `pnpm-workspace.yaml` records that an
+empty package is a promise and brief §13 forbids one without need.
+
+**Done when** a folder of mixed source documents produces a `CLAUDE.md` set that passes the
+verification gate at 100 percent traceability, and editing one source document produces a
+minimal, readable git diff.
+
+What exists for it already, so the phase does not start by building its own measuring stick:
+
+| Prerequisite | State |
+| --- | --- |
+| `CORPUS.md` §2.14 source sets | **done** — 10 documents across md/html/docx in three sets, with authored answer keys |
+| Near-duplicate pairs proven beyond lexical reach | **done** — both score Jaccard 0.000, asserted on every generator run |
+| `embed` role and `context-unit-dedup` binding | done (Phase 3, OPEN_QUESTIONS §7c) |
+| Task→role bindings for the other five §10 tasks | done; the **prompts are not written** |
+| `target.v0.schema.json` | done (Phase 0) |
+| Everything in §10.1's ingest path | done — all ten corpus documents parse with zero lossy diagnostics |
+| `@markforge/agentify` itself | not started |
+| `targets/` registry contents | not started |
+
+**The corpus was built before the phase deliberately.** Phase 3's done-criterion named an
+"ambiguous subset" that turned out not to exist, and the criterion was unmeasurable rather
+than unmet until the subset was authored to arithmetic. Building Phase 4's corpus first means
+its criterion is measurable on day one. The answer keys are authored rather than captured for
+the same reason: a snapshot taken from a run blesses whatever the first implementation did.
+
 ## Unbuilt CLI surface
 
 `SPEC.md` §8 specifies seven subcommands. Two work. The other five refuse by name rather
