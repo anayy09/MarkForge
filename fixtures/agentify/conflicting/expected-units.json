@@ -1,0 +1,51 @@
+{
+  "set": "conflicting",
+  "note": "Authored ground truth for CORPUS.md §2.14(b). The expected output is a conflict report naming both sources, never a resolution (SPEC §10.4).",
+  "roles": {
+    "deploy-guide.md": "runbook",
+    "ops-runbook.md": "runbook",
+    "service-overview.md": "architecture"
+  },
+  "expectedConflicts": [
+    {
+      "entity": "NIMBUS_BATCH_TIMEOUT_MS",
+      "category": "environmentVariable",
+      "values": [
+        {
+          "value": "30000",
+          "source": "deploy-guide.md",
+          "reviewed": "2026-06-02"
+        },
+        {
+          "value": "60000",
+          "source": "ops-runbook.md",
+          "reviewed": "2026-01-14"
+        }
+      ],
+      "note": "Structurally detectable: one entity, two incompatible values. The newer source orders first, but both must appear in the report."
+    },
+    {
+      "entity": "build",
+      "category": "command",
+      "values": [
+        {
+          "value": "pnpm build",
+          "source": "deploy-guide.md",
+          "reviewed": "2026-06-02"
+        },
+        {
+          "value": "npm run compile",
+          "source": "ops-runbook.md",
+          "reviewed": "2026-01-14"
+        }
+      ],
+      "note": "Two commands for one task. Same structural shape as the variable above."
+    }
+  ],
+  "nonConflicts": [
+    {
+      "entity": "NIMBUS_QUEUE_URL",
+      "note": "Both documents declare the same value. A conflict detector that reports this is producing a false positive, which is why it is recorded here as a negative case."
+    }
+  ]
+}

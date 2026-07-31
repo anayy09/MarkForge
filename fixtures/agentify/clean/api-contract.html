@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Nimbus Ingest API</title></head>
+<body>
+<h1>Nimbus Ingest API</h1>
+<h2>Endpoints</h2>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>POST</td><td>/v1/batches</td><td>Submit a batch for ingestion</td></tr>
+    <tr><td>GET</td><td>/v1/batches/{id}</td><td>Retrieve batch status</td></tr>
+    <tr><td>POST</td><td>/v1/batches/{id}/replay</td><td>Replay an accepted batch</td></tr>
+    <tr><td>GET</td><td>/v1/rejections</td><td>List rejected batches from the last 30 days</td></tr>
+  </tbody>
+</table>
+<h2>Authentication</h2>
+<p>All endpoints require a bearer token in the <code>Authorization</code> header. Tokens are
+issued per customer and are never shared between environments.</p>
+<h2>Errors</h2>
+<p>A rejected batch returns <code>422</code> with a machine-readable reason code. A
+<code>409</code> means the batch id has already been accepted and the request is a duplicate.</p>
+</body>
+</html>

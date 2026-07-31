@@ -1239,8 +1239,20 @@ categories, schema-validated.
 
 ### 10.4 Deduplicate and resolve
 
-Near-duplicates merge by normalized-text similarity above a threshold, with the merged unit
-retaining **all** source references — provenance is additive, never replaced.
+Near-duplicates merge by **cosine distance between embeddings**, not by normalized-text
+similarity, with the merged unit retaining **all** source references — provenance is additive,
+never replaced. The `embed` role serves this task (§6.1, `context-unit-dedup`).
+
+This was a text threshold until OPEN_QUESTIONS §7c. The same constraint written in a PRD and
+in an ADR shares almost no tokens, and the corpus now says so as a number rather than as an
+argument: both near-duplicate pairs in `fixtures/agentify/clean/` score **Jaccard 0.000** on
+content words, asserted on every run by `scripts/build-agentify-corpus.mjs`. No lexical
+threshold can merge a pair at zero overlap, so a text-similarity design would have shipped
+duplicate units into every agent file and only failed visibly once someone read one.
+
+Normalized-text comparison is still used, but for the case it is actually good at: **exact and
+near-exact restatement**, where it is cheaper than a model call and needs no network. It runs
+first; embedding handles what survives it.
 
 Contradictions are detected structurally where possible (same entity, incompatible
 predicate: differing values for one env var, conflicting commands for one task) and by the

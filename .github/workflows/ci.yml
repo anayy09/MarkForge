@@ -103,6 +103,12 @@ jobs:
       - name: OOXML reader differential against Mammoth
         run: node scripts/diff-mammoth.mjs --check
 
+      # The Phase 4 source sets, and the gate on their own premise: the near-duplicate
+      # pairs must stay lexically dissimilar, or they stop justifying SPEC §10.4's use of
+      # embeddings over a text threshold.
+      - name: Agentify corpus fixtures are current
+        run: node scripts/build-agentify-corpus.mjs --check
+
       - name: Test
         run: pnpm run test
 

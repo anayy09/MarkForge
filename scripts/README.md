@@ -19,6 +19,7 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `check-fixtures.mjs` | none | Every fixture has a licence line, and every licence line has a fixture |
 | `build-messy-fixtures.mjs` | none | Generates the deliberately defective DOCX corpus (`docs/CORPUS.md` §2.3, §2.15) |
 | `build-scanned-fixtures.mjs` | none | Rasterises `fixtures/md/scanned-source.md` into scanned PDFs with no text layer (`docs/CORPUS.md` §2.7) |
+| `build-agentify-corpus.mjs` | built packages | Authors the three Phase 4 source sets and their answer keys, and gates the near-duplicate pairs (`docs/CORPUS.md` §2.14) |
 | `check-markdown-lint.mjs` | `markdownlint`, built packages | Lints the Markdown our renderer produces. A gate, not a repair pass (ADR-0006) |
 | `diff-mammoth.mjs` | `mammoth`, built packages | Differential test of our OOXML reader against Mammoth; every divergence triaged in `docs/MAMMOTH-DIFF.md` (ADR-0005) |
 | `fetch-ocr-assets.mjs` | network, once | Downloads tesseract language data and the found scan into gitignored `fixtures/local/` (`docs/CORPUS.md` §2.7) |
@@ -169,6 +170,31 @@ The reason the data is not simply downloaded on demand is ADR-0017: `createTesse
 refuses to start unless `langPath` names a local directory or `allowDownload` is passed
 explicitly, because brief §3.6 makes every network call opt-in. "OCR quietly worked because a
 CDN was up" is not an offline guarantee, so the fetch is a separate, deliberate step.
+
+## `build-agentify-corpus.mjs`
+
+Authors the `docs/CORPUS.md` §2.14 source sets — ten documents across Markdown, HTML, and
+DOCX in three sets (clean, conflicting, oversized) — plus an `expected-units.json` answer key
+per set. `--check` fails if a committed byte drifted.
+
+**The answer keys are authored, not captured.** They record what a correct extractor *should*
+find, written before the extractor exists. A file captured from a run would be a regression
+snapshot: it tells you the output changed, never that it was wrong, and it blesses whatever
+the first implementation happened to do.
+
+**It also gates its own premise.** SPEC §10.4 merges near-duplicate context units by embedding
+rather than by text similarity, on the argument that a constraint restated in another document
+shares almost no tokens. The script computes content-word Jaccard for each near-duplicate pair
+and **fails at or above 0.2** — at which point a text threshold would already merge the pair
+and it would prove nothing. Both pairs currently score 0.000.
+
+That gate exists because Phase 3's "ambiguous subset" did not exist: every fixture scored zero
+ambiguous decisions, so the criterion naming it was unmeasurable rather than unmet. A corpus
+that looks like it exercises something is not evidence that it does.
+
+The DOCX file is rendered from authored Markdown by our own renderer, which would be the wrong
+choice in `fixtures/docx/` — the point there is catching adapter bugs — but is fine here, where
+the fixture is the document's content and role rather than its format fidelity.
 
 ## `run-fidelity.mjs`
 
