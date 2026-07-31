@@ -134,6 +134,136 @@ for (const file of htmlFixtures) {
   measured.push(entry(name, "html->md->html", compare(original, parseMarkdown(md).document)));
 }
 
+// --- The Phase 3 subsets: the same document down the deterministic path and down the
+// LLM-assisted one, each against an answer key.
+//
+// This is the measurement the Phase 3 done-criterion names, and it is run **from the
+// committed cache in readOnly mode**, so it needs no API key and makes no network call.
+// That is the point of a content-addressed cache: the LLM rows are as reproducible as
+// every other row here, and CI measures them without talking to a gateway.
+//
+// A note on what these rows are *not*. Every other row in this file is a round trip, where
+// the input is its own answer key. These two are one-way conversions measured against a
+// committed ground-truth Markdown file, because a scan has no round trip — the deterministic
+// path cannot read it at all, which is exactly the difference being measured.
+const { LlmSession, headingTiebreaker, visionRecognizer } = await load("llm");
+const { documentFromPages } = await load("adapters-ocr");
+const { readPdf } = await load("adapters-pdf");
+const { resolveAmbiguities } = await load("infer");
+
+const CACHE_DIR = join(REPO, ".markforge/llm-cache");
+const cachedSession = () =>
+  new LlmSession({
+    baseUrl: "https://api.ai.it.ufl.edu/v1",
+    models: { fast: "gpt-oss-120b", strong: "nemotron-3-super-120b-a12b", vision: "gemma-4-31b-it", embed: "nomic-embed-text-v1.5" },
+    cache: { dir: CACHE_DIR, mode: "readOnly" },
+    // Guided decoding was measured on this deployment (OPEN_QUESTIONS §3) and the recorded
+    // cache entries were produced with it, so the cache key must be computed the same way.
+    // Getting this wrong would miss every entry and look like a model failure.
+    capabilities: {
+      baseUrl: "https://api.ai.it.ufl.edu/v1",
+      probedModel: "gpt-oss-120b",
+      guidedDecoding: true,
+      seed: true,
+      probedAt: new Date().toISOString(),
+      evidence: ["Pinned to match the committed cache; see docs/OPEN_QUESTIONS.md §3."],
+    },
+    seed: 20260731,
+  });
+
+// --- Subset 1: the scanned PDF (CORPUS §2.7).
+const SCAN = join(REPO, "fixtures/pdf/scanned-150dpi.pdf");
+if (existsSync(SCAN)) {
+  const truthSource = readFileSync(join(REPO, "fixtures/md/scanned-source.md"), "utf8");
+  const truth = parseMarkdown(truthSource, { path: "fixtures/md/scanned-source.md" }).document;
+  const bytes = new Uint8Array(readFileSync(SCAN));
+
+  // The deterministic path. It does not produce a bad document, it produces *no*
+  // document — `readPdf` reports a scan and `parsePdf` throws rather than returning
+  // something that looks like a successful conversion. Scored as zero, because that is
+  // what "MarkForge could not read this file" is worth, and pretending otherwise would
+  // flatter the deterministic path on the one corpus where it genuinely cannot compete.
+  const scanRead = await readPdf(bytes, { path: "fixtures/pdf/scanned-150dpi.pdf" });
+  if (scanRead.kind !== "scan") throw new Error("scanned-150dpi.pdf is no longer detected as a scan");
+  measured.push(zeroEntry("scanned-150dpi-nollm", "scan->md"));
+
+  // The cached vision path.
+  const session = cachedSession();
+  const ocr = await documentFromPages(scanRead.pages, visionRecognizer(session), {
+    path: "fixtures/pdf/scanned-150dpi.pdf",
+    sourceBytes: bytes,
+    mediaType: "application/pdf",
+  });
+  measured.push(entry("scanned-150dpi", "scan->md", compare(truth, ocr.document)));
+
+  // The local OCR path. Runs only when `node scripts/fetch-ocr-assets.mjs` has put
+  // `eng.traineddata` in `fixtures/local/tessdata` — it is 4 MB of third-party model
+  // weights and CORPUS.md §4 keeps that out of git — so this row is absent rather than
+  // wrong on a machine that has not fetched it.
+  //
+  // This row is the point of having two recognisers. SPEC §3.3 claims a vision model
+  // recovers structure tesseract cannot, because tesseract returns text and a confidence
+  // while a vision model can see that a line is large and bold. That was an argument until
+  // there were two numbers next to each other; now it is a measurement.
+  const TESSDATA = join(REPO, "fixtures/local/tessdata");
+  if (existsSync(join(TESSDATA, "eng.traineddata"))) {
+    const { createTesseractRecognizer } = await load("adapters-ocr");
+    const recognize = createTesseractRecognizer({ langPath: TESSDATA });
+    try {
+      const local = await documentFromPages(scanRead.pages, recognize, {
+        path: "fixtures/pdf/scanned-150dpi.pdf",
+        sourceBytes: bytes,
+        mediaType: "application/pdf",
+      });
+      measured.push(entry("scanned-150dpi-tesseract", "scan->md", compare(truth, local.document)));
+    } finally {
+      await recognize.close?.();
+    }
+  }
+}
+
+// --- Subset 2: ambiguous headings (CORPUS §2.3).
+const AMBIGUOUS = join(REPO, "fixtures/docx/messy-ambiguous-headings.docx");
+const AMBIGUOUS_TRUTH = join(REPO, "fixtures/expected/ambiguous-headings-truth.md");
+if (existsSync(AMBIGUOUS) && existsSync(AMBIGUOUS_TRUTH)) {
+  const truth = parseMarkdown(readFileSync(AMBIGUOUS_TRUTH, "utf8"), {
+    path: "fixtures/expected/ambiguous-headings-truth.md",
+  }).document;
+  const bytes = new Uint8Array(readFileSync(AMBIGUOUS));
+
+  // Deterministic: every close call resolved by score, which promotes all four candidates.
+  const plain = parseDocx(bytes, { path: "fixtures/docx/messy-ambiguous-headings.docx" }).document;
+  const plainInfer = inferAll(plain);
+  if (plainInfer.ambiguous.length === 0) {
+    throw new Error(
+      "messy-ambiguous-headings.docx no longer produces any ambiguous decision, so the " +
+        "Phase 3 ambiguous subset is measuring nothing. Check inferHeadings' scoring.",
+    );
+  }
+  measured.push(entry("ambiguous-headings-nollm", "docx->truth", compare(truth, plain)));
+
+  // LLM-assisted: the same four calls, answered from the committed cache.
+  const assisted = parseDocx(bytes, { path: "fixtures/docx/messy-ambiguous-headings.docx" }).document;
+  const assistedInfer = inferAll(assisted);
+  await resolveAmbiguities(assisted, assistedInfer.ambiguous, headingTiebreaker(cachedSession()));
+  measured.push(entry("ambiguous-headings", "docx->truth", compare(truth, assisted)));
+}
+
+/** A conversion that could not happen at all. Every metric is zero, by definition. */
+function zeroEntry(fixture, loop) {
+  return {
+    fixture,
+    loop,
+    structural: 0,
+    textSensitive: 0,
+    textInsensitive: 0,
+    tableF1: 0,
+    tableContentF1: 0,
+    spanF1: 0,
+    census: { gained: [], lost: [{ type: "*", count: 0, note: "the file could not be read" }] },
+  };
+}
+
 function entry(fixture, loop, score) {
   return {
     fixture,

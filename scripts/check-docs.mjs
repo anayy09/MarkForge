@@ -93,8 +93,9 @@ else ok("SPEC.md section 10 covers all 7 agentify stages");
 
 // --- 6. ADRs: files, index, and cross-references must all agree.
 const adrFiles = readdirSync(join(REPO, "docs/adr")).filter((f) => /^\d{4}-.*\.md$/.test(f)).sort();
-if (adrFiles.length !== 15) fail(`expected 15 ADR files, found ${adrFiles.length}`);
-else ok("15 ADR files present");
+// 15 through Phase 2; Phase 3 adds 0016 (LLM runtime) and 0017 (the OCR boundary).
+if (adrFiles.length !== 17) fail(`expected 17 ADR files, found ${adrFiles.length}`);
+else ok("17 ADR files present");
 
 for (const f of adrFiles) {
   if (!adrIndex.includes(f)) fail(`ADR ${f} is not linked from docs/adr/README.md`);
@@ -235,7 +236,10 @@ ok("CORPUS.md covers licensing enforcement, competitor scoreboard, and construct
 const questionHeadings = [...openQ.matchAll(/^## (\d+)\.\s+(.+)$/gm)];
 if (questionHeadings.length < 6) fail(`OPEN_QUESTIONS.md has only ${questionHeadings.length} numbered questions`);
 const unlabelled = questionHeadings.filter(([, , title]) =>
-  !/resolved|descoping|descoped|deferred|reversal|Phase 1\+ can answer/i.test(title));
+  // "answered" joined this list in Phase 3, when §3 stopped being resolved-by-deferral and
+  // became resolved-by-measurement. The invariant is that no question sits in limbo, not
+  // which word its heading uses.
+  !/resolved|answered|descoping|descoped|deferred|reversal|Phase 1\+ can answer/i.test(title));
 if (unlabelled.length) {
   // A question with no disposition in its heading must state what it blocks in its body.
   const bodies = openQ.split(/^## /m);
@@ -420,6 +424,32 @@ if (existsSync(join(REPO, "docs/SCOREBOARD.md"))) {
         `${pinned[1]}. Regenerate the scoreboard with the pinned version, or move the pin.`,
     );
   } else ok(`CI pins pandoc ${pinned[1]}, matching the version docs/SCOREBOARD.md records`);
+
+  // The same discipline for the reference project, and for the same reason: the scoreboard's
+  // numbers depend on the competitor's version, so a caret range would make our own scores
+  // appear to move when someone else shipped a release. `word-to-markdown` is the npm name of
+  // `benbalter/word-to-markdown-js`, which brief §2 makes the baseline to beat.
+  const rootManifest = JSON.parse(read("package.json"));
+  const w2mPin = rootManifest.devDependencies?.["word-to-markdown"];
+  const w2mRecorded = /Reference project: word-to-markdown ([0-9][^\s(]*)/.exec(board);
+  if (!w2mPin) {
+    fail("package.json does not depend on word-to-markdown, so the Phase 1 baseline is absent");
+  } else if (!/^\d+\.\d+\.\d+$/.test(w2mPin)) {
+    fail(
+      `word-to-markdown must be pinned to an exact version, not "${w2mPin}": the scoreboard ` +
+        `records the version that produced it, and a range would let our own numbers appear ` +
+        `to change when the competitor released.`,
+    );
+  } else if (!w2mRecorded) {
+    fail("docs/SCOREBOARD.md does not record which word-to-markdown version produced it");
+  } else if (w2mRecorded[1] !== w2mPin) {
+    fail(
+      `word-to-markdown version drift: docs/SCOREBOARD.md records ${w2mRecorded[1]} but ` +
+        `package.json pins ${w2mPin}. Regenerate the scoreboard.`,
+    );
+  } else {
+    ok(`word-to-markdown is pinned to ${w2mPin}, matching what docs/SCOREBOARD.md records`);
+  }
 } else {
   fail("docs/SCOREBOARD.md is missing — run `node scripts/run-scoreboard.mjs`");
 }
@@ -431,15 +461,21 @@ if (existsSync(join(REPO, "docs/SCOREBOARD.md"))) {
 // replaced rather than deleted, because the underlying question — "is the package
 // boundary still real?" — outlives the phase.
 
-const PHASE1_PACKAGES = [
+// Every package with source, not just Phase 1's. The dependency rule below is the one
+// ADR-0009 relies on, and a rule that only inspects the packages that existed when it was
+// written stops being a rule the moment a package is added — which Phase 3 did, including
+// the one package the rule is *about*.
+const PACKAGES = [
   "ir", "ooxml", "infer", "adapters-docx", "adapters-md",
   "render-md", "render-docx", "fidelity", "core", "cli",
+  "adapters-html", "render-html", "adapters-office", "adapters-pdf",
+  "llm", "adapters-ocr",
 ];
 
 // 14a. Every package is private until publication is decided (OPEN_QUESTIONS §5),
 // so an accidental `npm publish` is impossible rather than merely unlikely.
 const notPrivate = [];
-for (const name of PHASE1_PACKAGES) {
+for (const name of PACKAGES) {
   const manifestPath = `packages/${name}/package.json`;
   if (!existsSync(join(REPO, manifestPath))) { fail(`missing ${manifestPath}`); continue; }
   const manifest = JSON.parse(read(manifestPath));
@@ -447,13 +483,13 @@ for (const name of PHASE1_PACKAGES) {
   if (manifest.license !== "Apache-2.0") fail(`${manifestPath}: license must be Apache-2.0 (ADR-0008)`);
 }
 if (notPrivate.length) fail(`packages not marked private: ${notPrivate.join(", ")}`);
-else ok(`all ${PHASE1_PACKAGES.length} packages are private and Apache-2.0 licensed`);
+else ok(`all ${PACKAGES.length} packages are private and Apache-2.0 licensed`);
 
 // 14b. The dependency rule from ADR-0009 and SPEC §6: adapters and renderers must
 // not reach the LLM. Enforced as a build failure rather than a policy, because a
 // policy that is only written down is a preference.
 const forbidden = [];
-for (const name of PHASE1_PACKAGES) {
+for (const name of PACKAGES) {
   if (!name.startsWith("adapters-") && !name.startsWith("render-")) continue;
   const manifest = JSON.parse(read(`packages/${name}/package.json`));
   for (const dep of Object.keys(manifest.dependencies ?? {})) {
@@ -462,6 +498,42 @@ for (const name of PHASE1_PACKAGES) {
 }
 if (forbidden.length) fail(`adapters/renderers must not depend on the LLM layer: ${forbidden.join(", ")}`);
 else ok("no adapter or renderer depends on @markforge/llm (ADR-0009)");
+
+// 14b-ii. The manifest check above is necessary and not sufficient: a stray
+// `import "@markforge/llm"` in an adapter would typecheck through the workspace's hoisted
+// node_modules while the manifest stayed clean, and the rule would pass while being false.
+// ADR-0017 leans on this boundary hard enough — an LLM-backed OCR engine reached only through
+// an injected function type — that it is worth checking the source and not the promise.
+const sourceViolations = [];
+for (const name of PACKAGES) {
+  if (!name.startsWith("adapters-") && !name.startsWith("render-") && name !== "infer") continue;
+  const dir = join(REPO, `packages/${name}/src`);
+  if (!existsSync(dir)) continue;
+  const walkSrc = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) walkSrc(p);
+      // An import, not a mention: ADR-0017's argument is written in a comment inside
+      // adapters-ocr, and a check that fires on the prose explaining the rule is a check
+      // someone deletes. `from "…"`, `import("…")`, and `require("…")` are the three ways
+      // a module can actually arrive.
+      else if (
+        e.name.endsWith(".ts") &&
+        /(?:from|import|require)\s*\(?\s*["']@markforge\/llm["']/.test(readFileSync(p, "utf8"))
+      ) {
+        sourceViolations.push(`${name}/${e.name}`);
+      }
+    }
+  };
+  walkSrc(dir);
+}
+if (sourceViolations.length) {
+  fail(
+    `adapters, renderers, and infer must not import @markforge/llm even transitively: ` +
+      `${sourceViolations.join(", ")}. The recogniser and the heading tie-breaker are ` +
+      `injected function types (ADR-0017); nothing on the conversion path imports the model.`,
+  );
+} else ok("no adapter, renderer, or inference source file mentions @markforge/llm (ADR-0009, ADR-0017)");
 
 // 14c. The IR package must not depend on any adapter or renderer. The IR is the
 // contract between them; a dependency in this direction would make it one of them.

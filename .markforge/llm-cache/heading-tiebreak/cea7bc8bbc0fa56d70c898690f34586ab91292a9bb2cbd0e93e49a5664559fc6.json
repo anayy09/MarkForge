@@ -1,0 +1,26 @@
+{
+  "key": "cea7bc8bbc0fa56d70c898690f34586ab91292a9bb2cbd0e93e49a5664559fc6",
+  "task": "heading-tiebreak",
+  "model": "gpt-oss-120b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "3f84f37b6011339f08f8f0d48e0b03636c248493fd4a7ebc0a823279460e6c34",
+  "inputPreview": "Method",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 400,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "b5eef36ec0c818379e6620c98102a76a5ea6d25cafdbfe88d44a94dfeb22bd7b",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{ \"chosen\": \"heading4\", \"rationale\": \"The single capitalized word “Method” functions as a topic label for the following sentence, which describes the method, matching the heading characteristics (short, bold, slightly larger) rather than being a sentence itself.\" }",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 505,
+      "completionTokens": 140,
+      "totalTokens": 645
+    }
+  }
+}

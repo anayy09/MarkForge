@@ -171,11 +171,37 @@
         "models": {
           "type": "object",
           "additionalProperties": false,
-          "description": "One model name per role. There is no registry file: the name is passed straight through as the OpenAI 'model' parameter. Task-to-role mapping is fixed in code (docs/SPEC.md section 6.2).",
+          "description": "One model name per role. There is no registry file: the name is passed straight through as the OpenAI 'model' parameter. The four role names are closed and adding one is a code change; which task uses which role is open, and lives in llm.taskRoles below (docs/SPEC.md section 6.2).",
           "properties": {
             "fast": { "type": "string", "minLength": 1, "default": "gpt-oss-120b" },
             "strong": { "type": "string", "minLength": 1, "default": "nemotron-3-super-120b-a12b" },
-            "vision": { "type": "string", "minLength": 1, "default": "gemma-4-31b-it" }
+            "vision": { "type": "string", "minLength": 1, "default": "gemma-4-31b-it" },
+            "embed": { "type": "string", "minLength": 1, "default": "nomic-embed-text-v1.5" }
+          }
+        },
+        "taskRoles": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Which role serves each task. Defaults reproduce the docs/SPEC.md section 6.2 table; they are defaults rather than law because experience changes them per corpus — a heading tie-break worth sending to 'strong' on one body of documents belongs on 'fast' for another, and that should be a config edit rather than a patch. Unknown task names are rejected so a typo is an error rather than a silently ignored binding.",
+          "properties": {
+            "document-role-classification": { "$ref": "#/$defs/llmRole", "default": "fast" },
+            "context-unit-extraction": { "$ref": "#/$defs/llmRole", "default": "fast" },
+            "alt-text": {
+              "$ref": "#/$defs/llmRole",
+              "default": "fast",
+              "description": "'vision' when the image itself is the input rather than its surrounding text."
+            },
+            "heading-tiebreak": { "$ref": "#/$defs/llmRole", "default": "fast" },
+            "context-unit-summarization": { "$ref": "#/$defs/llmRole", "default": "strong" },
+            "conflict-analysis": { "$ref": "#/$defs/llmRole", "default": "strong" },
+            "glossary-extraction": { "$ref": "#/$defs/llmRole", "default": "strong" },
+            "page-transcription": { "$ref": "#/$defs/llmRole", "default": "vision" },
+            "table-structure-recovery": { "$ref": "#/$defs/llmRole", "default": "vision" },
+            "context-unit-dedup": {
+              "$ref": "#/$defs/llmRole",
+              "default": "embed",
+              "description": "Near-duplicate context units merge by cosine distance, not lexical overlap: the same constraint stated in a PRD and in an ADR shares almost no tokens (docs/SPEC.md section 10.4)."
+            }
           }
         },
         "temperature": { "const": 0, "default": 0 },
@@ -210,9 +236,10 @@
                 "properties": {
                   "fast": { "type": "string", "minLength": 1 },
                   "strong": { "type": "string", "minLength": 1 },
-                  "vision": { "type": "string", "minLength": 1 }
+                  "vision": { "type": "string", "minLength": 1 },
+                  "embed": { "type": "string", "minLength": 1 }
                 },
-                "required": ["fast", "strong", "vision"]
+                "required": ["fast", "strong", "vision", "embed"]
               }
             },
             "required": ["baseUrl", "apiKeyEnv", "models"]
@@ -283,6 +310,13 @@
         "format": { "enum": ["json", "markdown", "both"], "default": "json" },
         "includeInferenceLog": { "type": "boolean", "default": false }
       }
+    }
+  },
+
+  "$defs": {
+    "llmRole": {
+      "enum": ["fast", "strong", "vision", "embed"],
+      "description": "The closed set of roles. Adding one is deliberately a code change: a role is a capability distinction the code must know how to use, unlike a task binding, which is only a preference."
     }
   }
 }

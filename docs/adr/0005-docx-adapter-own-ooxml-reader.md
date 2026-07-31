@@ -22,6 +22,14 @@ Routing DOCX → HTML → IR therefore produces an empty style sidecar, which ma
 and reduces §5.3 heading inference to what the reference project already does — the exact
 limitation brief §1 lists as the gap we are filling.
 
+> **Guarded since 2026-07-31 by a differential test against Mammoth**
+> (`scripts/diff-mammoth.mjs`, triage in [MAMMOTH-DIFF.md](../MAMMOTH-DIFF.md)). The design
+> argument below is unchanged; what was missing was evidence about the accumulated edge cases
+> Mammoth encodes and a fresh reader does not. Both readers now run over the corpus and every
+> divergence is classified. It found one real bug on its first run — an undefined `Heading4`
+> style id that Mammoth recovered and our inference rules dropped — and confirmed that every
+> other divergence is this ADR's thesis working.
+
 ## Decision
 
 The DOCX adapter **reads OOXML directly** and does not route through Mammoth or HTML.

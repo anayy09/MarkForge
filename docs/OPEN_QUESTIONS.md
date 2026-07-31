@@ -12,7 +12,7 @@ asking, and §8, questions that can only be answered by running code.
 | --- | --- | --- |
 | License | Apache-2.0 | [ADR-0008](adr/0008-license-apache-2.md) |
 | PDF engine | Typst via `typst.ts` | [ADR-0003](adr/0003-pdf-engine-typst.md) |
-| DOCX parse strategy | Own OOXML reader, not Mammoth (deviation from brief §5.2) | [ADR-0005](adr/0005-docx-adapter-own-ooxml-reader.md) |
+| DOCX parse strategy | Own OOXML reader, not Mammoth (deviation from brief §5.2), guarded by a triaged differential test against Mammoth | [ADR-0005](adr/0005-docx-adapter-own-ooxml-reader.md), [MAMMOTH-DIFF.md](MAMMOTH-DIFF.md) |
 | Phase 4 agent targets | `AGENTS.md` + `CLAUDE.md` first-class, plus Claude Code skills, slash commands, and MCP manifest | [ADR-0013](adr/0013-target-registry-agents-md-base.md) |
 | Model registry, routing policy, capability tags | **Descoped.** No registry. A URL, an env-var name, and three model names | [ADR-0009](adr/0009-llm-openai-compatible-only.md), `SPEC.md` §6.1–6.2 |
 | API key environment variable | `MODEL_API_KEY` | [ADR-0009](adr/0009-llm-openai-compatible-only.md) |
@@ -96,7 +96,7 @@ stores the variable *name*; the value never appears in config or in any committe
 A missing variable while `llm.enabled` is `true` is a **startup error**, not a silent
 downgrade to `--no-llm` — producing quietly different output would be worse than failing.
 
-## 3. Structured outputs and `seed` — resolved by probing rather than asking
+## 3. Structured outputs and `seed` — **answered by probing, 2026-07-31**
 
 Whether the gateway accepts `response_format: {type:"json_schema"}` and `seed` is a property
 of the deployment, not of anyone's intent, so it is **discovered, not configured**.
@@ -105,7 +105,37 @@ of the deployment, not of anyone's intent, so it is **discovered, not configured
 bounded repair loop when guided decoding is unavailable (`SPEC.md` §6.3). The run report states
 which mode was used, so a quality difference is visible rather than silent.
 
-This removes the item from the blocking list: Phase 3 no longer needs the answer in advance.
+**The answer, measured on 2026-07-31 against `https://api.ai.it.ufl.edu/v1`:**
+
+| Capability | Answer | Evidence |
+| --- | --- | --- |
+| `response_format: {type:"json_schema"}` | **Supported and enforced** | A prose-only request (`"Write one plain English sentence about cats. No JSON."`) carrying a strict schema returned `{"catCount": 0, "verdict": "fluffy"}`. A grammar beat the prompt. |
+| Guided decoding is a real grammar, not a filter | **Confirmed** | A schema with `"type": "not-a-real-type"` is rejected with `Grammar error: Invalid type`, so a grammar is compiled per request. The gateway is LiteLLM in front of vLLM. |
+| `seed` | **Accepted and validated** | `seed: "not-a-number"` returns HTTP 400 `int_parsing … ('body', 'seed')`, while an unknown parameter (`bogus_param_xyz_9`) is silently ignored. The endpoint parses `seed`; it does not merely tolerate it. |
+| Reproducibility at temperature 0 | **Observed, but not attributable to the seed** | Repeated identical calls returned identical content with *and* without a seed. Temperature 0 is doing the work; the seed's effect is unobservable and is not claimed. |
+
+Verified on all three configured models — `gpt-oss-120b`, `nemotron-3-super-120b-a12b`, and
+`gemma-4-31b-it` — not just the default. The consequence for design is the good one: the
+repair loop is a genuine fallback here rather than the primary mechanism, which is what
+ADR-0009's consequences section hoped for and could not assume.
+
+**Two things the probe got wrong before it got them right**, recorded because they are the
+kind of error a capability probe is uniquely able to make convincingly:
+
+1. **Sending a *valid* seed proves nothing.** The first probe sent `seed: 20260731`, got a
+   200, and concluded support. But this gateway ignores unknown parameters, so a valid seed
+   and a nonsense field are indistinguishable from the response. The discriminating test is a
+   deliberate type error, which only a validating endpoint rejects.
+2. **A 401 is not evidence about a schema.** The first probe, run with a deliberately wrong
+   key, reported "guided decoding unavailable" and **wrote that to the capabilities file** —
+   a confident wrong answer that every later run would have inherited, produced by the one
+   mechanism whose purpose is to prevent exactly that. `probeCapabilities` now refuses to
+   conclude anything from an authentication failure, a rate limit, a missing model, or an
+   unreachable endpoint: only a 400 rejecting the parameter, or a 200 honouring it, is
+   evidence. Regression-tested in `packages/llm/test/llm.test.ts`.
+
+This removes the item from the blocking list: Phase 3 did not need the answer in advance, and
+now has it.
 
 ## 4. DOCX reference documents — resolved, with one deviation from the instruction
 
@@ -194,19 +224,56 @@ small deviation from brief §5.2's "header and footer stripping". Stripping woul
 
 Added on 2026-07-30, from the answers above:
 
-**7c. The `fast | strong | vision` role set, and the task → role mapping being fixed in code.**
-The reviewer specified "select some powerful models and use them"; three roles is my
-interpretation of how many distinctions are worth having. It is the part of ADR-0009 most
-likely to need widening — a fourth role would be a code change, not a config edit.
+**7c. The role set, and where the task → role mapping lives. — RULED ON 2026-07-31: modify.**
+
+*Original entry:* the `fast | strong | vision` role set was my interpretation of how many
+distinctions are worth having, with the task mapping fixed in code; a fourth role would be a
+code change rather than a config edit.
+
+*Verdict:* the count was not the problem. The reviewer identified the right risk and I had
+applied it to the wrong dimension — a fourth role being a code change is tolerable, but every
+individual task binding being a code change is not, because the bindings are where experience
+actually changes its mind. Two changes, both landed:
+
+- **`embed` added now**, defaulting to `nomic-embed-text-v1.5`. §10.4 merges near-duplicate
+  context units and lexical similarity cannot do it: the same constraint written in a PRD and
+  in an ADR shares almost no tokens. Discovering this in Phase 4 is exactly the retrofit cost
+  this entry warned about, so it was paid up front.
+- **The mapping moved to `llm.taskRoles`**, with the §6.2 table as defaults. Role names stay
+  closed, bindings open. An unbound or misspelled task throws rather than defaulting, because a
+  typo silently falling through to `fast` would surface only as slightly worse output.
+
+`SPEC.md` §6.1–6.2, `schema/markforge.config.v0.schema.json`, `DEFAULT_TASK_ROLES` in
+`@markforge/llm`.
 
 **7d. `markforge check --llm` capability probing** was invented to close question 3 rather than
 leaving it open. It adds a command flag and a cache file that the brief does not mention.
+
+*Affirmed 2026-07-31, with one requirement now met:* **the record has to be able to go stale.**
+`.markforge/llm-capabilities.json` records `baseUrl` and `probedAt`, and `loadCapabilities`
+discards it when the endpoint differs, when the record is older than `CAPABILITIES_MAX_AGE_MS`
+(seven days), when `probedAt` is absent — an older build could not express its own age, and
+unknown age is not evidence — or when it is dated in the future, which means a clock moved. A
+university gateway is redeployed without announcement, and a stale record would either
+downgrade silently to the repair loop or keep sending a `response_format` the deployment had
+stopped accepting: the exact failure the probe exists to prevent.
 
 Added during Phase 2:
 
 **7e. `TableCell.children` was widened to accept block content as well as phrasing content**,
 amending the Phase 0 schema. The schema followed mdast literally; `CORPUS.md` §2.5 requires
 cells containing block content, so the two contradicted each other. Argued in `SPEC.md` §2.7.1.
+
+*Affirmed 2026-07-31, with the degradation policy now written down.* Widening the cell type
+was right — mdast is a Markdown AST and our IR supersedes it by design — but it collides with
+GFM, whose pipe cell holds one line of inline content and can express neither a merged cell
+nor block content. The policy is `markdown.tables`, specified in `SPEC.md` §4.1: `auto`
+(default) writes pipe syntax when every cell fits and a raw HTML `<table>` for the whole table
+when any does not; `gfm` always writes pipes; `html` always writes HTML. **No setting is
+silent** — `auto` emits an `info` recording the switch, `gfm` emits a `degraded` naming what
+was flattened. The whole table degrades rather than the offending cell, because a table half
+in pipes and half in HTML is valid as neither, and the HTML comes from `renderHtmlFragment` so
+it round-trips through our own adapter rather than into a second dialect nobody tests.
 
 **7f. PPTX and XLSX are read-only.** The brief's §11 Phase 2 lists them without saying which
 direction. Adapters exist; renderers do not, because generating a presentation or a spreadsheet
@@ -221,16 +288,62 @@ and splitting them would duplicate that scaffolding for no boundary anyone needs
 adapter records evidence and leaves decisions to `@markforge/infer`, because every other format
 states its own structure. A PDF has glyphs at coordinates and nothing else, so refusing to infer
 would mean refusing to read PDFs. The inference is deterministic, thresholds derive from the
-document's own measurements, and provenance carries `confidence: 0.8` so the guess is labelled
-as one. ADR-0012 anticipated this; it is recorded here as an explicit A5 exception.
+document's own measurements, and provenance carries a confidence so the guess is labelled as
+one. ADR-0012 anticipated this; it is recorded here as an explicit A5 exception.
 
-**7i. A PDF with no text layer throws rather than returning an empty document.** OCR is Phase 3.
-Until then, a conversion that "succeeds" with three words of a forty-page scan is worse than one
-that says what is wrong, so the adapter names the phase that will fix it and stops.
+*Affirmed 2026-07-31, but the constant is gone.* The A5 exception stands. `confidence: 0.8` on
+every inference did not: it made the field decorative, because reading order in a clean
+single-column page is near-certain while column segmentation across a narrow gutter is a
+guess, and both reported the same number — so `@markforge/infer` and the tie-break layer had
+no signal to act on and "route the ambiguous cases to a stronger model" meant nothing.
+Confidence is now derived from the evidence that produced the inference: gutter width measured
+**in units of the page's own word gap** rather than in points, distance above the heading size
+threshold, and how many heading signals a paragraph nearly satisfied. A node takes the weaker
+of its reading-order and block-type confidences. Not calibrated and not a probability — only
+monotonic in the strength of the evidence, which is all "escalate the bottom decile" requires.
+`SPEC.md` §3.3, `PageLayout.readingOrderEvidence`.
 
-**7j. `parseAsync`/`convertAsync` exist alongside the synchronous pair.** PDF extraction is
-inherently asynchronous, and making every conversion async would force every caller to await a
-Markdown conversion that does no I/O. `parse("pdf")` throws and names the function that works.
+**7i. A PDF with no text layer throws rather than returning an empty document. — RULED ON
+2026-07-31: modify. The check is per page, not per document.**
+
+*Original entry:* a conversion that "succeeds" with three words of a forty-page scan is worse
+than one that says what is wrong, so the adapter stopped and named the phase that would fix it.
+
+*Verdict:* throwing on a fully scanned PDF is right and is unchanged. The document-level
+boolean was wrong for the common real case — a born-digital PDF with scanned pages inserted, a
+submission bundle with a signed cover sheet, an appendix photocopied into an otherwise clean
+report. Averaging characters over the document puts those comfortably above the threshold, so
+the old rule converted them and the scanned pages vanished with no diagnostic anywhere, which
+is precisely the silent loss brief §3.3 forbids. The rule is now:
+
+- text coverage is computed **per page**;
+- **all** pages below threshold → throw, as before;
+- **some** pages below threshold → convert the readable pages, emit an `unknown` placeholder
+  node per affected page in reading position, and hand back that page's image for a recogniser.
+
+Each placeholder carries a lossy diagnostic naming its node id and page number, which satisfies
+adapter rule A6 and is what makes `--strict` exit non-zero. This keeps no-silent-loss and keeps
+the tool useful on documents that actually exist. `packages/adapters-pdf/src/index.ts`; the
+mixed case is covered by its own suite in `packages/adapters-pdf/test/pdf.test.ts`.
+
+**7j. `parseAsync`/`convertAsync` exist alongside the synchronous pair. — RULED ON 2026-07-31:
+reversed. The API is async-only.**
+
+*Original entry:* PDF extraction is inherently asynchronous, and making every conversion async
+would force every caller to await a Markdown conversion that does no I/O.
+
+*Verdict:* the ergonomic cost being avoided was one `await`. The cost being taken on was a
+second public surface that every adapter and renderer had to keep in parity — and it was going
+to break anyway, because `typst.ts` needs async WASM initialisation, the DOCX renderer reads a
+reference document and may load fonts, and the browser build has no synchronous file access at
+all. The sync half could only ever have covered Markdown-to-Markdown, while imposing a "which
+variant does this go in" decision on every future contribution.
+
+So `parse`, `render`, and `convert` are async; `parseAsync` and `convertAsync` are gone.
+`formatMarkdown` is renamed **`formatMarkdownSync`** — the single synchronous entry point,
+suffixed precisely so it reads as an exception rather than half of a pair, and documented as
+not generalisable. `render` is async today even though every renderer built so far is
+synchronous, so that the signature does not change on the day PDF output lands.
 
 ---
 
@@ -244,6 +357,19 @@ Not open questions for the reviewer — recorded so they are not mistaken for ov
 - **Do the fidelity metric definitions in `SPEC.md` §9 produce stable scores** on the corpus,
   or do they need tolerance tuning? ADR-0010 commits to committed baselines; the initial
   tolerance of 0.005 is a guess until the corpus exists.
-- **Is `remark-stringify` + markdownlint autofix genuinely idempotent** under the pinned option
-  set of ADR-0006, or does a fixed point require iteration to converge? Property tests decide;
-  `maxIterations: 8` is a guard, not a claim.
+- **~~Is `remark-stringify` + markdownlint autofix genuinely idempotent~~ — ANSWERED
+  2026-07-31, by removing the autofix pass.** The reviewer asked whether the iteration was
+  avoidable *by construction* before we committed to guarding it, and it is. Two tools that
+  can disagree about emphasis markers, list bullets, and line wrapping can each undo the
+  other, and that mutual undoing was the only reason a fixed point was ever in doubt.
+  Configuring `remark-stringify` to satisfy the rule set up front and running markdownlint
+  **check-only in CI** makes idempotency follow from `stringify` being a pure function of the
+  tree: no loop, no `maxIterations`, nothing to oscillate.
+
+  Measured before adopting it (`scripts/check-markdown-lint.mjs`, wired into `pnpm verify`):
+  34 rendered files, **zero violations**, no autofix pass. Five rules are disabled and each
+  conflicts with a decision recorded elsewhere rather than being one the configuration could
+  not meet. The interesting one is `MD029`, which wants every ordered list renumbered from 1
+  and would therefore destroy `restartsAt` — the field the IR carries precisely so a list
+  starting at 7 survives a round trip. ADR-0006 is amended; a lint violation now means the
+  stringify configuration has drifted, which is a better failure than a silent 9th iteration.

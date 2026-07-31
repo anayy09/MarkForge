@@ -16,13 +16,35 @@ import { resolve, relative } from "node:path";
 import {
   ExitCode,
   OUTPUT_FORMATS,
-  convertAsync,
-  formatMarkdown,
+  convert,
+  formatMarkdownSync,
   formatFromPath,
   isOutputFormat,
+  parse,
+  type Assist,
   type Format,
 } from "@markforge/core";
-import type { Diagnostic } from "@markforge/ir";
+import { countNodes, validateDocument, type Diagnostic } from "@markforge/ir";
+import { readAvailableStyles, reportCoverage } from "@markforge/render-docx";
+import { createTesseractRecognizer } from "@markforge/adapters-ocr";
+import {
+  CAPABILITIES_PATH,
+  ChatClient,
+  DEFAULT_API_KEY_ENV,
+  DEFAULT_BASE_URL,
+  DEFAULT_MODELS,
+  probeCapabilities,
+  resolveApiKey,
+  saveCapabilities,
+  type LlmRunReport,
+} from "@markforge/llm";
+import {
+  assistFrom,
+  buildSession,
+  resolveLlmRequest,
+  withLlmOptions,
+  type LlmFlags,
+} from "./llm-config.js";
 
 const program = new Command();
 
@@ -42,6 +64,106 @@ function log(message: string, flags: GlobalFlags): void {
   if (!flags.quiet) process.stderr.write(message + "\n");
 }
 
+/**
+ * Reports an error once, with exactly one `markforge:` prefix.
+ *
+ * Some library messages name the tool because they are also read by API users, and this
+ * function used to be a bare template string — so those arrived as
+ * "markforge: markforge: the LLM is enabled but…". Fixed here rather than by editing every
+ * message, because the next message to name the tool would reintroduce it.
+ */
+function fail(message: string): void {
+  process.stderr.write(
+    (message.startsWith("markforge:") ? message : `markforge: ${message}`) + "\n",
+  );
+}
+
+/**
+ * Assembles the optional assistance from the flags as typed.
+ *
+ * Returns nothing at all unless `--llm` or `--ocr` was given, which is what makes
+ * `--no-llm` the default rather than a mode (brief §3.6). The two are independent: `--ocr`
+ * is local tesseract and needs no network, `--llm` is the gateway and covers both the
+ * vision transcription and heading tie-breaks. Given both, tesseract wins for
+ * transcription, because a local recogniser that is already installed should not be
+ * silently replaced by a network call.
+ */
+function buildAssist(
+  opts: Record<string, unknown>,
+  argv: string[],
+  failures: string[],
+): { assist?: Assist; describe?: string; report?: () => LlmRunReport } {
+  const request = resolveLlmRequest(argv);
+  const wantsOcr = opts["ocr"] === true;
+  if (!request.enabled && !wantsOcr) return {};
+
+  const onFailure = (context: { task: string; nodeOrPage: string; reason: string; message: string }): void => {
+    failures.push(
+      `llm ${context.task} did not answer for ${context.nodeOrPage} (${context.reason}): ` +
+        `${context.message}`,
+    );
+  };
+
+  const assist: Assist = {};
+  let describe: string | undefined;
+  let report: (() => LlmRunReport) | undefined;
+
+  if (request.enabled) {
+    const built = buildSession(opts as LlmFlags);
+    const wired = assistFrom(built, onFailure);
+    assist.headingTiebreak = wired.headingTiebreak;
+    if (!wantsOcr) assist.recognize = wired.recognize;
+    describe = built.describe();
+    report = () => built.session.report();
+  }
+
+  if (wantsOcr) {
+    assist.recognize = createTesseractRecognizer({
+      ...(typeof opts["tessdata"] === "string" ? { langPath: opts["tessdata"] } : {}),
+    });
+  }
+
+  return {
+    assist,
+    ...(describe !== undefined ? { describe } : {}),
+    ...(report !== undefined ? { report } : {}),
+  };
+}
+
+/**
+ * Two throwaway calls that ask the endpoint what it supports, then remember the answer.
+ *
+ * The result goes to `.markforge/llm-capabilities.json`, which is gitignored: it describes
+ * one deployment at one moment, and committing it would make a colleague inherit a claim
+ * about a gateway they may not be pointed at.
+ */
+async function probeEndpoint(
+  flags: LlmFlags,
+  global: GlobalFlags,
+): Promise<{ guidedDecoding: boolean; seed: boolean; evidence: string[]; savedTo: string }> {
+  const baseUrl = flags.llmBaseUrl ?? DEFAULT_BASE_URL;
+  const apiKeyEnv = flags.llmApiKeyEnv ?? DEFAULT_API_KEY_ENV;
+  const model = flags.llmModelFast ?? DEFAULT_MODELS.fast;
+  // Required here with no readOnly escape: a probe is a network call by definition, so
+  // there is nothing it could do without a key.
+  const apiKey = resolveApiKey(apiKeyEnv, { required: true })!;
+
+  log(`probing ${baseUrl} with ${model} (two throwaway calls)...`, global);
+  const capabilities = await probeCapabilities(new ChatClient({ baseUrl, apiKey }), baseUrl, model);
+  saveCapabilities(CAPABILITIES_PATH, capabilities);
+
+  if (!global.json) {
+    for (const line of capabilities.evidence) log(`  ${line}`, global);
+    log(`  recorded in ${CAPABILITIES_PATH}`, global);
+  }
+  return {
+    guidedDecoding: capabilities.guidedDecoding,
+    seed: capabilities.seed,
+    evidence: capabilities.evidence,
+    savedTo: CAPABILITIES_PATH,
+  };
+}
+
 function reportDiagnostics(diagnostics: Diagnostic[], flags: GlobalFlags): void {
   if (flags.json || flags.quiet) return;
   const lossy = diagnostics.filter((d) => d.lossy);
@@ -53,7 +175,7 @@ function reportDiagnostics(diagnostics: Diagnostic[], flags: GlobalFlags): void 
   if (lossy.length > 20) process.stderr.write(`  ...and ${lossy.length - 20} more\n`);
 }
 
-program
+const convertCommand = program
   .command("convert")
   .description("Convert a document between formats")
   .argument("<input>", "input file")
@@ -67,6 +189,16 @@ program
   .option("--json", "emit a machine-readable result on stdout")
   .option("--strict", "exit 2 if anything was lost")
   .option("--quiet", "suppress human output")
+  .option(
+    "--llm",
+    "allow the optional LLM layer: ambiguous heading tie-breaks, and vision transcription " +
+      "of a scan. Off unless given (brief §3.6)",
+  )
+  .option("--ocr", "transcribe a scanned PDF locally with tesseract (needs --tessdata)")
+  .option("--tessdata <dir>", "directory holding <lang>.traineddata for --ocr")
+  .option("--no-llm", "the default: convert deterministically, with no network access");
+withLlmOptions(convertCommand);
+convertCommand
   .action(async (input: string, opts: Record<string, unknown>) => {
     const flags = opts as GlobalFlags;
     try {
@@ -110,7 +242,14 @@ program
         ? new Uint8Array(await readFile(resolve(referenceDocPath)))
         : undefined;
 
-      const result = await convertAsync(bytes, {
+      // Assistance is assembled here, in the composition root, and is empty unless the
+      // user asked for it. `assistFailures` collects what went wrong so a failed call
+      // becomes a reported diagnostic rather than a silently deterministic result.
+      const assistFailures: string[] = [];
+      const assist = buildAssist(opts, process.argv, assistFailures);
+      if (assist.describe && !flags.json) log(assist.describe, flags);
+
+      const result = await convert(bytes, {
         from,
         to,
         // Relative, so the recorded provenance does not embed this machine's
@@ -122,7 +261,10 @@ program
           onMissingStyle: opts["onMissingStyle"] as "warn" | "error" | "synthesize",
           ...(referenceDoc ? { referenceDoc } : {}),
         },
+        ...(assist.assist ? { assist: assist.assist } : {}),
       });
+
+      for (const failure of assistFailures) log(`  ${failure}`, flags);
 
       await writeFile(resolve(output), result.bytes);
 
@@ -139,6 +281,10 @@ program
               diagnostics: result.diagnostics,
               lossyCount: lossy.length,
               decisions: result.decisions,
+              // Present and null when the LLM was off, so a consumer can tell "no model
+              // was consulted" from "this build does not report it".
+              llm: assist.report ? assist.report() : null,
+              llmFailures: assistFailures,
             },
             null,
             2,
@@ -154,7 +300,7 @@ program
       // but only worth *failing* on when the user asked.
       process.exit(flags.strict && lossy.length > 0 ? ExitCode.STRICT_LOSSY : ExitCode.SUCCESS);
     } catch (error) {
-      process.stderr.write(`markforge: ${(error as Error).message}\n`);
+      fail((error as Error).message);
       process.exit(ExitCode.ERROR);
     }
   });
@@ -180,7 +326,7 @@ program
           process.exit(ExitCode.ERROR);
         }
         const source = await readFile(path, "utf8");
-        const result = formatMarkdown(source);
+        const result = formatMarkdownSync(source);
         results.push({ file, changed: result.changed });
 
         if (result.changed && !check) {
@@ -209,7 +355,149 @@ program
 
       process.exit(check && changed.length > 0 ? ExitCode.NEEDS_FORMATTING : ExitCode.SUCCESS);
     } catch (error) {
-      process.stderr.write(`markforge: ${(error as Error).message}\n`);
+      fail((error as Error).message);
+      process.exit(ExitCode.ERROR);
+    }
+  });
+
+const checkCommand = program
+  .command("check")
+  .description("Validate documents, a DOCX reference document, and the LLM endpoint")
+  .argument("[paths...]", "documents to parse and validate against the IR schema")
+  .option("--reference-doc <path>", "report which named styles a DOCX template defines")
+  .option("--llm", "probe the endpoint for guided decoding and seed support, and record it")
+  .option("--json", "emit a machine-readable result on stdout")
+  .option("--strict", "exit 2 if a document reports a lossy diagnostic")
+  .option("--quiet", "suppress human output");
+withLlmOptions(checkCommand);
+checkCommand
+  .action(async (paths: string[], opts: Record<string, unknown>) => {
+    const flags = opts as GlobalFlags;
+    const report: Record<string, unknown> = { ok: true };
+    let exit: number = ExitCode.SUCCESS;
+
+    try {
+      // --- Reference document coverage (SPEC §4.2.1, TEMPLATES.md §2.2).
+      if (typeof opts["referenceDoc"] === "string") {
+        const path = resolve(opts["referenceDoc"]);
+        if (!existsSync(path)) {
+          process.stderr.write(`markforge: no such file: ${opts["referenceDoc"]}\n`);
+          process.exit(ExitCode.ERROR);
+        }
+        const styles = readAvailableStyles(new Uint8Array(await readFile(path)));
+        const coverage = reportCoverage(styles);
+        report["referenceDoc"] = {
+          path: opts["referenceDoc"],
+          stylesDefined: styles.length,
+          pandocNamesDefined: coverage.defined,
+          pandocNamesMissing: coverage.missing,
+          total: coverage.total,
+          styleMap: coverage.skeleton,
+        };
+        if (!flags.json) {
+          log(
+            `${opts["referenceDoc"]}: ${styles.length} named style(s); ` +
+              `${coverage.defined.length} of ${coverage.total} Pandoc names defined.`,
+            flags,
+          );
+          // The skeleton, not just a count: measured against real templates, most define a
+          // small minority of these names (OPEN_QUESTIONS §4), so adapting one has to be an
+          // edit rather than an investigation.
+          log(`\n  Paste into markforge.config docx.styleMap, filling the blanks:`, flags);
+          for (const [role, name] of Object.entries(coverage.skeleton)) {
+            log(`    ${JSON.stringify(role)}: ${JSON.stringify(name)},`, flags);
+          }
+          if (coverage.missing.length > 0) {
+            log(
+              `\n  Not defined by this template: ${coverage.missing.join(", ")}.\n` +
+                `  Roles mapped to these fall back to onMissingStyle (default: synthesize, ` +
+                `deriving from the template's own docDefaults).`,
+              flags,
+            );
+          }
+        }
+      }
+
+      // --- Endpoint capability probe (SPEC §6.3, OPEN_QUESTIONS §3).
+      if (opts["llm"] === true) {
+        const probe = await probeEndpoint(opts as LlmFlags, flags);
+        report["llm"] = probe;
+        if (!probe.guidedDecoding) {
+          // Not a failure: the repair loop covers it. But it is a quality difference the
+          // run report must state rather than absorb (ADR-0009 consequences).
+          log(
+            `\n  Guided decoding is unavailable on this endpoint, so structured output ` +
+              `relies on the prompt plus the repair loop.`,
+            flags,
+          );
+        }
+      }
+
+      // --- Document validation.
+      const documents: Record<string, unknown>[] = [];
+      for (const file of paths) {
+        const path = resolve(file);
+        if (!existsSync(path)) {
+          process.stderr.write(`markforge: no such file: ${file}\n`);
+          process.exit(ExitCode.ERROR);
+        }
+        const format = formatFromPath(file);
+        if (!format) {
+          process.stderr.write(
+            `markforge: cannot tell the format of "${file}" from its extension.\n`,
+          );
+          process.exit(ExitCode.ERROR);
+        }
+        const bytes = new Uint8Array(await readFile(path));
+        const parsed = await parse(bytes, format, file);
+        const validation = validateDocument(parsed.document);
+        const lossy = parsed.diagnostics.lossy();
+        documents.push({
+          file,
+          format,
+          valid: validation.valid,
+          errors: validation.errors,
+          nodes: countNodes(parsed.document.body as never),
+          lossyCount: lossy.length,
+          diagnostics: parsed.diagnostics.all(),
+        });
+        if (!flags.json) {
+          log(
+            `${file}: ${validation.valid ? "valid IR" : "INVALID IR"}, ` +
+              `${countNodes(parsed.document.body as never)} node(s), ` +
+              `${lossy.length} lossy diagnostic(s)`,
+            flags,
+          );
+          for (const error of validation.errors.slice(0, 10)) log(`    ${error}`, flags);
+        }
+        if (!validation.valid) exit = ExitCode.ERROR;
+        else if (flags.strict && lossy.length > 0 && exit === ExitCode.SUCCESS) {
+          exit = ExitCode.STRICT_LOSSY;
+        }
+      }
+      if (documents.length > 0) report["documents"] = documents;
+
+      if (
+        paths.length === 0 &&
+        opts["referenceDoc"] === undefined &&
+        opts["llm"] !== true
+      ) {
+        // Nothing asked for. Saying so beats exiting 0 on a command that did nothing,
+        // and naming the corpus harness is the honest boundary of what `check` covers.
+        process.stderr.write(
+          `markforge check: nothing to check. Pass document paths, --reference-doc <path>, ` +
+            `or --llm.\n` +
+            `Corpus fidelity baselines are a separate, committed harness: run ` +
+            `\`node scripts/run-fidelity.mjs --check\` (exit 4 on regression).\n`,
+        );
+        process.exit(ExitCode.ERROR);
+      }
+
+      report["ok"] = exit === ExitCode.SUCCESS;
+      if (flags.json) process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      process.exit(exit);
+    } catch (error) {
+      fail((error as Error).message);
       process.exit(ExitCode.ERROR);
     }
   });
@@ -218,7 +506,6 @@ program
 // intended surface, and each one refuses rather than silently doing nothing.
 for (const [name, description, phase] of [
   ["agentify", "Compile documents into agent context files", "Phase 4"],
-  ["check", "Validate IR, config, and fidelity baselines", "Phase 1 (partial)"],
   ["diff", "Semantic IR diff between two documents", "Phase 2"],
   ["serve", "Local HTTP API", "Phase 5"],
   ["init", "Scaffold config and reference documents", "Phase 2"],
@@ -236,7 +523,8 @@ for (const [name, description, phase] of [
     });
 }
 
+// commander's own async entry point, unrelated to @markforge/core's `parse`.
 program.parseAsync(process.argv).catch((error: Error) => {
-  process.stderr.write(`markforge: ${error.message}\n`);
+  fail(error.message);
   process.exit(ExitCode.ERROR);
 });

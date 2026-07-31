@@ -1,0 +1,11 @@
+{
+  "baseUrl": "https://api.ai.it.ufl.edu/v1",
+  "probedModel": "gpt-oss-120b",
+  "guidedDecoding": true,
+  "seed": true,
+  "probedAt": "2026-07-31T04:09:00.000Z",
+  "evidence": [
+    "Guided decoding: enforced. A prose-only request answered with schema-valid JSON (\"{ \\\"catCount\\\": 0, \\\"verdict\\\": \\\"fluffy\\\" }\"), which only happens when a grammar constrains the sampler.",
+    "Seed: accepted. An invalid seed was rejected with HTTP 400 naming the field, so the endpoint validates it rather than discarding it. Note what this does *not* establish: at temperature 0 a seed's effect is unobservable, so this says the parameter is honoured, not that sampling is reproducible because of it."
+  ]
+}

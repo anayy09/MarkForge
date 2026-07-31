@@ -45,6 +45,7 @@ import {
   type Line,
   type TextRun,
 } from "./layout.js";
+import { pageImage, type PageImage } from "./pages.js";
 
 const ADAPTER = { kind: "adapter" as const, name: "@markforge/adapters-pdf", version: "0.1.0" };
 
@@ -55,10 +56,51 @@ export interface PdfParseOptions {
   maxPages?: number;
 }
 
+/**
+ * What a PDF turned out to be.
+ *
+ * A PDF is either a document with a text layer or a picture of one, and which it is
+ * cannot be known until it has been opened. Returning the answer rather than throwing on
+ * one branch lets `@markforge/core` route a scan to OCR in a single pass — the earlier
+ * shape threw, so the only way to reach the scan branch was to catch an error and reopen
+ * the file, which is control flow by exception and doubles the work.
+ *
+ * `parsePdf` still throws when *every* page is a scan (OPEN_QUESTIONS §7i), because a
+ * caller that asked for a document and cannot be handed one deserves an error rather than
+ * a union. A document where only *some* pages are scans is a `text` result: see below.
+ */
+export type PdfReadResult =
+  | {
+      kind: "text";
+      document: MarkForgeDocument;
+      /**
+       * Page images for pages that had no text layer in an otherwise readable document.
+       * Empty for the ordinary case.
+       *
+       * The mixed document is the common real one — a born-digital report with a signed
+       * cover sheet, a photocopied appendix, a submission bundle — and the two obvious
+       * rules both fail it. Throwing loses the readable 90 percent; passing silently
+       * drops the scanned pages, which violates brief §3.3. So the readable pages
+       * convert, each unreadable page becomes an `unknown` placeholder node carrying its
+       * page number and a lossy diagnostic (so `--strict` exits non-zero), and its image
+       * is handed back here for a recogniser to fill in.
+       */
+      scannedPages: PageImage[];
+      diagnostics: DiagnosticBag;
+    }
+  | {
+      kind: "scan";
+      /** One PNG per page, for a recogniser. Empty when no raster could be extracted. */
+      pages: PageImage[];
+      charsPerPage: number;
+      pageCount: number;
+      diagnostics: DiagnosticBag;
+    };
+
 const DEFAULT_MAX_PAGES = 200;
 
 /**
- * Below this many characters per page, we call it a scan.
+ * Below this many characters, a *page* is a scan.
  *
  * Some scanned PDFs carry a few characters of junk text — a stamp, a watermark, a
  * form field — so "zero characters" is the wrong test. But the threshold has to stay
@@ -66,13 +108,24 @@ const DEFAULT_MAX_PAGES = 200;
  * positive on the most annoying possible input. A scan that carries a watermark and
  * squeaks past this will produce a document containing the watermark, which is at
  * least honest about what the text layer held.
+ *
+ * **Applied per page, not to a document average** (OPEN_QUESTIONS §7i). An average
+ * hides exactly the case that matters: forty readable pages and four scanned ones
+ * average out well above the threshold, so the document passes and four pages vanish
+ * with no diagnostic anywhere. The per-page test cannot express that outcome.
  */
 const SCAN_THRESHOLD_CHARS_PER_PAGE = 8;
 
-export async function parsePdf(
+/**
+ * Reads a PDF, and says which kind of PDF it was.
+ *
+ * `parsePdf` is this function plus a throw on the scan branch; everything below is one
+ * pass over the file either way.
+ */
+export async function readPdf(
   bytes: Uint8Array,
   options: PdfParseOptions = {},
-): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
+): Promise<PdfReadResult> {
   const diagnostics = new DiagnosticBag(ADAPTER);
 
   // The legacy build is the one that runs in Node without a DOM. Imported lazily so
@@ -129,19 +182,25 @@ export async function parsePdf(
   const blocks: AnyNode[] = [];
   const evidence = new Map<AnyNode, StyleEvidence>();
   const pageOf = new Map<AnyNode, number>();
+  const confidenceOf = new Map<AnyNode, number>();
   let totalChars = 0;
   const allHeights: number[] = [];
 
   // Two passes: the first measures the document so heading detection compares
   // against the *document's* body size rather than each page's. A page of nothing but
   // a large heading would otherwise treat that heading as body text.
-  const pages: { pageNumber: number; layout: ReturnType<typeof analysePage> }[] = [];
+  const pages: {
+    pageNumber: number;
+    layout: ReturnType<typeof analysePage>;
+    chars: number;
+  }[] = [];
 
   for (let pageNumber = 1; pageNumber <= maxPages; pageNumber++) {
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 1 });
     const content = await page.getTextContent();
 
+    let pageChars = 0;
     const runs: TextRun[] = [];
     for (const item of content.items) {
       // Whitespace-only items are pdf.js's gap fillers, not content: they carry no
@@ -162,6 +221,7 @@ export async function parsePdf(
         fontName: "fontName" in item && typeof item.fontName === "string" ? item.fontName : "",
       });
       totalChars += item.str.trim().length;
+      pageChars += item.str.trim().length;
     }
 
     // pdf.js clips text extending past the MediaBox and reports the survivors with
@@ -183,29 +243,86 @@ export async function parsePdf(
     }
 
     const layout = analysePage(runs, viewport.width);
-    pages.push({ pageNumber, layout });
+    pages.push({ pageNumber, layout, chars: pageChars });
     for (const column of layout.columns) for (const line of column.lines) allHeights.push(line.height);
 
     page.cleanup();
   }
 
   const charsPerPage = maxPages > 0 ? totalChars / maxPages : 0;
-  if (charsPerPage < SCAN_THRESHOLD_CHARS_PER_PAGE) {
-    // Failing loudly rather than returning an almost-empty document. A conversion
-    // that "succeeds" with three words of a forty-page scan is worse than one that
-    // says what is wrong.
+
+  // The scan test is per page (OPEN_QUESTIONS §7i). Three outcomes, not two: every page
+  // a scan, no page a scan, or the mixed document that both simpler rules get wrong.
+  const scannedPageNumbers = pages
+    .filter((p) => p.chars < SCAN_THRESHOLD_CHARS_PER_PAGE)
+    .map((p) => p.pageNumber);
+  const allScanned = maxPages > 0 && scannedPageNumbers.length === maxPages;
+
+  const rasterise = async (pageNumbers: number[]): Promise<PageImage[]> => {
+    const images: PageImage[] = [];
+    for (const pageNumber of pageNumbers) {
+      const page = await pdf.getPage(pageNumber);
+      const image = await pageImage(
+        page as unknown as Parameters<typeof pageImage>[0],
+        pageNumber,
+        { ops: pdfjs.OPS as unknown as Record<string, number>, diagnostics },
+      );
+      if (image) images.push(image);
+      page.cleanup();
+    }
+    return images;
+  };
+
+  if (allScanned) {
+    // A scan. The routing decision itself is recorded as an `info` diagnostic, which
+    // ADR-0012 requires: "we OCR'd this" is a fact about the output that a reader
+    // should not have to infer from the provenance table.
+    diagnostics.info(
+      DiagnosticCode.PDF_NO_TEXT_LAYER,
+      `No usable text layer (${Math.round(charsPerPage)} character(s) per page across ` +
+        `${maxPages} page(s)), so this file is a scan and its pages were extracted as ` +
+        `images for a recogniser. Everything downstream of here is a reading of a ` +
+        `picture, recorded with a confidence in provenance.`,
+    );
+
+    const images = await rasterise(scannedPageNumbers);
     await pdf.destroy();
-    throw new Error(
-      `adapters-pdf: this PDF has no usable text layer (${Math.round(charsPerPage)} ` +
-        `characters per page across ${maxPages} page(s)). It is almost certainly a scan. ` +
-        `OCR is Phase 3 (docs/adr/0012-pdf-adapter-stack.md); until then MarkForge cannot ` +
-        `read it, and returning an empty document would look like success.`,
+
+    return { kind: "scan", pages: images, charsPerPage, pageCount: maxPages, diagnostics };
+  }
+
+  // The mixed document: some pages readable, some not. Rasterise only the unreadable
+  // ones, so a recogniser can be pointed at exactly the pages that need it.
+  const scannedSet = new Set(scannedPageNumbers);
+  const scannedImages = scannedPageNumbers.length > 0 ? await rasterise(scannedPageNumbers) : [];
+  if (scannedPageNumbers.length > 0) {
+    diagnostics.info(
+      DiagnosticCode.PDF_NO_TEXT_LAYER,
+      `Page(s) ${scannedPageNumbers.join(", ")} of ${maxPages} have no usable text layer ` +
+        `while the rest do. The readable pages were converted; each unreadable page is a ` +
+        `placeholder node in reading position, and its image was extracted for a ` +
+        `recogniser. This document is incomplete until those pages are transcribed.`,
     );
   }
 
   const documentBodyHeight = median(allHeights) ?? 11;
+  const placeholders: { node: AnyNode; pageNumber: number }[] = [];
 
   for (const { pageNumber, layout } of pages) {
+    if (scannedSet.has(pageNumber)) {
+      // In reading position, so the placeholder sits where the page's content would
+      // have been rather than being appended as a footnote to the document.
+      const node: AnyNode = {
+        type: "unknown",
+        originalType: "pdf:scanned-page",
+        raw: `Page ${pageNumber} is a scanned image with no text layer.`,
+      };
+      pageOf.set(node, pageNumber);
+      placeholders.push({ node, pageNumber });
+      blocks.push(node);
+      continue;
+    }
+
     if (layout.columns.length > 1) {
       diagnostics.info(
         DiagnosticCode.INFER_AMBIGUOUS_HEADING,
@@ -217,9 +334,17 @@ export async function parsePdf(
 
     for (const column of layout.columns) {
       for (const lines of groupIntoBlocks(column, layout.bodyLeading)) {
-        const node = blockToNode(lines, documentBodyHeight, evidence);
+        const node = blockToNode(lines, documentBodyHeight, evidence, confidenceOf);
         if (node) {
           pageOf.set(node, pageNumber);
+          // The weaker of the two doubts, not their product. They are independent kinds
+          // of doubt — "is this a heading" and "did we read the page in the right order"
+          // — and a node is only as trustworthy as its weakest link. Multiplying would
+          // punish a confident node on a confident page for no reason.
+          confidenceOf.set(
+            node,
+            Math.min(confidenceOf.get(node) ?? 0.8, layout.readingOrderConfidence),
+          );
           blocks.push(node);
         }
       }
@@ -236,7 +361,7 @@ export async function parsePdf(
   assignIds(doc.body as unknown as AnyNode);
   if (typeof doc.body.id === "string") doc.id = doc.body.id;
   if (typeof doc.body.contentHash === "string") doc.contentHash = doc.body.contentHash;
-  attachSideTables(doc, sourceId, evidence, pageOf);
+  attachSideTables(doc, sourceId, evidence, pageOf, confidenceOf);
 
   if (options.normalize !== false) {
     const result = normalize(doc.body as unknown as AnyNode, doc.sidecar);
@@ -244,11 +369,55 @@ export async function parsePdf(
     assignIds(doc.body as unknown as AnyNode);
     if (typeof doc.body.id === "string") doc.id = doc.body.id;
     if (typeof doc.body.contentHash === "string") doc.contentHash = doc.body.contentHash;
-    attachSideTables(doc, sourceId, evidence, pageOf);
+    attachSideTables(doc, sourceId, evidence, pageOf, confidenceOf);
+  }
+
+  // Emitted after the last `assignIds`, so each diagnostic names the node it describes.
+  // Rule A6 requires every `unknown` node to carry a lossy diagnostic with its id, and
+  // that lossiness is also what makes `--strict` exit non-zero on a mixed document —
+  // which is the half of §7i that keeps "no silent loss" true.
+  for (const { node, pageNumber } of placeholders) {
+    const nodeId = (node as { id?: unknown }).id;
+    diagnostics.lost(
+      DiagnosticCode.PDF_NO_TEXT_LAYER,
+      "pdf:scanned-page",
+      `Page ${pageNumber} has no text layer and was not transcribed, so its content is ` +
+        `absent from this document. Transcribe it with \`markforge convert --ocr\` ` +
+        `(tesseract locally, or --llm for a vision model).`,
+      {
+        ...(typeof nodeId === "string" ? { nodeId } : {}),
+        locator: { kind: "page", pageNumber },
+      },
+    );
   }
 
   doc.diagnostics = diagnostics.all();
-  return { document: doc, diagnostics };
+  return { kind: "text", document: doc, scannedPages: scannedImages, diagnostics };
+}
+
+/**
+ * Reads a PDF that has a text layer. Throws, by name, when it does not.
+ *
+ * Unchanged behaviour from Phase 2 (OPEN_QUESTIONS §7i) except for the last sentence of
+ * the message: OCR is no longer "a later phase", it is a route this build has, and the
+ * error now says how to take it.
+ */
+export async function parsePdf(
+  bytes: Uint8Array,
+  options: PdfParseOptions = {},
+): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
+  const result = await readPdf(bytes, options);
+  if (result.kind === "scan") {
+    throw new Error(
+      `adapters-pdf: this PDF has no usable text layer ` +
+        `(${Math.round(result.charsPerPage)} characters per page across ` +
+        `${result.pageCount} page(s)). It is almost certainly a scan, and returning an ` +
+        `almost-empty document would look like success. Its ${result.pages.length} page ` +
+        `image(s) can be transcribed: use readPdf and a recogniser, or run ` +
+        `\`markforge convert --ocr\` (tesseract locally, or --llm for a vision model).`,
+    );
+  }
+  return { document: result.document, diagnostics: result.diagnostics };
 }
 
 /**
@@ -264,6 +433,7 @@ function blockToNode(
   lines: Line[],
   bodyHeight: number,
   evidence: Map<AnyNode, StyleEvidence>,
+  confidenceOf: Map<AnyNode, number>,
 ): AnyNode | undefined {
   const text = joinBlockText(lines);
   if (text === "") return undefined;
@@ -283,13 +453,18 @@ function blockToNode(
   // block is a paragraph the marker is ordinary text, indistinguishable from a
   // sentence that begins with a numeral.
   const listItems = splitListItems(lines);
-  if (listItems) return listItems;
+  if (listItems) {
+    // A marker is a character in the file, not a measurement of one — the strongest
+    // evidence this adapter ever has, short of a declared style.
+    confidenceOf.set(listItems, 0.9);
+    return listItems;
+  }
 
   const isShort = text.length <= 90;
   const noTerminalPunctuation = !/[.!?;:,]\s*$/.test(text);
   const singleLine = lines.length <= 2;
 
-  if (ratio >= 1.15 && isShort && noTerminalPunctuation && singleLine) {
+  if (ratio >= HEADING_MIN_RATIO && isShort && noTerminalPunctuation && singleLine) {
     // Coarse levels, because the evidence is coarse. Claiming six distinguishable
     // heading levels from font size alone would imply a precision the geometry does
     // not carry.
@@ -305,13 +480,30 @@ function blockToNode(
       font: { sizePt: round(height) },
       outlineLevel: level - 1,
     });
+    // How far above the threshold the size sits. A block at 1.15× only just cleared it
+    // and could as easily be emphasised body text; one at 1.7× could not.
+    const margin = (ratio - HEADING_MIN_RATIO) / (1.7 - HEADING_MIN_RATIO);
+    confidenceOf.set(node, round2(0.55 + 0.4 * clamp01(margin)));
     return node;
   }
 
   const node: AnyNode = { type: "paragraph", children: [{ type: "text", value: text }] };
   evidence.set(node, { origin: "layoutGeometry", font: { sizePt: round(height) } });
+  // Paragraph is the default interpretation, so its confidence is the confidence that
+  // nothing else fit — which falls as the block gets closer to being a heading. Three of
+  // the four heading signals holding is a near miss, and a near miss is exactly what a
+  // reviewer or a stronger model should be pointed at. A constant would have hidden it.
+  const nearMisses = [ratio >= HEADING_MIN_RATIO, isShort, noTerminalPunctuation, singleLine]
+    .filter(Boolean).length;
+  confidenceOf.set(node, nearMisses >= 3 ? 0.65 : nearMisses === 2 ? 0.85 : 0.95);
   return node;
 }
+
+/** Size ratio at which a block becomes eligible to be a heading. */
+const HEADING_MIN_RATIO = 1.15;
+
+const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 const BULLET = /^\s*([\u2022\u00b7\u25aa\u25e6\u2023\u2013\u2014*-])\s+(\S.*)$/;
 const NUMBERED = /^\s*(\d{1,3})[.)]\s+(\S.*)$/;
@@ -390,14 +582,20 @@ function attachSideTables(
   sourceId: string,
   evidence: Map<AnyNode, StyleEvidence>,
   pageOf: Map<AnyNode, number>,
+  confidenceOf: Map<AnyNode, number>,
 ): void {
   const provenance: Record<string, Provenance> = {};
   const sidecar: Record<string, StyleEvidence> = {};
   let currentPage = 1;
+  let currentConfidence = 0.8;
 
   visit(doc.body as unknown as AnyNode, (n) => {
     const page = pageOf.get(n);
     if (page !== undefined) currentPage = page;
+    // Inherited, like the page number: a heading's own text node is exactly as much of
+    // a guess as the heading, and re-deriving it per child would invent precision.
+    const confidence = confidenceOf.get(n);
+    if (confidence !== undefined) currentConfidence = confidence;
     if (typeof n.id !== "string") return;
     provenance[n.id] = {
       sourceId,
@@ -405,8 +603,10 @@ function attachSideTables(
       locator: { kind: "page", pageNumber: currentPage },
       // Confidence is stated because this adapter genuinely guessed. Every other
       // adapter reads structure the file declares; this one reconstructed it, and a
-      // consumer deciding whether to trust a heading deserves to know which.
-      confidence: 0.8,
+      // consumer deciding whether to trust a heading deserves to know which. It is
+      // derived from the evidence rather than constant (OPEN_QUESTIONS §7h) so that
+      // ranking by it is meaningful.
+      confidence: currentConfidence,
     };
     const e = evidence.get(n);
     if (e) sidecar[n.id] = e;
@@ -424,3 +624,5 @@ export {
   joinBlockText,
 } from "./layout.js";
 export type { TextRun, Line, Column, PageLayout } from "./layout.js";
+export { encodePng } from "./pages.js";
+export type { PageImage } from "./pages.js";

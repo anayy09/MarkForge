@@ -163,10 +163,19 @@ if (compiled.config) {
   if (compiled.config({ llm: { enabled: true } })) fail("config: llm.enabled=true accepted without baseUrl/apiKeyEnv/models");
   else ok("config: llm.enabled=true correctly requires endpoint fields");
 
-  // All three roles are required when enabled: a partial models block must not pass.
+  // All four roles are required when enabled: a partial models block must not pass.
   if (compiled.config({ llm: { enabled: true, baseUrl: "https://api.ai.it.ufl.edu/v1", apiKeyEnv: "MODEL_API_KEY", models: { fast: "gpt-oss-120b" } } }))
     fail("config: llm.enabled=true accepted a partial models block");
-  else ok("config: all three model roles are mandatory when llm is enabled");
+  else ok("config: all four model roles are mandatory when llm is enabled");
+
+  // The role names are closed and the bindings are open (OPEN_QUESTIONS §7c): rebinding a
+  // task must be accepted, an unknown role or an unknown task name must not.
+  const bound = (taskRoles) => compiled.config({ llm: { taskRoles } });
+  if (!bound({ "heading-tiebreak": "strong" })) fail("config: rebinding a task to another role was rejected");
+  else ok("config: a task may be rebound to any of the four roles");
+  if (bound({ "heading-tiebreak": "gigantic" })) fail("config: unknown llm role accepted");
+  else if (bound({ "heading-tiebrake": "fast" })) fail("config: misspelled task name accepted");
+  else ok("config: unknown roles and misspelled task names are both rejected");
 
   // The descoped fields must be gone, not merely undocumented (ADR-0009).
   for (const dead of [{ registry: "./models.registry.json" }, { routing: "./routing.policy.json" }]) {

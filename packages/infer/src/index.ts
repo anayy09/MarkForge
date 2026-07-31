@@ -67,6 +67,67 @@ export interface InferResult {
   diagnostics: DiagnosticBag;
   /** Number of nodes whose type changed. */
   changed: number;
+  /**
+   * The decisions that were too close to call, in document order.
+   *
+   * Empty on almost every document, and the only place the LLM is permitted to touch a
+   * conversion (brief §5.3, §7.1). Carries the node itself so a tie-break can be applied
+   * without a second traversal, which is why this is not part of the serialisable
+   * `Decision` record.
+   */
+  ambiguous: AmbiguousDecision[];
+}
+
+/**
+ * One decision the deterministic scorer declined to make confidently.
+ *
+ * Everything a tie-breaker is allowed to see is here, and it is deliberately the same
+ * evidence the rules used plus local context — not the whole document. A tie-breaker that
+ * received the document could be tempted to reorganise it, and this one is only ever
+ * asked to pick from `candidates`.
+ */
+export interface AmbiguousDecision {
+  nodeId: string;
+  question: string;
+  candidates: Candidate[];
+  /** What the deterministic path chose, and what stands if no tie-breaker answers. */
+  chosenByRule: string;
+  /** Score gap between the top two candidates. Below `ambiguityMargin` by definition. */
+  margin: number;
+  text: string;
+  /** Resolved levels of the headings above this node, nearest last. */
+  precedingHeadings: number[];
+  followingText: string;
+  /** The live node. Not serialised. */
+  node: AnyNode;
+  /**
+   * The node's children before promotion stripped a whole-node mark, so demoting back to
+   * a paragraph restores the bold that was the evidence rather than silently dropping it.
+   */
+  originalChildren: AnyNode[];
+}
+
+/**
+ * Chooses between the candidates of one ambiguous decision.
+ *
+ * Returning `undefined` means "no answer" — the deterministic choice stands. That is the
+ * contract that keeps `--no-llm` and a failed LLM call producing the same document.
+ *
+ * Injected rather than imported: `@markforge/infer` must stay deterministic and
+ * dependency-free, and ADR-0009's rule that the LLM cannot reach the conversion path is
+ * only real if the packages on that path cannot import it.
+ */
+export type HeadingTiebreaker = (
+  decision: AmbiguousDecision,
+) => Promise<TiebreakAnswer | undefined>;
+
+export interface TiebreakAnswer {
+  /** Must be one of the decision's candidate interpretations. */
+  chosen: string;
+  /** Named for the decision log: which model, which prompt version. */
+  decidedBy: string;
+  /** Recorded into the node's provenance, so a model's touch is machine-checkable. */
+  producedBy: { kind: "model"; model: string; promptVersion: string };
 }
 
 /**
@@ -94,9 +155,10 @@ export function inferHeadings(
   const opts = { ...DEFAULT_INFER_OPTIONS, ...options };
   const diagnostics = new DiagnosticBag(INFERRER);
   const decisions: Decision[] = [];
+  const ambiguous: AmbiguousDecision[] = [];
   let changed = 0;
 
-  if (!opts.headings) return { decisions, diagnostics, changed };
+  if (!opts.headings) return { decisions, diagnostics, changed, ambiguous };
 
   // Body text size is the baseline everything else is measured against. The median
   // is used rather than the mean because a single 48pt title would drag a mean
@@ -109,7 +171,16 @@ export function inferHeadings(
   });
   const bodySize = median(sizes) ?? 11;
 
+  // Heading levels resolved so far, which is the context a tie-break needs: whether a
+  // paragraph is a level 3 depends on what came above it.
+  const seenLevels: number[] = [];
+
   visit(doc.body as unknown as AnyNode, (n) => {
+    if (n.type === "heading") {
+      const existing = typeof n["resolvedLevel"] === "number" ? n["resolvedLevel"] : undefined;
+      if (existing !== undefined) seenLevels.push(existing);
+      return;
+    }
     if (n.type !== "paragraph" || typeof n.id !== "string") return;
     const evidence = doc.sidecar[n.id];
     if (!evidence) return;
@@ -121,7 +192,7 @@ export function inferHeadings(
     const best = candidates[0]!;
     const runnerUp = candidates[1];
     const margin = runnerUp ? best.score - runnerUp.score : 1;
-    const ambiguous = margin < opts.ambiguityMargin;
+    const isAmbiguous = margin < opts.ambiguityMargin;
 
     if (best.interpretation === "paragraph") return;
 
@@ -134,10 +205,10 @@ export function inferHeadings(
       candidates,
       chosen: best.interpretation,
       decidedBy: best.reasons[0] ?? "score",
-      ambiguous,
+      ambiguous: isAmbiguous,
     });
 
-    if (ambiguous) {
+    if (isAmbiguous) {
       // Reported, not resolved. The margin is the honest statement of how close it
       // was, and a user reading the report can override the mapping.
       diagnostics.degraded(
@@ -148,21 +219,39 @@ export function inferHeadings(
           `${runnerUp?.interpretation ?? "none"}. Evidence: ${best.reasons.join("; ")}.`,
         { nodeId: n.id },
       );
+      // Recorded for a possible tie-break *before* the promotion below mutates the node,
+      // so `originalChildren` is what the author actually wrote. Restoring it is what
+      // makes a demotion back to a paragraph lossless.
+      ambiguous.push({
+        nodeId: n.id,
+        question: "Is this paragraph a heading, and at what level?",
+        candidates,
+        chosenByRule: best.interpretation,
+        margin,
+        text: textOf(n),
+        precedingHeadings: [...seenLevels],
+        followingText: "",
+        node: n,
+        originalChildren: Array.isArray(n.children) ? [...(n.children as AnyNode[])] : [],
+      });
     }
 
     n.type = "heading";
     n["depth"] = Math.min(6, level);
     n["resolvedLevel"] = level;
+    seenLevels.push(level);
     unwrapEvidenceMarks(n);
     changed++;
   });
+
+  fillFollowingText(doc, ambiguous);
 
   // A document whose headings skip a level is not an error — it is common, and
   // sample002.docx does exactly this (docs/CORPUS.md §2.3). Reported so a renderer
   // that assumes contiguous levels has been warned.
   reportLevelSkips(doc, diagnostics);
 
-  return { decisions, diagnostics, changed };
+  return { decisions, diagnostics, changed, ambiguous };
 }
 
 /**
@@ -211,6 +300,32 @@ function scoreHeading(node: AnyNode, evidence: StyleEvidence, bodySize: number):
       interpretation: `heading${named[1]}`,
       score: 0.95,
       reasons: [`style name "${styleName}" declares a heading level`],
+    });
+    return out;
+  }
+
+  // --- 2b. A style *id* of "HeadingN" whose definition is missing from styles.xml.
+  //
+  // Found by the Mammoth differential test (ADR-0005, docs/MAMMOTH-DIFF.md): on
+  // `messy-inconsistent-cascade.docx` Mammoth recovers an `<h4>` where we produced a
+  // paragraph. The document references `w:pStyle w:val="Heading4"` and never defines it,
+  // so there is no style *name* to match on and no inherited `outlineLevel` — but the id
+  // itself states the author's intent, and dropping it loses a heading that Word would
+  // also render unstyled yet every human reader would call a heading.
+  //
+  // Scored below the resolved-name case rather than equal to it. An id is a weaker
+  // witness than a definition: it could be a coincidental name, and nothing corroborates
+  // the level. That gap is what makes this a candidate the tie-breaker can revisit rather
+  // than a fact, which is the right status for a recovery from missing data.
+  const styleId = evidence.sourceStyleId ?? "";
+  const byId = /^heading\s*([1-9])$/i.exec(styleId.trim());
+  if (byId) {
+    out.push({
+      interpretation: `heading${byId[1]}`,
+      score: 0.8,
+      reasons: [
+        `style id "${styleId}" names a heading level, though styles.xml does not define it`,
+      ],
     });
     return out;
   }
@@ -273,6 +388,146 @@ function scoreHeading(node: AnyNode, evidence: StyleEvidence, bodySize: number):
   }
 
   return out;
+}
+
+/**
+ * Fills in the text of the block after each ambiguous node.
+ *
+ * A heading introduces what follows it, so the following block is the single most useful
+ * piece of context for "is this a label or a sentence?". Done in a second pass because
+ * during the first one the following node has not been visited yet.
+ */
+function fillFollowingText(doc: MarkForgeDocument, ambiguous: AmbiguousDecision[]): void {
+  if (ambiguous.length === 0) return;
+  const byNode = new Map<AnyNode, AmbiguousDecision>();
+  for (const decision of ambiguous) byNode.set(decision.node, decision);
+
+  const walk = (parent: AnyNode): void => {
+    const kids = parent.children;
+    if (!Array.isArray(kids)) return;
+    for (const [index, child] of (kids as AnyNode[]).entries()) {
+      const decision = byNode.get(child);
+      if (decision) {
+        const next = kids[index + 1] as AnyNode | undefined;
+        // Capped: a tie-break needs the shape of what follows, not all of it, and a
+        // whole chapter in the prompt is tokens spent to make the answer worse.
+        decision.followingText = next ? textOf(next).slice(0, 300) : "";
+      }
+      walk(child);
+    }
+  };
+  walk(doc.body as unknown as AnyNode);
+}
+
+/**
+ * Applies a tie-breaker to the decisions the rules declined to make.
+ *
+ * The only path by which anything outside this package can change a conversion, and it
+ * is narrow on purpose:
+ *
+ *   - Only nodes already marked ambiguous are offered.
+ *   - The answer must be one of that node's own candidates; anything else is refused
+ *     here as well as being rejected by the schema at the call site.
+ *   - A tie-breaker that returns `undefined`, throws, or answers off-menu leaves the
+ *     deterministic outcome exactly as it was. `--no-llm` and a failed call produce the
+ *     same document, which is what makes the LLM layer optional rather than load-bearing.
+ *   - Every applied answer is recorded twice: as a `Decision` for `--explain`, and in the
+ *     node's provenance as `producedBy: {kind: "model", …}`.
+ */
+export async function resolveAmbiguities(
+  doc: MarkForgeDocument,
+  ambiguous: AmbiguousDecision[],
+  tiebreak: HeadingTiebreaker,
+): Promise<{ decisions: Decision[]; diagnostics: DiagnosticBag; applied: number; changed: number }> {
+  const diagnostics = new DiagnosticBag(INFERRER);
+  const decisions: Decision[] = [];
+  let applied = 0;
+  let changed = 0;
+
+  for (const decision of ambiguous) {
+    let answer: TiebreakAnswer | undefined;
+    try {
+      answer = await tiebreak(decision);
+    } catch (error) {
+      // The caller diagnoses the failure with its own vocabulary (it knows whether this
+      // was a budget, transport, or schema problem). Here it is simply "no answer".
+      void error;
+      answer = undefined;
+    }
+    if (!answer) continue;
+
+    const legal = decision.candidates.some((c) => c.interpretation === answer.chosen);
+    if (!legal) {
+      diagnostics.degraded(
+        DiagnosticCode.LLM_CALL_FAILED,
+        "heading",
+        `A tie-breaker answered "${answer.chosen}", which is not among this node's ` +
+          `candidates (${decision.candidates.map((c) => c.interpretation).join(", ")}). ` +
+          `Refused: the deterministic choice "${decision.chosenByRule}" stands. Brief §5.3 ` +
+          `allows a model to choose among candidates and never to invent one.`,
+        { nodeId: decision.nodeId },
+      );
+      continue;
+    }
+
+    applied++;
+    decisions.push({
+      nodeId: decision.nodeId,
+      question: decision.question,
+      candidates: decision.candidates,
+      chosen: answer.chosen,
+      decidedBy: answer.decidedBy,
+      ambiguous: true,
+    });
+
+    if (answer.chosen !== decision.chosenByRule) {
+      changed++;
+      applyChoice(decision, answer.chosen);
+      diagnostics.info(
+        DiagnosticCode.LLM_TIEBREAK_APPLIED,
+        `Ambiguous heading resolved to "${answer.chosen}" by ${answer.decidedBy}, ` +
+          `overriding the deterministic choice "${decision.chosenByRule}" (margin ` +
+          `${decision.margin.toFixed(3)}). With --no-llm this node stays ` +
+          `"${decision.chosenByRule}".`,
+        { nodeId: decision.nodeId },
+      );
+    } else {
+      diagnostics.info(
+        DiagnosticCode.LLM_TIEBREAK_APPLIED,
+        `Ambiguous heading confirmed as "${answer.chosen}" by ${answer.decidedBy}, which ` +
+          `agrees with the deterministic choice. The document is unchanged.`,
+        { nodeId: decision.nodeId },
+      );
+    }
+
+    // Provenance records the model even when it agreed, because "did a model influence
+    // this node?" and "did the output change?" are different questions and only the first
+    // one is answerable from the document (SPEC §2.5).
+    const existing = doc.provenance[decision.nodeId];
+    if (existing) doc.provenance[decision.nodeId] = { ...existing, producedBy: answer.producedBy };
+  }
+
+  return { decisions, diagnostics, applied, changed };
+}
+
+/** Rewrites the node to match the chosen interpretation. */
+function applyChoice(decision: AmbiguousDecision, chosen: string): void {
+  const node = decision.node;
+  if (chosen === "paragraph") {
+    node.type = "paragraph";
+    delete node["depth"];
+    delete node["resolvedLevel"];
+    // The bold that was the promotion's evidence was unwrapped on the way in. Demoting
+    // without restoring it would silently drop formatting the author wrote, which is a
+    // worse outcome than the wrong heading level.
+    node.children = decision.originalChildren;
+    return;
+  }
+  const level = Number.parseInt(chosen.replace("heading", ""), 10);
+  if (!Number.isFinite(level)) return;
+  node.type = "heading";
+  node["depth"] = Math.min(6, level);
+  node["resolvedLevel"] = level;
 }
 
 function reportLevelSkips(doc: MarkForgeDocument, diagnostics: DiagnosticBag): void {
@@ -379,7 +634,7 @@ export function inferBlockquotes(doc: MarkForgeDocument): InferResult {
   };
 
   rebuild(doc.body as unknown as AnyNode);
-  return { decisions, diagnostics, changed };
+  return { decisions, diagnostics, changed, ambiguous: [] };
 }
 
 /**
@@ -399,6 +654,9 @@ export function inferAll(doc: MarkForgeDocument, options: InferOptions = {}): In
     decisions: [...headings.decisions, ...quotes.decisions],
     diagnostics,
     changed: headings.changed + quotes.changed,
+    // Only heading inference produces ambiguity: blockquote recovery reads a style name,
+    // which is a fact rather than a judgement (see inferBlockquotes).
+    ambiguous: headings.ambiguous,
   };
 }
 

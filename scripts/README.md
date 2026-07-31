@@ -18,6 +18,10 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `add-salient-annotations.mjs` | none | One-shot migration that added `x-salient` to the IR schema |
 | `check-fixtures.mjs` | none | Every fixture has a licence line, and every licence line has a fixture |
 | `build-messy-fixtures.mjs` | none | Generates the deliberately defective DOCX corpus (`docs/CORPUS.md` §2.3, §2.15) |
+| `build-scanned-fixtures.mjs` | none | Rasterises `fixtures/md/scanned-source.md` into scanned PDFs with no text layer (`docs/CORPUS.md` §2.7) |
+| `check-markdown-lint.mjs` | `markdownlint`, built packages | Lints the Markdown our renderer produces. A gate, not a repair pass (ADR-0006) |
+| `diff-mammoth.mjs` | `mammoth`, built packages | Differential test of our OOXML reader against Mammoth; every divergence triaged in `docs/MAMMOTH-DIFF.md` (ADR-0005) |
+| `fetch-ocr-assets.mjs` | network, once | Downloads tesseract language data and the found scan into gitignored `fixtures/local/` (`docs/CORPUS.md` §2.7) |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
@@ -73,6 +77,98 @@ direct formatting instead of styles, a broken `w:basedOn` chain, a missing `them
 generate into gitignored `generated/`, which is right for 600 DPI scans and OCR language data.
 These are 2–4 KB each, and committing them means a test needs no build step and a fixture cannot
 silently change underneath a test. `--check` is what keeps the committed bytes honest.
+
+## `build-scanned-fixtures.mjs`
+
+Writes the scanned-PDF corpus for `docs/CORPUS.md` §2.7: `fixtures/md/scanned-source.md`
+rasterised at 150, 300, and 600 DPI with controlled skew and speckle, wrapped in a PDF whose
+pages are one bitonal image each and which contains **no text layer at all**.
+
+```sh
+node scripts/build-scanned-fixtures.mjs           # write the fixtures
+node scripts/build-scanned-fixtures.mjs --check   # exit 1 if the committed 150 DPI file is stale
+```
+
+Only 150 DPI is committed (18 KB). The other two land in gitignored `fixtures/generated/`,
+because `CORPUS.md` §4 names 600 DPI scans specifically as the kind of artifact produced by a
+committed script rather than kept in git history forever.
+
+Three things about it are deliberate:
+
+- **The glyphs are a 5x7 bitmap font written out as pictures inside the script.** There is no
+  font rasteriser here, and shipping a TTF we are not licensed to redistribute would be worse.
+  The consequence is stated in `CORPUS.md` §2.7 and worth repeating: absolute OCR accuracy on
+  these files is not comparable to accuracy on a real scan. Engine-against-engine and
+  DPI-against-DPI, on identical bytes, is what they measure.
+- **The PDF writer is hand-rolled** rather than borrowed, because the point of the fixture is
+  what the file does *not* contain. Any "searchable PDF" pipeline would helpfully embed an
+  invisible text layer and make the scan detection it exists to exercise pass trivially.
+- **Every degradation is integer arithmetic from a seeded PRNG.** The committed LLM cache is
+  keyed on the page image's digest (`SPEC.md` §6.3), so a rasteriser that changed its output by
+  one pixel — or that used trigonometry whose last bit differs across platforms — would
+  invalidate every recorded vision response.
+
+The script also refuses rather than degrades: a source construct it cannot draw, or a list item
+wrapped across two lines, throws with the reason. A rasteriser that quietly skipped a table
+would produce a fixture whose committed ground truth claims content the image does not contain,
+which would make every OCR number measured against it meaningless.
+
+## `check-markdown-lint.mjs`
+
+Renders every `docs/`, `docs/adr/`, and `fixtures/md/` Markdown file through
+`formatMarkdownSync` and lints the result.
+
+**It never fixes anything**, which is the point. ADR-0006 originally specified
+`remark-stringify` followed by markdownlint autofix iterated to a fixed point, guarded by
+`maxIterations: 8`. Two formatters that can disagree — about emphasis markers, list
+bullets, line wrapping — can each undo the other, and that is what made the fixed point
+uncertain enough to need a guard. Configuring `remark-stringify` to satisfy the rule set up
+front and then *checking* gets idempotency from `stringify` being a pure function of the
+tree instead: no loop, no cap, nothing to oscillate.
+
+Measured before adopting it: 34 files, **zero violations**, no autofix pass. Five rules are
+disabled, each because it conflicts with a decision recorded elsewhere rather than because
+the configuration could not satisfy it — the reasons are in the file next to each one. The
+one worth knowing about is `MD029`, which wants every ordered list renumbered to start at 1
+and would therefore destroy `restartsAt`, the field the IR carries specifically so a list
+starting at 7 survives a round trip.
+
+A failure here means the stringify configuration has drifted from the rule set. Fix the
+configuration in `@markforge/render-md`; do not post-process the output.
+
+## `diff-mammoth.mjs`
+
+Runs both OOXML readers over `fixtures/docx/`, reduces each to plain text plus a structural
+outline, and diffs.
+
+**A divergence is not a failure.** Beating Mammoth on documents whose structure is carried by
+direct formatting is the entire point of ADR-0005, so the exit code is driven by the triage
+file rather than by the diff: every divergence must appear in `docs/MAMMOTH-DIFF.md`
+classified `improvement`, `bug`, or `accepted`, and `--check` fails on an untriaged one. That
+is all this can honestly do — Mammoth is a second opinion, not an oracle.
+
+It has already earned its keep once. It found that a `w:pStyle` referencing a style
+`styles.xml` never defines was dropped by our inference rules while Mammoth recovered the
+heading, which is fixed as rule 2b in `@markforge/infer`. See `docs/MAMMOTH-DIFF.md` for the
+current list and for what the test deliberately does not cover.
+
+Running without `--check` also writes `docs/.mammoth-diff.generated.md`, a starter table so
+triage is an edit rather than a transcription job. That file is gitignored.
+
+## `fetch-ocr-assets.mjs`
+
+Downloads the two third-party files the OCR path needs into gitignored `fixtures/local/`:
+`eng.traineddata` (4 MB, Apache-2.0, from `tessdata_fast`) and a 1973 NASA technical report
+(1.2 MB, public domain) as the found scan of `docs/CORPUS.md` §2.7.
+
+Neither is committed, per §4's size rule, and everything downstream degrades rather than
+breaking when they are absent: the tesseract fidelity row is omitted and the real-engine tests
+skip. Run this once to turn them on.
+
+The reason the data is not simply downloaded on demand is ADR-0017: `createTesseractRecognizer`
+refuses to start unless `langPath` names a local directory or `allowDownload` is passed
+explicitly, because brief §3.6 makes every network call opt-in. "OCR quietly worked because a
+CDN was up" is not an offline guarantee, so the fetch is a separate, deliberate step.
 
 ## `run-fidelity.mjs`
 

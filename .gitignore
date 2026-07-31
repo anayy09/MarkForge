@@ -35,7 +35,10 @@ test-results/
 # The LLM cache is committable by design when reproducibility is wanted
 # (docs/SPEC.md 6.3), so it is NOT ignored here. Probe results are per-deployment
 # and machine-specific, so they are.
-.markforge/llm-capabilities.json
+# .markforge/llm-capabilities.json is deliberately NOT ignored. The committed LLM
+# cache records mode:"guided" and a seed, so its entries are only reachable by a
+# session that computes the cache key the same way — which needs this record. It
+# describes one deployment's capabilities and contains no credential.
 
 # --- Secrets -------------------------------------------------------------------
 # Credentials come from the environment only; no key ever belongs in the repo
@@ -60,3 +63,6 @@ desktop.ini
 # Word and Excel write these next to a file that is open; they are valid ZIP
 # containers, so a fixture glob will otherwise try to parse them.
 ~$*
+
+# Starter table from scripts/diff-mammoth.mjs; triage lives in docs/MAMMOTH-DIFF.md
+docs/.mammoth-diff.generated.md

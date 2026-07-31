@@ -13,9 +13,9 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 
 ---
 
-## Status: Phase 2 — six formats read, three written
+## Status: Phase 3 — six formats read, three written, and an LLM layer that stays optional
 
-`markforge convert` and `markforge fmt` are real, and every number in
+`markforge convert`, `markforge fmt`, and `markforge check` are real, and every number in
 [docs/FIDELITY.md](docs/FIDELITY.md) is measured rather than claimed.
 
 | Format | Read | Write |
@@ -48,10 +48,37 @@ node packages/cli/dist/index.js convert paper.pdf   -o paper.md
 node packages/cli/dist/index.js fmt docs/**/*.md --check
 ```
 
-Not yet built: PDF *output* and OCR for scanned PDFs (Phase 3), the LLM layer (Phase 3), and
-`agentify` (Phase 4).
-Those subcommands exist in `--help` and **refuse rather than pretend** — a command that
-silently does nothing is worse than one that says it does not exist yet.
+### The LLM layer is off unless you ask for it
+
+`--no-llm` is the default and the whole deterministic pipeline works offline with no key
+([ADR-0009](docs/adr/0009-llm-openai-compatible-only.md), brief §3.6). When enabled, a model may
+do exactly two things: break a tie between heading levels the deterministic scorer already
+declared too close to call — choosing from *its* candidate set, never inventing one — and
+transcribe a scanned page that has no text layer, because there the deterministic alternative is
+nothing at all.
+
+```sh
+export MODEL_API_KEY=...                       # the name is config; the value never is
+
+node packages/cli/dist/index.js check --llm     # probe the endpoint, record what it supports
+node packages/cli/dist/index.js convert scan.pdf -o scan.md --llm
+node packages/cli/dist/index.js convert scan.pdf -o scan.md --ocr --tessdata ./tessdata
+
+# From the committed response cache: no key, no network, byte-reproducible.
+node packages/cli/dist/index.js convert scan.pdf -o scan.md --llm --llm-cache-mode readOnly
+```
+
+Every LLM-influenced node carries `producedBy: {kind: "model", model, promptVersion}` in its
+provenance, so "did a model touch this document?" is a question the document answers itself. A
+failed call is never a failed conversion: the deterministic result stands and a diagnostic says
+what did not happen.
+
+Not yet built: PDF *output* (Phase 3's neighbour, still needing Typst WASM), the visual
+regression suite, and `agentify` (Phase 4). `diff`, `serve`, and `init` exist in `--help` and
+**refuse rather than pretend** — a command that silently does nothing is worse than one that
+says it does not exist yet. `check` is partial and says so: it validates documents, reports a
+reference document's style coverage, and probes the LLM endpoint, while corpus fidelity
+baselines stay in `scripts/run-fidelity.mjs`.
 
 ## What to read, in order
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { parsePdf, groupIntoLines, detectColumns, joinBlockText, type TextRun, type Line } from "../src/index.js";
+import { analysePage, parsePdf, readPdf, groupIntoLines, detectColumns, joinBlockText, type TextRun, type Line } from "../src/index.js";
 import { buildPdf, paragraphPage } from "./helpers.js";
-import { selectType, textContent, validateDocument } from "@markforge/ir";
+import { checkUnknownNodesDiagnosed, selectType, textContent, validateDocument } from "@markforge/ir";
 
 const run = (text: string, x: number, y: number, height = 10, width = text.length * 5): TextRun => ({
   text, x, y, width, height, fontName: "F1",
@@ -270,6 +270,127 @@ describe("PDF adapter", () => {
     expect(confidences.every((c) => typeof c === "number" && c < 1)).toBe(true);
   });
 
+  // OPEN_QUESTIONS §7h. A constant 0.8 on every inference made the field decorative:
+  // reading order in a clean single-column page is near-certain, column segmentation
+  // across a narrow gutter is a guess, and both reported the same number. These assert
+  // the property the reviewer actually asked for — the value is monotonic in the
+  // strength of the evidence — rather than any particular calibration.
+  describe("confidence is derived from the evidence", () => {
+    /** Confidence of the first node whose text matches. */
+    const confidenceOf = async (pdf: Uint8Array, needle: string): Promise<number> => {
+      const { document } = await parsePdf(pdf);
+      const children = (document.body as { children: { id?: string }[] }).children;
+      for (const child of children) {
+        if (!textContent(child as never).includes(needle)) continue;
+        return document.provenance[child.id as string]!.confidence as number;
+      }
+      throw new Error(`no node containing ${JSON.stringify(needle)}`);
+    };
+
+    /**
+     * A lead block, then body at ordinary leading with a wide gap between.
+     *
+     * The gap has to be generous: `groupIntoBlocks` splits on a vertical gap materially
+     * larger than the column's own measured leading, so a lead line only 28pt above
+     * 18pt-leaded body lands in the *same* block and the test would measure a paragraph
+     * containing everything.
+     */
+    const leadThenBody = (lead: { text: string; sizePt: number }) =>
+      buildPdf([
+        {
+          items: [
+            { text: lead.text, x: 72, y: 72, sizePt: lead.sizePt },
+            { text: "Body text establishing the document median size.", x: 72, y: 140, sizePt: 11 },
+            { text: "A second sentence of ordinary body prose here.", x: 72, y: 158, sizePt: 11 },
+            { text: "A third sentence, so the leading is unambiguous.", x: 72, y: 176, sizePt: 11 },
+            { text: "A fourth, which fixes the median gap at eighteen.", x: 72, y: 194, sizePt: 11 },
+          ],
+        },
+      ]);
+
+    it("is more confident about a clearly oversized heading than a marginal one", async () => {
+      // 11pt body. 12.7pt is 1.15x — only just over the threshold. 22pt is not in doubt.
+      const marginal = await confidenceOf(
+        leadThenBody({ text: "Marginal Heading", sizePt: 12.7 }),
+        "Marginal Heading",
+      );
+      const obvious = await confidenceOf(
+        leadThenBody({ text: "Obvious Heading", sizePt: 22 }),
+        "Obvious Heading",
+      );
+      expect(obvious).toBeGreaterThan(marginal);
+    });
+
+    it("is less confident about a paragraph that nearly became a heading", async () => {
+      // Short, no terminal punctuation, single line, but below the size threshold —
+      // three of the four heading signals. Exactly what a reviewer should look at.
+      const nearMiss = await confidenceOf(
+        leadThenBody({ text: "Results And Discussion", sizePt: 11 }),
+        "Results And Discussion",
+      );
+      const plainBody = await confidenceOf(
+        leadThenBody({ text: "A lead sentence that ends in a full stop.", sizePt: 11 }),
+        "A lead sentence",
+      );
+      expect(nearMiss).toBeLessThan(plainBody);
+    });
+
+    it("is more confident about a wide gutter than a narrow one", () => {
+      const twoColumns = (gutterPt: number) => {
+        const rightX = 72 + 200 + gutterPt;
+        const lines: Line[] = [];
+        for (let i = 0; i < 4; i++) {
+          const y = 100 + i * 14;
+          lines.push({ runs: [], text: `left ${i}`, x: 72, y, width: 200, height: 10 });
+          lines.push({ runs: [], text: `right ${i}`, x: rightX, y, width: 200, height: 10 });
+        }
+        return lines;
+      };
+      // detectColumns is the segmentation; analysePage is what scores it. Drive the
+      // scorer through a real page so the word-gap unit is measured, not supplied.
+      const page = (gutterPt: number) => {
+        const runs: TextRun[] = [];
+        const rightX = 72 + 200 + gutterPt;
+        for (let i = 0; i < 4; i++) {
+          const y = 100 + i * 14;
+          // Two runs per line, 3pt apart: that 3pt is the page's word-space unit.
+          runs.push(run("left", 72, y, 10, 98), run("side", 173, y, 10, 99));
+          runs.push(run("right", rightX, y, 10, 98), run("side", rightX + 101, y, 10, 99));
+        }
+        return analysePage(runs, 612);
+      };
+      expect(twoColumns(60)).toHaveLength(8); // the helper is sane
+      const wide = page(80);
+      const narrow = page(20);
+      expect(wide.columns.length).toBe(2);
+      expect(narrow.columns.length).toBe(2);
+      expect(wide.readingOrderConfidence).toBeGreaterThan(narrow.readingOrderConfidence);
+      // And the measurements behind the number are recorded, not just the number.
+      expect(wide.readingOrderEvidence.narrowestGutterPt).toBeGreaterThan(
+        narrow.readingOrderEvidence.narrowestGutterPt!,
+      );
+      expect(wide.readingOrderEvidence.wordGapPt).toBeGreaterThan(0);
+    });
+
+    it("treats a single column as near-certain, and never as certain", () => {
+      const runs: TextRun[] = [];
+      for (let i = 0; i < 4; i++) runs.push(run("a single column of text", 72, 100 + i * 14, 10, 400));
+      const layout = analysePage(runs, 612);
+      expect(layout.columns).toHaveLength(1);
+      expect(layout.readingOrderConfidence).toBeGreaterThan(0.9);
+      // Never 1: whitespace-laid-out tables read as one column and come back wrong.
+      expect(layout.readingOrderConfidence).toBeLessThan(1);
+    });
+
+    it("does not report one value for every node, which is the whole point", async () => {
+      const { document } = await parsePdf(
+        leadThenBody({ text: "A Clear Section Heading", sizePt: 20 }),
+      );
+      const distinct = new Set(Object.values(document.provenance).map((p) => p.confidence));
+      expect(distinct.size).toBeGreaterThan(1);
+    });
+  });
+
   it("records layoutGeometry as the evidence origin", async () => {
     const { document } = await parsePdf(buildPdf([paragraphPage(["Some body text here."])]));
     const origins = new Set(Object.values(document.sidecar).map((e) => e.origin));
@@ -277,11 +398,103 @@ describe("PDF adapter", () => {
   });
 
   // Returning an almost-empty document that looks like a successful conversion is
-  // the worst outcome, so a scan fails loudly and names the phase that will fix it.
+  // the worst outcome, so a scan fails loudly and names the route that reads it.
+  //
+  // This assertion used to require the phrase "OCR is Phase 3". It is now Phase 3 and
+  // OCR exists, so the message names the recogniser route instead — the durable
+  // invariant is that the error says what to do, not that it names a phase.
   it("refuses a PDF with no usable text layer rather than returning nothing", async () => {
     const blank = buildPdf([{ items: [] }, { items: [] }]);
     await expect(parsePdf(blank)).rejects.toThrow(/no usable text layer/);
-    await expect(parsePdf(blank)).rejects.toThrow(/OCR is Phase 3/);
+    await expect(parsePdf(blank)).rejects.toThrow(/readPdf and a recogniser/);
+  });
+
+  // The same file through the route that does not throw. This is the branch
+  // @markforge/core takes, and it must reach the OCR handoff in one pass over the PDF
+  // rather than by catching the error above and reopening the file.
+  it("reports a scan as a scan through readPdf, with a diagnostic naming the decision", async () => {
+    const blank = buildPdf([{ items: [] }, { items: [] }]);
+    const result = await readPdf(blank);
+    expect(result.kind).toBe("scan");
+    if (result.kind !== "scan") return;
+    expect(result.pageCount).toBe(2);
+    expect(result.charsPerPage).toBe(0);
+    expect(
+      result.diagnostics.all().some((d) => d.code === "MF-PDF-0001" && d.severity === "info"),
+    ).toBe(true);
+    // These synthetic pages carry no raster at all, so there is nothing to transcribe
+    // and that is itself reported as a loss rather than as an empty success.
+    expect(result.pages).toHaveLength(0);
+    expect(result.diagnostics.lossy().some((d) => d.code === "MF-PDF-0002")).toBe(true);
+  });
+
+  // The case the document-level rule got wrong (OPEN_QUESTIONS §7i): a born-digital
+  // report with a scanned page dropped into it. Averaging characters over the document
+  // puts this comfortably above the threshold, so the old rule converted it and page 2
+  // vanished with no diagnostic anywhere — a silent loss, which brief §3.3 forbids.
+  describe("a document that is only partly scanned", () => {
+    const mixed = () =>
+      buildPdf([
+        { items: [{ text: "First page of a readable report with a text layer.", x: 72, y: 72 }] },
+        { items: [] },
+        { items: [{ text: "Third page, also readable, after the inserted scan.", x: 72, y: 72 }] },
+      ]);
+
+    it("converts the readable pages instead of refusing the whole document", async () => {
+      const { document } = await parsePdf(mixed());
+      const text = textContent(document.body);
+      expect(text).toContain("First page of a readable report");
+      expect(text).toContain("Third page, also readable");
+    });
+
+    it("leaves a placeholder for the scanned page, in reading position", async () => {
+      const { document } = await parsePdf(mixed());
+      const placeholders = selectType(document.body, "unknown");
+      expect(placeholders).toHaveLength(1);
+      expect((placeholders[0] as { originalType?: string }).originalType).toBe("pdf:scanned-page");
+
+      // Between the two readable pages, not appended at the end: the reader should see
+      // where the missing content belongs.
+      const children = (document.body as { children: { id?: string }[] }).children;
+      const at = children.findIndex((c) => c.id === (placeholders[0] as { id?: string }).id);
+      expect(at).toBeGreaterThan(0);
+      expect(at).toBeLessThan(children.length - 1);
+    });
+
+    it("reports the loss as lossy and names both the node and the page", async () => {
+      const { document, diagnostics } = await parsePdf(mixed());
+      const placeholder = selectType(document.body, "unknown")[0] as { id?: string };
+      const lost = diagnostics
+        .lossy()
+        .filter((d) => d.code === "MF-PDF-0001" && d.construct === "pdf:scanned-page");
+
+      expect(lost).toHaveLength(1);
+      expect(lost[0]!.nodeId).toBe(placeholder.id);
+      expect(lost[0]!.locator).toMatchObject({ kind: "page", pageNumber: 2 });
+      // Lossiness is what makes `--strict` exit non-zero on this document.
+      expect(lost[0]!.lossy).toBe(true);
+    });
+
+    it("satisfies adapter rule A6: every unknown node is diagnosed by id", async () => {
+      const { document } = await parsePdf(mixed());
+      expect(checkUnknownNodesDiagnosed(document).ok).toBe(true);
+    });
+
+    it("hands back the scanned page's image only, so OCR is not re-run on readable pages", async () => {
+      const result = await readPdf(mixed());
+      expect(result.kind).toBe("text");
+      if (result.kind !== "text") return;
+      // These synthetic pages carry no raster, so the list is empty and the failure to
+      // extract one is itself reported — the same honesty as the all-scanned branch.
+      expect(result.scannedPages.every((p) => p.pageNumber === 2)).toBe(true);
+      expect(result.diagnostics.all().some((d) => d.code === "MF-PDF-0002")).toBe(true);
+    });
+
+    it("still throws when every page is a scan", async () => {
+      await expect(parsePdf(buildPdf([{ items: [] }, { items: [] }]))).rejects.toThrow(
+        /no usable text layer/,
+      );
+    });
   });
 
   it("reads multi-column pages column by column, not interleaved", async () => {

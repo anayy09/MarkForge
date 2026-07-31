@@ -1,0 +1,26 @@
+{
+  "key": "5eeec9cc7c93f9bf45b007fb8e27a5eb85083dfba1517b70799d4218d4e504b4",
+  "task": "heading-tiebreak",
+  "model": "gpt-oss-120b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "742d94f4f9d4ab59ba4d3cc2e36ce2d354c9d0f33b8fd72f709c14a5f0932915",
+  "inputPreview": "Scope",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 400,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "b5eef36ec0c818379e6620c98102a76a5ea6d25cafdbfe88d44a94dfeb22bd7b",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"chosen\": \"heading4\",\n  \"rationale\": \"‘Scope’ functions as a label introducing the following sentence about the assessment, matching typical heading characteristics (short, bold, slightly larger font, no terminal punctuation) rather than a prose statement.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 497,
+      "completionTokens": 159,
+      "totalTokens": 656
+    }
+  }
+}
