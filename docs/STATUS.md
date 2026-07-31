@@ -36,7 +36,7 @@ provably idempotent.
 | Fidelity harness with committed baselines | done |
 | `fmt` provably idempotent | done — 35 cases + 400 generated, to three passes |
 | Beats Pandoc on `docx → md → docx` | **done, after fixing three writer defects** |
-| Beats `word-to-markdown-js` | **not done** — the competitor is not in the scoreboard |
+| Beats `word-to-markdown-js` | **done** — added to the scoreboard as a third column, pinned to `word-to-markdown@0.3.0`. Structural 100% against 99.4%, span F1 100% against 96.0%; it leads on 0 of 28 metric-fixture pairs |
 | Golden corpus v1 | **partial** — 7 of the 8 categories Phase 1 required |
 | Three reference DOCX templates | **not done** — `TEMPLATES.md` §2.1 specifies them row by row |
 

@@ -31,7 +31,8 @@
     "json-schema-to-typescript": "^15.0.4",
     "pdfjs-dist": "^4.10.38",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "word-to-markdown": "0.3.0"
   },
   "devDependenciesComment": "The install-script allowlist lives in pnpm-workspace.yaml (allowBuilds), not here."
 }

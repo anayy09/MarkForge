@@ -424,6 +424,32 @@ if (existsSync(join(REPO, "docs/SCOREBOARD.md"))) {
         `${pinned[1]}. Regenerate the scoreboard with the pinned version, or move the pin.`,
     );
   } else ok(`CI pins pandoc ${pinned[1]}, matching the version docs/SCOREBOARD.md records`);
+
+  // The same discipline for the reference project, and for the same reason: the scoreboard's
+  // numbers depend on the competitor's version, so a caret range would make our own scores
+  // appear to move when someone else shipped a release. `word-to-markdown` is the npm name of
+  // `benbalter/word-to-markdown-js`, which brief §2 makes the baseline to beat.
+  const rootManifest = JSON.parse(read("package.json"));
+  const w2mPin = rootManifest.devDependencies?.["word-to-markdown"];
+  const w2mRecorded = /Reference project: word-to-markdown ([0-9][^\s(]*)/.exec(board);
+  if (!w2mPin) {
+    fail("package.json does not depend on word-to-markdown, so the Phase 1 baseline is absent");
+  } else if (!/^\d+\.\d+\.\d+$/.test(w2mPin)) {
+    fail(
+      `word-to-markdown must be pinned to an exact version, not "${w2mPin}": the scoreboard ` +
+        `records the version that produced it, and a range would let our own numbers appear ` +
+        `to change when the competitor released.`,
+    );
+  } else if (!w2mRecorded) {
+    fail("docs/SCOREBOARD.md does not record which word-to-markdown version produced it");
+  } else if (w2mRecorded[1] !== w2mPin) {
+    fail(
+      `word-to-markdown version drift: docs/SCOREBOARD.md records ${w2mRecorded[1]} but ` +
+        `package.json pins ${w2mPin}. Regenerate the scoreboard.`,
+    );
+  } else {
+    ok(`word-to-markdown is pinned to ${w2mPin}, matching what docs/SCOREBOARD.md records`);
+  }
 } else {
   fail("docs/SCOREBOARD.md is missing — run `node scripts/run-scoreboard.mjs`");
 }

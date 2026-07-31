@@ -8,7 +8,7 @@
 //
 //   node scripts/run-scoreboard.mjs            measure and report
 //   node scripts/run-scoreboard.mjs --check    fail on regression (CI)
-import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -56,6 +56,45 @@ if (!pandoc) {
 }
 
 console.log(`Competitor: ${pandoc.version}`);
+
+/**
+ * The reference project, `benbalter/word-to-markdown-js`, published on npm as
+ * `word-to-markdown`.
+ *
+ * It is a Phase 1 done-criterion ("beats the reference project") and was absent from this
+ * comparison for two phases, which made the criterion unfalsifiable. It is a devDependency
+ * pinned to an exact version rather than a caret range: the numbers below depend on the
+ * competitor's version, so a floating range would make our own scores appear to change when
+ * someone else shipped a release. The version is recorded in docs/SCOREBOARD.md and
+ * scripts/check-docs.mjs asserts the two agree.
+ *
+ * Resolved from node_modules rather than from PATH, because it is a dependency of this repo
+ * and not a tool a contributor is expected to have installed.
+ */
+function findReferenceProject() {
+  const entry = join(REPO, "node_modules/word-to-markdown/build/cli.js");
+  if (!existsSync(entry)) return undefined;
+  let version = "unknown";
+  try {
+    version = JSON.parse(
+      readFileSync(join(REPO, "node_modules/word-to-markdown/package.json"), "utf8"),
+    ).version;
+  } catch {
+    // A missing manifest is not worth failing over; "unknown" is honest and the staleness
+    // check below will notice.
+  }
+  return { entry, version };
+}
+
+const reference = findReferenceProject();
+if (!reference) {
+  console.log(
+    "note  word-to-markdown is not installed, so the reference-project column will be n/a.\n" +
+      "      Run `pnpm install` — it is a pinned devDependency.",
+  );
+} else {
+  console.log(`Competitor: word-to-markdown ${reference.version}`);
+}
 
 const CORPUS = join(REPO, "fixtures/md");
 const fixtures = readdirSync(CORPUS).filter((f) => f.endsWith(".md")).sort();
@@ -119,12 +158,37 @@ try {
     }
     const theirs = parseMarkdown(readFileSync(pandocMdPath, "utf8")).document;
 
+    // The reference project reads DOCX only and writes Markdown to stdout — one direction,
+    // one input format, which is the limit brief §2 names and the reason this project exists.
+    // The same DOCX, parsed by the same adapter, so the comparison is like for like.
+    let w2m;
+    if (reference) {
+      const run = spawnSync(process.execPath, [reference.entry, docxPath], {
+        encoding: "utf8",
+        maxBuffer: 32 * 1024 * 1024,
+      });
+      if (run.status !== 0 || !run.stdout) {
+        // Reported rather than skipped: a fixture the competitor cannot convert is a result,
+        // and dropping the row would quietly remove the case it lost on.
+        console.log(
+          `  word-to-markdown failed on ${name}: ` +
+            `${(run.stderr ?? "").split("\n")[0] || `exit ${run.status}`}`,
+        );
+      } else {
+        w2m = parseMarkdown(run.stdout).document;
+      }
+    }
+
+    const FAILED = { structural: -1, text: -1, tableF1: -1, spanF1: -1 };
+
     rows.push({
       fixture: name,
       markforge: pick(compare(truth, mine)),
       pandoc: pick(compare(truth, theirs)),
+      w2m: w2m ? pick(compare(truth, w2m)) : FAILED,
       markforgeSelf: round(selfConsistency(renderMarkdown(mine).markdown).structural.score),
       pandocSelf: round(selfConsistency(renderMarkdown(theirs).markdown).structural.score),
+      w2mSelf: w2m ? round(selfConsistency(renderMarkdown(w2m).markdown).structural.score) : -1,
     });
   }
 } finally {
@@ -132,10 +196,10 @@ try {
 }
 
 const METRICS = [
-  ["Structural", (r) => r.markforge.structural, (r) => r.pandoc.structural],
-  ["Text", (r) => r.markforge.text, (r) => r.pandoc.text],
-  ["Table F1", (r) => r.markforge.tableF1, (r) => r.pandoc.tableF1],
-  ["Span F1", (r) => r.markforge.spanF1, (r) => r.pandoc.spanF1],
+  ["Structural", (r) => r.markforge.structural, (r) => r.pandoc.structural, (r) => r.w2m.structural],
+  ["Text", (r) => r.markforge.text, (r) => r.pandoc.text, (r) => r.w2m.text],
+  ["Table F1", (r) => r.markforge.tableF1, (r) => r.pandoc.tableF1, (r) => r.w2m.tableF1],
+  ["Span F1", (r) => r.markforge.spanF1, (r) => r.pandoc.spanF1, (r) => r.w2m.spanF1],
 ];
 
 const mean = (get) => {
@@ -150,27 +214,41 @@ const TIE_BAND = 0.005;
 let mineWins = 0;
 let theirsWins = 0;
 let ties = 0;
+let referenceWins = 0;
 const resultRows = [];
 
 for (const row of rows) {
-  for (const [label, getMine, getTheirs] of METRICS) {
+  for (const [label, getMine, getTheirs, getReference] of METRICS) {
     const a = getMine(row);
     const b = getTheirs(row);
+    const c = getReference(row);
+
+    // The headline verdict stays MarkForge against Pandoc, because that is the harder
+    // comparison and the one the Phase 1 gate is measured on. The reference project is
+    // reported in its own column rather than folded into the same win count: it converts one
+    // direction of one format, so a "win" against it is a different claim.
     const winner = Math.abs(a - b) <= TIE_BAND ? "tie" : a > b ? "MarkForge" : "Pandoc";
     if (winner === "MarkForge") mineWins++;
     else if (winner === "Pandoc") theirsWins++;
     else ties++;
-    resultRows.push(`| ${row.fixture} | ${label} | ${pct(a)} | ${pct(b)} | ${winner} |`);
+    // Counted separately, and only where the reference project produced a number at all.
+    if (c >= 0 && c - a > TIE_BAND) referenceWins++;
+    resultRows.push(
+      `| ${row.fixture} | ${label} | ${pct(a)} | ${pct(b)} | ${pct(c)} | ${winner} |`,
+    );
   }
 }
 
 const lines = [
   "# Scoreboard",
   "",
-  "MarkForge against Pandoc on the same corpus, through the same DOCX, scored with the",
-  "metrics in [SPEC.md](SPEC.md) §9. Generated by `node scripts/run-scoreboard.mjs`.",
+  "MarkForge against Pandoc and against the reference project, on the same corpus, through the",
+  "same DOCX, scored with the metrics in [SPEC.md](SPEC.md) §9. Generated by",
+  "`node scripts/run-scoreboard.mjs`.",
   "",
   `Competitor: ${pandoc.version}. Corpus: ${rows.length} fixture(s) from \`fixtures/md/\`.`,
+  `Reference project: word-to-markdown ${reference?.version ?? "not installed"}` +
+    ` (\`benbalter/word-to-markdown-js\`), pinned as an exact devDependency.`,
   "",
   "## Disclosed bias",
   "",
@@ -191,19 +269,29 @@ const lines = [
   "",
   "## Results",
   "",
-  "| Fixture | Metric | MarkForge | Pandoc | Winner |",
-  "| --- | --- | --: | --: | :-: |",
+  "| Fixture | Metric | MarkForge | Pandoc | word-to-markdown | MarkForge vs Pandoc |",
+  "| --- | --- | --: | --: | --: | :-: |",
   ...resultRows,
   "",
   "## Means",
   "",
-  "| Metric | MarkForge | Pandoc |",
-  "| --- | --: | --: |",
-  ...METRICS.map(([label, m, t]) => `| ${label} | ${pct(mean(m))} | ${pct(mean(t))} |`),
-  `| *md -> md self-consistency* | ${pct(mean((r) => r.markforgeSelf))} | ${pct(mean((r) => r.pandocSelf))} |`,
+  "| Metric | MarkForge | Pandoc | word-to-markdown |",
+  "| --- | --: | --: | --: |",
+  ...METRICS.map(
+    ([label, m, t, w]) => `| ${label} | ${pct(mean(m))} | ${pct(mean(t))} | ${pct(mean(w))} |`,
+  ),
+  `| *md -> md self-consistency* | ${pct(mean((r) => r.markforgeSelf))} | ${pct(mean((r) => r.pandocSelf))} | ${pct(mean((r) => r.w2mSelf))} |`,
   "",
-  `Metric-fixture pairs: **${mineWins} to MarkForge, ${theirsWins} to Pandoc, ${ties} tied**`,
-  "(within half a percentage point).",
+  `Metric-fixture pairs, MarkForge against Pandoc: **${mineWins} to MarkForge, ${theirsWins} to`,
+  `Pandoc, ${ties} tied** (within half a percentage point). Against the reference project,`,
+  `word-to-markdown leads on **${referenceWins}** of the ${rows.length * METRICS.length} pairs.`,
+  "",
+  "**Why the reference project is a separate column rather than a third contender in the win",
+  "count.** It converts one direction of one format, which is the limitation brief §2 names and",
+  "the gap this project exists to fill. Folding it into the same tally would make a win against",
+  "it look like the same kind of claim as a win against Pandoc, and it is not: Pandoc round-trips",
+  "twenty-odd formats. Beating the reference project is the Phase 1 gate; beating Pandoc is the",
+  "harder measurement.",
   "",
   "## What this shows",
   "",

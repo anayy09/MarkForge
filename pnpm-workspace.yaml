@@ -14,6 +14,8 @@ packages:
 allowBuilds:
   esbuild: true
   tesseract.js: false
+minimumReleaseAgeExclude:
+  - word-to-markdown@0.3.0
 
 # Phase 3 adds `llm` and `adapters-ocr` (docs/INIT.md §11, docs/SPEC.md §11). The
 # remaining packages named in SPEC §11 — render-pdf, agentify, http, mcp, browser —
