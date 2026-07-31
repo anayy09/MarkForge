@@ -250,6 +250,16 @@ export function saveCapabilities(path: string, capabilities: LlmCapabilities): v
  * A record with no `probedAt`, or an unparseable one, is treated as expired — it was
  * written by an older build that could not express its own age, so its age is unknown,
  * and unknown age is not evidence.
+ *
+ * **Expiry is skippable, and `readOnly` runs skip it** (`maxAgeMs: Infinity`). Both reasons
+ * for expiring a record are about calls we are about to make: a silent downgrade to the
+ * repair loop, or a `response_format` the deployment has stopped accepting. A readOnly run
+ * makes no calls at all, so neither can happen. What the record does there instead is
+ * reproduce the cache key — the committed entries record `mode: "guided"` and a seed, and
+ * they are only reachable by a session that computes the key the same way. Expiring the
+ * record in that mode does not protect anything; it silently turns every hit into a miss
+ * and makes the deterministic result stand, which is exactly the quiet difference in output
+ * that the probe exists to prevent.
  */
 export function loadCapabilities(
   path: string,

@@ -619,3 +619,50 @@ describe("capability records go stale", () => {
     expect(loadCapabilities(write(conservative), BASE)).toBeUndefined();
   });
 });
+
+// The bug this guards is the one that broke CI: the committed cache records
+// `mode: "guided"` and a seed, so its entries are only reachable by a session that
+// computes the key the same way — which needs the capability record. Expiring that record
+// on a run that makes no calls turns every hit into a miss, lets the deterministic result
+// stand, and produces quietly different output. That is the exact failure §7d exists to
+// prevent, arriving through §7d's own mechanism.
+describe("expiry does not apply to runs that make no calls", () => {
+  const BASE = "https://gateway.invalid/v1";
+  const ancient = () => {
+    const dir = mkdtempSync(join(tmpdir(), "markforge-caps-"));
+    const path = join(dir, "llm-capabilities.json");
+    writeFileSync(
+      path,
+      JSON.stringify({
+        baseUrl: BASE,
+        probedModel: "fast-model",
+        guidedDecoding: true,
+        seed: true,
+        probedAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(),
+        evidence: [],
+      }),
+      "utf8",
+    );
+    return path;
+  };
+
+  it("still expires by default, so a live run re-probes", () => {
+    expect(loadCapabilities(ancient(), BASE)).toBeUndefined();
+  });
+
+  it("honours an infinite maxAgeMs, which is what readOnly passes", () => {
+    const loaded = loadCapabilities(ancient(), BASE, { maxAgeMs: Number.POSITIVE_INFINITY });
+    expect(loaded).toBeDefined();
+    // And it must carry the two fields the cache key depends on, or the exemption is moot.
+    expect(loaded?.guidedDecoding).toBe(true);
+    expect(loaded?.seed).toBe(true);
+  });
+
+  it("still rejects a different endpoint even when expiry is waived", () => {
+    expect(
+      loadCapabilities(ancient(), "https://elsewhere.invalid/v1", {
+        maxAgeMs: Number.POSITIVE_INFINITY,
+      }),
+    ).toBeUndefined();
+  });
+});

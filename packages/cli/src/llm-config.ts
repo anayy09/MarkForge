@@ -122,7 +122,14 @@ export function buildSession(flags: LlmFlags): BuiltSession {
   // promise about the network rather than a convenience.
   const apiKey = resolveApiKey(apiKeyEnv, { required: cacheMode !== "readOnly" });
 
-  const capabilities = loadCapabilities(CAPABILITIES_PATH, baseUrl);
+  // A readOnly run reaches no network, so an aged capability record cannot cause a bad
+  // call — the only thing it does there is reproduce the cache key the committed entries
+  // were recorded under. Expiring it would turn every hit into a miss and let the
+  // deterministic result stand, which is the silent difference in output the probe exists
+  // to prevent (OPEN_QUESTIONS §7d).
+  const capabilities = loadCapabilities(CAPABILITIES_PATH, baseUrl, {
+    ...(cacheMode === "readOnly" ? { maxAgeMs: Number.POSITIVE_INFINITY } : {}),
+  });
   const session = new LlmSession({
     baseUrl,
     ...(apiKey !== undefined ? { apiKey } : {}),
