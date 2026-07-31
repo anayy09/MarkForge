@@ -1,0 +1,35 @@
+{
+  "name": "markforge-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Markdown toolkit: agent context compiler + fidelity-preserving conversion",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "typecheck": "tsc -b --pretty",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:docs": "node scripts/check-docs.mjs",
+    "check:schemas": "node scripts/check-schemas.mjs",
+    "check:fixtures": "node scripts/check-fixtures.mjs",
+    "codegen": "node scripts/codegen-types.mjs",
+    "fidelity": "node scripts/run-fidelity.mjs",
+    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run typecheck && pnpm run test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "fast-check": "^3.23.2",
+    "json-schema-to-typescript": "^15.0.4",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "devDependenciesComment": "The install-script allowlist lives in pnpm-workspace.yaml (allowBuilds), not here."
+}

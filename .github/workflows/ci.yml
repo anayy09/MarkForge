@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Determinism is a product guarantee (docs/SPEC.md §1), so the environment that
+# checks it is pinned rather than floating. A build that passes only on the runner's
+# current default is not evidence of anything.
+env:
+  TZ: UTC
+  SOURCE_DATE_EPOCH: "315532800" # 1980-01-01, the ZIP epoch
+  FORCE_COLOR: "1"
+
+jobs:
+  # Documentation and licensing run first and independently: they need no install,
+  # they are fast, and an unlicensed fixture must be caught *before* any test can use
+  # it (docs/CORPUS.md §1 rule 1).
+  docs:
+    name: Docs, schemas, and fixture licences
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cross-check the deliverables
+        run: node scripts/check-docs.mjs
+
+      - name: Enforce fixture licences
+        run: node scripts/check-fixtures.mjs
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - run: pnpm install --frozen-lockfile
+
+      - name: Validate the JSON Schemas
+        run: node scripts/check-schemas.mjs
+
+  build:
+    name: Typecheck and test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      # Generated types must match the schemas. Running codegen and checking for a
+      # diff catches the case where someone edits a schema and forgets to regenerate
+      # — the compiler would still pass, and the mismatch would surface at runtime.
+      - name: Generated types are up to date
+        run: |
+          pnpm run codegen
+          git diff --exit-code -- 'packages/*/src/generated' \
+            || (echo "::error::Generated types are stale. Run 'pnpm codegen' and commit." && exit 1)
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Test
+        run: pnpm run test
+
+  fidelity:
+    name: Fidelity baselines
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+
+      # Exit 4 is the fidelity-regression code from SPEC §8. A drop beyond tolerance
+      # fails the build; an unexplained *improvement* is reported but does not, since
+      # it needs a human to confirm the metric did not simply break.
+      - name: Measure against committed baselines
+        run: node scripts/run-fidelity.mjs --check
+
+      # FIDELITY.md is generated, so a stale one in the repo is a lie about measured
+      # performance. Regenerating and diffing is the cheapest way to keep it honest.
+      - name: docs/FIDELITY.md is current
+        run: |
+          git diff --exit-code -- docs/FIDELITY.md \
+            || (echo "::error::docs/FIDELITY.md is stale. Run 'pnpm fidelity --update' and commit." && exit 1)
+
+  determinism:
+    name: Byte-identical output
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+
+      # The guarantee in SPEC §1, checked rather than asserted. Converting the same
+      # input twice — in different timezones — must produce identical bytes. The
+      # timezone half matters because ZIP stores timestamps from local-time fields,
+      # which is exactly how this broke once already.
+      - name: Same input, same bytes, different timezone
+        run: |
+          set -e
+          TZ=UTC node packages/cli/dist/index.js convert fixtures/md/clean-report.md -o /tmp/a.docx --quiet
+          TZ=Pacific/Kiritimati node packages/cli/dist/index.js convert fixtures/md/clean-report.md -o /tmp/b.docx --quiet
+          TZ=America/New_York node packages/cli/dist/index.js convert fixtures/md/clean-report.md -o /tmp/c.docx --quiet
+          cmp /tmp/a.docx /tmp/b.docx || (echo "::error::DOCX output differs across timezones" && exit 1)
+          cmp /tmp/a.docx /tmp/c.docx || (echo "::error::DOCX output differs across timezones" && exit 1)
+          echo "DOCX output is byte-identical across three timezones."
+
+      # fmt --check on already-formatted files must exit 0. If it did not, the
+      # formatter would report its own output as needing formatting.
+      - name: fmt is a fixed point on the corpus
+        run: |
+          set -e
+          node packages/cli/dist/index.js fmt fixtures/md/*.md --quiet
+          git diff --exit-code -- fixtures/md \
+            || (echo "::error::fmt changed the corpus; commit the formatted files" && exit 1)
+          node packages/cli/dist/index.js fmt fixtures/md/*.md --check --quiet
+          echo "fmt reaches a fixed point on every corpus fixture."

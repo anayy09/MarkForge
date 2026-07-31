@@ -1,0 +1,30 @@
+{
+  "name": "@markforge/adapters-md",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Markdown to IR",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "schema"
+  ],
+  "dependencies": {
+    "@markforge/ir": "workspace:*",
+    "mdast-util-from-markdown": "^2.0.2",
+    "mdast-util-gfm": "^3.0.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "mdast-util-frontmatter": "^2.0.1",
+    "micromark-extension-frontmatter": "^2.0.0",
+    "mdast-util-math": "^3.0.0",
+    "micromark-extension-math": "^3.1.0"
+  }
+}

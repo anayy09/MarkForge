@@ -1,0 +1,57 @@
+# Line endings are a determinism concern, not a style preference.
+#
+# MarkForge promises byte-identical output for identical input (docs/SPEC.md §1).
+# If git rewrites LF to CRLF on checkout, then a fixture, a baseline, or an
+# expected-output file differs between a Windows clone and a Linux CI runner, and
+# every content hash computed from it differs too. The fidelity baselines would
+# fail on one platform and pass on the other, and the node ids in ADR-0014 are
+# sha256 over content, so they would differ as well.
+#
+# So: LF everywhere, in the repository and in the working tree, on all platforms.
+* text=auto eol=lf
+
+# Explicitly text, normalised to LF.
+*.ts       text eol=lf
+*.mjs      text eol=lf
+*.cjs      text eol=lf
+*.js       text eol=lf
+*.json     text eol=lf
+*.jsonc    text eol=lf
+*.md       text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+*.typ      text eol=lf
+*.css      text eol=lf
+*.html     text eol=lf
+*.xml      text eol=lf
+
+# PowerShell is the one exception: Windows PowerShell can mis-parse LF-only
+# scripts in some hosts, and these run only on Windows anyway.
+*.ps1      text eol=crlf
+
+# Binary: never touched, never diffed as text. Office formats are ZIP
+# containers, so a single rewritten byte corrupts the whole file.
+*.docx     binary
+*.dotx     binary
+*.dot      binary
+*.xlsx     binary
+*.pptx     binary
+*.pdf      binary
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.tiff     binary
+*.tif      binary
+*.ttf      binary
+*.otf      binary
+*.woff     binary
+*.woff2    binary
+*.wasm     binary
+*.traineddata binary
+
+# Generated. Marked so review diffs collapse them by default, but they are still
+# committed and still diffable on request — a generated file that nobody can read
+# is a place for bugs to hide.
+packages/*/src/generated/**  linguist-generated=true
+fixtures/expected/**         linguist-generated=true

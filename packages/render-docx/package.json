@@ -1,0 +1,29 @@
+{
+  "name": "@markforge/render-docx",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IR to DOCX, named styles only, rendered into a reference document",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "schema"
+  ],
+  "dependencies": {
+    "@markforge/ir": "workspace:*",
+    "@markforge/ooxml": "workspace:*",
+    "docx": "^9.7.1",
+    "@markforge/adapters-docx": "workspace:*",
+    "@markforge/adapters-md": "workspace:*",
+    "@markforge/render-md": "workspace:*",
+    "@markforge/infer": "workspace:*"
+  }
+}

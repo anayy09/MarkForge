@@ -10,11 +10,20 @@ a file with no row, and a row with no file. See `README.md` for the procedure an
 
 | Path | Source | Licence | Attribution | Derived from | Notes (failure mode caught) |
 | --- | --- | --- | --- | --- | --- |
-| _(none yet — Phase 1 populates this)_ | | | | | |
+| md/clean-report.md | authored | Apache-2.0 | MarkForge | — | §2.1 baseline: if the easy path ever scores below near-perfect, something fundamental broke |
+| md/nested-restarting-lists.md | authored | Apache-2.0 | MarkForge | — | §2.4: ordered-vs-unordered from numbering, three-level nesting, a list interrupted and resumed, and a list starting at 7 |
+| md/inline-marks.md | authored | Apache-2.0 | MarkForge | — | Inline span fidelity: combined marks, hard breaks, and escaped characters that must not re-escape on a second pass |
+| md/unicode-edge-cases.md | authored | Apache-2.0 | MarkForge | — | §2.11: ZWJ sequences, skin-tone modifiers, combining marks, non-breaking spaces that must survive whitespace collapsing, CJK, and RTL |
+| md/tables.md | authored | Apache-2.0 | MarkForge | — | §2.5: alignment markers and inline formatting inside cells |
+| expected/baselines.json | generated | Apache-2.0 | MarkForge | the five fixtures above | Committed measurements; CI fails on a regression beyond tolerance (ADR-0010) |
 
-**The register is empty and that is correct.** Phase 0 delivers specification only
-(`../docs/OPEN_QUESTIONS.md`), so no fixture exists yet. Phase 1 adds the categories listed in
-`../docs/CORPUS.md` §5: 2.1, 2.3, 2.4, 2.5 (DOCX and HTML), 2.11, 2.12, and 2.13.
+**Every fixture here is authored**, which `../docs/CORPUS.md` §1 rule 3 prefers precisely
+because it lets us control which construct is under test. A found document would exercise more
+constructs at once and tell us less about which one regressed.
+
+Categories still to come in Phase 1: §2.3 (badly formatted real-world documents), §2.12
+(tracked changes and comments), and §2.15 (library- and LLM-generated documents). Their absence
+is a stated gap, not an oversight — see `../docs/CORPUS.md` §5.
 
 ## Row format
 

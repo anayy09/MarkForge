@@ -1,0 +1,31 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../ir"
+    },
+    {
+      "path": "../ooxml"
+    },
+    {
+      "path": "../adapters-docx"
+    },
+    {
+      "path": "../adapters-md"
+    },
+    {
+      "path": "../render-md"
+    },
+    {
+      "path": "../infer"
+    }
+  ]
+}
