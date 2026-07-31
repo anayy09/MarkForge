@@ -2,6 +2,14 @@ import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { canonicalJson, canonicalBytes } from "../src/canonical-json.js";
 
+// A fixed seed, deliberately. fast-check defaults to a random one per run, which finds
+// bugs well and keeps them found badly: a normalize non-idempotency was caught on CI
+// and not locally purely because the seeds differed. Pinning makes a pass mean the same
+// thing on every machine. Counterexamples are kept as named cases, which is what
+// actually keeps a fixed bug fixed; to hunt for new ones, drop the seed locally.
+const SEED = 20260731;
+
+
 describe("canonicalJson", () => {
   it("sorts object keys by code point, not insertion order", () => {
     expect(canonicalJson({ b: 1, a: 2, c: 3 })).toBe('{"a":2,"b":1,"c":3}');
@@ -73,7 +81,7 @@ describe("canonicalJson", () => {
         };
         expect(canonicalJson(reshuffle(v))).toBe(canonicalJson(v));
       }),
-      { numRuns: 300 },
+      { numRuns: 300, seed: SEED },
     );
   });
 
@@ -96,7 +104,7 @@ describe("canonicalJson", () => {
         const twice = canonicalJson(JSON.parse(once));
         expect(twice).toBe(once);
       }),
-      { numRuns: 300 },
+      { numRuns: 300, seed: SEED },
     );
   });
 

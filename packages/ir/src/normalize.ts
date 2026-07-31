@@ -118,21 +118,6 @@ export function normalize(
     }
   });
 
-  // Rule 3: whitespace inside text nodes.
-  if (opts.collapseInteriorWhitespace) {
-    visit(root, (n, ctx) => {
-      if (n.type !== "text" || typeof n["value"] !== "string") return;
-      const parent = ctx.parent;
-      if (parent && VERBATIM.has(parent.type)) return;
-      const before = n["value"];
-      const after = before.replace(COLLAPSIBLE_WS, " ");
-      if (after !== before) {
-        n["value"] = after;
-        changed++;
-      }
-    });
-  }
-
   // Rules 3 and 4 run together to a fixed point.
   //
   // They interact, and the interaction is not obvious: trimming a block's edges can
@@ -142,10 +127,18 @@ export function normalize(
   // call and `<em/>` on the second — non-idempotent, and only caught because the
   // property test generates empty nodes that no hand-written fixture would.
   //
-  // Running all three in one convergence loop removes the ordering question.
+  // Whitespace collapsing belongs in the same loop, and leaving it outside was a
+  // second non-idempotency of exactly the same shape. Collapsing ran once per text
+  // node *before* the merge, so `["! ", " ", "!"]` collapsed to itself — each node
+  // held a single space — then merged into `"!  !"`, a two-space run spanning the old
+  // node boundary that nothing revisited. A second call collapsed it. Found by the
+  // property test at seed 1458972494, and only on CI: the seed is random per run, so
+  // this had been latent since the rule was written and every local run had missed it.
   let passes = 0;
   for (;;) {
-    let delta = mergeAdjacent(root, diagnostics);
+    let delta = 0;
+    if (opts.collapseInteriorWhitespace) delta += collapseWhitespace(root);
+    delta += mergeAdjacent(root, diagnostics);
     delta += dropEmptyText(root);
     if (opts.trimTrailing) delta += trimBlockEdges(root);
     changed += delta;
@@ -252,6 +245,29 @@ function sameMark(a: AnyNode, b: AnyNode): boolean {
     if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) return false;
   }
   return true;
+}
+
+/**
+ * Rule 3: interior whitespace runs collapse to a single space.
+ *
+ * Returns the number of nodes changed so the caller's convergence loop can see it.
+ * Verbatim containers are left alone — collapsing whitespace inside a code block
+ * would change what the code means.
+ */
+function collapseWhitespace(root: AnyNode): number {
+  let changed = 0;
+  visit(root, (n, ctx) => {
+    if (n.type !== "text" || typeof n["value"] !== "string") return;
+    const parent = ctx.parent;
+    if (parent && VERBATIM.has(parent.type)) return;
+    const before = n["value"];
+    const after = before.replace(COLLAPSIBLE_WS, " ");
+    if (after !== before) {
+      n["value"] = after;
+      changed += 1;
+    }
+  });
+  return changed;
 }
 
 function mergeAdjacent(root: AnyNode, diagnostics: DiagnosticBag): number {
