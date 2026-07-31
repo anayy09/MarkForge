@@ -40,6 +40,7 @@ export const DiagnosticCode = {
   MD_UNKNOWN_CONSTRUCT: "MF-MD-0010",
   MD_RAW_HTML_PRESERVED: "MF-MD-0011",
   MD_FRONTMATTER_UNPARSEABLE: "MF-MD-0012",
+  MD_EMBEDDED_HTML_RECOVERED: "MF-MD-0013",
 
   // --- Normalisation ------------------------------------------------------
   NORM_EMPTY_PARAGRAPH_REMOVED: "MF-NORM-0001",
@@ -59,6 +60,8 @@ export const DiagnosticCode = {
   RENDER_DEPTH_CLAMPED: "MF-RENDER-0003",
   RENDER_CONSTRUCT_DROPPED: "MF-RENDER-0004",
   RENDER_TIFF_UNSUPPORTED: "MF-RENDER-0005",
+  RENDER_TABLE_SPANS_FLATTENED: "MF-RENDER-0006",
+  RENDER_TABLE_AS_HTML: "MF-RENDER-0007",
 
   // --- IR -----------------------------------------------------------------
   IR_SCHEMA_INVALID: "MF-IR-0001",

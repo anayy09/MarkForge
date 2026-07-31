@@ -205,9 +205,45 @@ const HYPERLINK_REL_TYPE =
 
 const synthesizeId = (name: string): string => name.replace(/[^A-Za-z0-9]/g, "") || "MarkForgeStyle";
 
+/**
+ * Renders a node's children as blocks, gathering inline siblings into paragraphs.
+ *
+ * The gathering is not tidiness. OOXML has no place to put a bare run outside a
+ * `w:p`, and several IR nodes hold inline children directly: a `figure` holds an
+ * `image`, a `descriptionTerm` holds text. Sending those to `renderBlock` finds no
+ * case for them, so before this existed a description list's terms were **not
+ * written at all** and an image inside a figure vanished — while the block switch
+ * reported them as constructs with "no children to fall back on", which was true
+ * and beside the point.
+ *
+ * Consecutive inline siblings share one paragraph, because that is what they were:
+ * splitting `text, strong, text` into three paragraphs would break one sentence into
+ * three.
+ */
 function renderBlocks(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument): string {
   const children = Array.isArray(node.children) ? (node.children as AnyNode[]) : [];
-  return children.map((c) => renderBlock(c, ctx, doc)).join("");
+  let out = "";
+  let pending: AnyNode[] = [];
+
+  const flush = (): void => {
+    if (pending.length === 0) return;
+    out += paragraph(
+      inlineRuns({ type: "root", children: pending } as AnyNode, ctx),
+      styleFor("paragraph", ctx),
+    );
+    pending = [];
+  };
+
+  for (const c of children) {
+    if (BLOCK_TYPES.has(c.type)) {
+      flush();
+      out += renderBlock(c, ctx, doc);
+    } else {
+      pending.push(c);
+    }
+  }
+  flush();
+  return out;
 }
 
 function renderBlock(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, listContext?: { numId: number; level: number }): string {
@@ -289,7 +325,31 @@ function renderBlock(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, 
       return "";
 
     default: {
-      if (Array.isArray(node.children)) return renderBlocks(node, ctx, doc);
+      // Unwrapping keeps the text, but the node type itself is gone — a description
+      // list becomes loose paragraphs, a figure loses the binding between image and
+      // caption. That is a real loss and it must be reported: this branch was silent,
+      // so `html -> docx -> html` dropped nine node types while emitting exactly one
+      // diagnostic, and it was the node-type census rather than any test that noticed.
+      //
+      // Reported here in the `default` branch rather than case by case, so a node type
+      // added to the IR later cannot slip through unreported by being forgotten.
+      if (Array.isArray(node.children)) {
+        ctx.diagnostics.degraded(
+          DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+          node.type,
+          `"${node.type}" has no DOCX representation: its children are written, so no ` +
+            `text is lost, but the construct itself is. Render to HTML to keep it.`,
+          ...(typeof node.id === "string" ? [{ nodeId: node.id }] : []),
+        );
+        return renderBlocks(node, ctx, doc);
+      }
+      ctx.diagnostics.degraded(
+        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+        node.type,
+        `"${node.type}" has no DOCX representation and no children to fall back on, so ` +
+          `it is not written at all.`,
+        ...(typeof node.id === "string" ? [{ nodeId: node.id }] : []),
+      );
       return "";
     }
   }
@@ -508,55 +568,124 @@ function renderList(
   return out;
 }
 
+/**
+ * Writes a table, laying its cells onto an explicit occupancy grid first.
+ *
+ * The grid is not bookkeeping for its own sake — OOXML requires it. A vertically
+ * merged cell in OOXML is not one tall `w:tc`: it is a `w:vMerge w:val="restart"`
+ * anchor plus a `w:tc` with a bare `w:vMerge` in *every* row it covers. The IR
+ * stores the merge as a `rowSpan` on the anchor and simply has no cell at the
+ * covered positions, so those continuation cells have to be synthesized. Without
+ * them Word sees a short row and no merge at all, which is how `rowSpan` was
+ * silently dropped on every `docx → md → docx` round trip.
+ *
+ * The grid also fixes the column count. Counting cells per row undercounts any row
+ * that spans: a single `colSpan="3"` cell counted as one column, so the `w:tblGrid`
+ * declared fewer columns than the table actually uses.
+ */
 function renderTable(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument): string {
   const rows = Array.isArray(node.children) ? (node.children as AnyNode[]) : [];
   const headerRows = headerRowCount(node);
   const tableStyle = styleFor("table", ctx);
 
-  const columnCount = Math.max(
-    1,
-    ...rows.map((r) => (Array.isArray(r.children) ? (r.children as AnyNode[]).length : 0)),
-  );
+  // Lay every cell onto (row, column), skipping positions an earlier row's rowSpan
+  // already covers — the same placement rule the fidelity metric keys cells on.
+  interface Placed {
+    cell: AnyNode;
+    colStart: number;
+    colSpan: number;
+    rowSpan: number;
+  }
+  const placed: Placed[][] = rows.map(() => []);
+  /** Every grid position a cell covers, so the next row knows what to skip. */
+  const occupied = new Set<string>();
+  /** `row:col` of a position covered from above -> the anchor's column width. */
+  const continuations = new Map<string, number>();
+  let columnCount = 1;
+
+  rows.forEach((row, rowIndex) => {
+    const cells = Array.isArray(row.children) ? (row.children as AnyNode[]) : [];
+    let col = 0;
+    for (const cell of cells) {
+      while (occupied.has(`${rowIndex}:${col}`)) col += 1;
+      const { rowSpan, colSpan } = cellSpan(cell);
+      placed[rowIndex]!.push({ cell, colStart: col, colSpan, rowSpan });
+      for (let dr = 0; dr < rowSpan; dr += 1) {
+        for (let dc = 0; dc < colSpan; dc += 1) {
+          occupied.add(`${rowIndex + dr}:${col + dc}`);
+        }
+        if (dr > 0) continuations.set(`${rowIndex + dr}:${col}`, colSpan);
+      }
+      col += colSpan;
+      if (col > columnCount) columnCount = col;
+    }
+  });
 
   const grid = `<w:tblGrid>${"<w:gridCol/>".repeat(columnCount)}</w:tblGrid>`;
   const tblPr =
     `<w:tblPr>${tableStyle ? `<w:tblStyle w:val="${encodeEntities(tableStyle)}"/>` : ""}` +
     `<w:tblW w:w="0" w:type="auto"/></w:tblPr>`;
 
+  // Second pass: emit each row left to right, filling covered positions with the
+  // continuation cells OOXML needs.
   const body = rows
     .map((row, rowIndex) => {
-      const cells = Array.isArray(row.children) ? (row.children as AnyNode[]) : [];
       const trPr = rowIndex < headerRows ? "<w:trPr><w:tblHeader/></w:trPr>" : "";
-      const tcs = cells
-        .map((cell) => {
-          const { rowSpan, colSpan } = cellSpan(cell);
-          const props: string[] = [];
-          if (colSpan > 1) props.push(`<w:gridSpan w:val="${colSpan}"/>`);
-          if (rowSpan > 1) props.push(`<w:vMerge w:val="restart"/>`);
-          const tcPr = props.length > 0 ? `<w:tcPr>${props.join("")}</w:tcPr>` : "";
-          // mdast puts phrasing content *directly* in a tableCell with no paragraph
-          // wrapper, while a DOCX cell from our own reader holds block content. Both
-          // shapes reach here, so the cell is inspected rather than assumed: if it
-          // has no block-level children, the whole cell is one paragraph's worth of
-          // inline content.
-          const cellChildren = Array.isArray(cell.children) ? (cell.children as AnyNode[]) : [];
-          const hasBlocks = cellChildren.some((c) => BLOCK_TYPES.has(c.type));
-          let content = hasBlocks
-            ? cellChildren
-                .map((c) =>
-                  c.type === "paragraph" || c.type === "heading"
-                    ? paragraph(inlineRuns(c, ctx), styleFor("paragraph", ctx))
-                    : renderBlock(c, ctx, doc),
-                )
-                .join("")
-            : paragraph(inlineRuns(cell, ctx), styleFor("paragraph", ctx));
+      const starts = new Map(placed[rowIndex]!.map((p) => [p.colStart, p]));
 
-          // OOXML requires at least one paragraph per cell; a cell that renders to
-          // nothing would make the file unopenable rather than merely empty.
-          if (content.trim() === "") content = "<w:p/>";
-          return `<w:tc>${tcPr}${content}</w:tc>`;
-        })
-        .join("");
+      let tcs = "";
+      let col = 0;
+      while (col < columnCount) {
+        const contSpan = continuations.get(`${rowIndex}:${col}`);
+        if (contSpan !== undefined) {
+          // A continuation cell repeats gridSpan, or the columns below a merged-and-
+          // wide cell shift left and the table skews.
+          const span = contSpan > 1 ? `<w:gridSpan w:val="${contSpan}"/>` : "";
+          tcs += `<w:tc><w:tcPr>${span}<w:vMerge/></w:tcPr><w:p/></w:tc>`;
+          col += contSpan;
+          continue;
+        }
+
+        const here = starts.get(col);
+        if (!here) {
+          // A ragged row: the IR allows one, OOXML does not, so the hole is filled
+          // with an empty cell rather than left to shorten the row.
+          tcs += "<w:tc><w:p/></w:tc>";
+          col += 1;
+          continue;
+        }
+
+        const props: string[] = [];
+        if (here.colSpan > 1) props.push(`<w:gridSpan w:val="${here.colSpan}"/>`);
+        if (here.rowSpan > 1) props.push(`<w:vMerge w:val="restart"/>`);
+        const tcPr = props.length > 0 ? `<w:tcPr>${props.join("")}</w:tcPr>` : "";
+
+        // mdast puts phrasing content *directly* in a tableCell with no paragraph
+        // wrapper, while a DOCX cell from our own reader holds block content. Both
+        // shapes reach here, so the cell is inspected rather than assumed: if it
+        // has no block-level children, the whole cell is one paragraph's worth of
+        // inline content.
+        const cellChildren = Array.isArray(here.cell.children)
+          ? (here.cell.children as AnyNode[])
+          : [];
+        const hasBlocks = cellChildren.some((c) => BLOCK_TYPES.has(c.type));
+        let content = hasBlocks
+          ? cellChildren
+              .map((c) =>
+                c.type === "paragraph" || c.type === "heading"
+                  ? paragraph(inlineRuns(c, ctx), styleFor("paragraph", ctx))
+                  : renderBlock(c, ctx, doc),
+              )
+              .join("")
+          : paragraph(inlineRuns(here.cell, ctx), styleFor("paragraph", ctx));
+
+        // OOXML requires at least one paragraph per cell; a cell that renders to
+        // nothing would make the file unopenable rather than merely empty.
+        if (content.trim() === "") content = "<w:p/>";
+        tcs += `<w:tc>${tcPr}${content}</w:tc>`;
+        col += here.colSpan;
+      }
+
       return `<w:tr>${trPr}${tcs}</w:tr>`;
     })
     .join("");

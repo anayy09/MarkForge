@@ -20,6 +20,7 @@
   "dependencies": {
     "@markforge/ir": "workspace:*",
     "@markforge/ooxml": "workspace:*",
-    "@markforge/infer": "workspace:*"
+    "@markforge/infer": "workspace:*",
+    "@markforge/render-md": "workspace:*"
   }
 }

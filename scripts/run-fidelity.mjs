@@ -29,7 +29,11 @@ const { renderDocx } = await load("render-docx");
 const { parseDocx } = await load("adapters-docx");
 const { parseHtmlDocument } = await load("adapters-html");
 const { renderHtml } = await load("render-html");
-const { inferHeadings } = await load("infer");
+// inferAll, not inferHeadings: @markforge/core runs inferAll, so measuring with
+// anything less measures a pipeline we do not ship. Blockquote recovery lives in
+// inferBlockquotes, and leaving it out made every blockquote look like a permanent
+// loss through the DOCX path.
+const { inferAll } = await load("infer");
 const { compare, compareToBaselines, renderFidelityMarkdown } = await load("fidelity");
 
 const MD_CORPUS = join(REPO, "fixtures/md");
@@ -61,7 +65,7 @@ for (const file of mdFixtures) {
   // --- Loop 2: md -> docx -> md. The Phase 1 gate.
   const docxBytes = renderDocx(original, { onMissingStyle: "synthesize" }).bytes;
   const fromDocx = parseDocx(docxBytes).document;
-  inferHeadings(fromDocx);
+  inferAll(fromDocx);
   measured.push(entry(name, "md->docx->md", compare(original, fromDocx)));
 
   // --- Loop 3: docx -> md -> docx. Stability of the binary side.
@@ -70,12 +74,44 @@ for (const file of mdFixtures) {
     onMissingStyle: "synthesize",
   }).bytes;
   const secondParsed = parseDocx(secondDocx).document;
+  // Inference on both sides or the comparison is between unlike trees. `fromDocx` has
+  // been through inference and this had not, so every heading counted as a lost
+  // heading and a gained paragraph — the loop under-reported itself at 96.8% when it
+  // was actually clean. Found by the node-type census, which is the entire argument
+  // for having one.
+  inferAll(secondParsed);
   measured.push(entry(name, "docx->md->docx", compare(fromDocx, secondParsed)));
 
   // --- Loop 4: md -> html -> md. Phase 2.
   const html = renderHtml(original, { fullDocument: false }).html;
   const fromHtml = parseHtmlDocument(html).document;
   measured.push(entry(name, "md->html->md", compare(original, fromHtml)));
+}
+
+// The messy DOCX corpus (§2.3 and §2.15). These start as DOCX, so the loop begins
+// there — and unlike every other fixture they are *designed* to be hard, so these rows
+// are the ones worth watching. A regression here means a real-world document got worse.
+const DOCX_CORPUS = join(REPO, "fixtures/docx");
+const docxFixtures = existsSync(DOCX_CORPUS)
+  ? readdirSync(DOCX_CORPUS).filter((f) => f.endsWith(".docx")).sort()
+  : [];
+
+for (const file of docxFixtures) {
+  const name = file.replace(/\.docx$/, "");
+  const bytes = new Uint8Array(readFileSync(join(DOCX_CORPUS, file)));
+  const original = parseDocx(bytes, { path: `fixtures/docx/${file}` }).document;
+  inferAll(original);
+
+  // docx -> md -> docx, the Phase 1 gate loop, on documents that fight back.
+  const md = renderMarkdown(original).markdown;
+  const reDocx = renderDocx(parseMarkdown(md).document, { onMissingStyle: "synthesize" }).bytes;
+  const back = parseDocx(reDocx).document;
+  inferAll(back);
+  measured.push(entry(name, "docx->md->docx", compare(original, back)));
+
+  // docx -> html, so a lossy path other than Markdown is measured too.
+  const html = renderHtml(original, { fullDocument: false }).html;
+  measured.push(entry(name, "docx->html", compare(original, parseHtmlDocument(html).document)));
 }
 
 // HTML fixtures are the table-span ground truth (docs/CORPUS.md §2.5), so they are
@@ -91,7 +127,7 @@ for (const file of htmlFixtures) {
 
   const docxBytes = renderDocx(original, { onMissingStyle: "synthesize" }).bytes;
   const viaDocx = parseDocx(docxBytes).document;
-  inferHeadings(viaDocx);
+  inferAll(viaDocx);
   measured.push(entry(name, "html->docx->html", compare(original, viaDocx)));
 
   const md = renderMarkdown(original).markdown;
@@ -108,6 +144,9 @@ function entry(fixture, loop, score) {
     tableF1: round(score.table.full.f1),
     tableContentF1: round(score.table.contentOnly.f1),
     spanF1: round(score.spans.f1),
+    // Named node-type differences, so a regression report says which construct moved
+    // rather than only how far a number fell.
+    census: score.census,
   };
 }
 
@@ -118,8 +157,8 @@ function round(n) {
 }
 
 const markdown = renderFidelityMarkdown(measured, {
-  generatedFrom: "fixtures/md and fixtures/html via scripts/run-fidelity.mjs",
-  corpusSize: mdFixtures.length + htmlFixtures.length,
+  generatedFrom: "fixtures/md, fixtures/html, and fixtures/docx via scripts/run-fidelity.mjs",
+  corpusSize: mdFixtures.length + htmlFixtures.length + docxFixtures.length,
 });
 writeFileSync(join(REPO, "docs/FIDELITY.md"), markdown, "utf8");
 
@@ -131,7 +170,7 @@ if (UPDATE || !existsSync(BASELINES)) {
     "utf8",
   );
   console.log(
-    `Wrote ${measured.length} baseline entries for ${mdFixtures.length + htmlFixtures.length} fixture(s).`,
+    `Wrote ${measured.length} baseline entries for ${mdFixtures.length + htmlFixtures.length + docxFixtures.length} fixture(s).`,
   );
   console.log("docs/FIDELITY.md regenerated.");
   process.exit(0);

@@ -34,6 +34,8 @@ export interface RunContext {
   recordEvidence: (node: AnyNode, evidence: StyleEvidence) => void;
   /** Paragraph style in scope, so run resolution can inherit from it. */
   paragraphStyleId?: string | undefined;
+  /** Guards the missing-theme diagnostic to once per document. */
+  reportedMissingTheme: Set<true>;
 }
 
 /** Vertical alignment maps to sub/superscript rather than to a style property. */
@@ -139,7 +141,11 @@ export function parseRun(r: XmlElement, ctx: RunContext): AnyNode[] {
     rPr,
   });
 
-  if (resolved.unresolvedThemeFont) {
+  // Reported once per document, not once per run. An unresolvable font token is a
+  // property of the *file* — theme1.xml is missing — so eighteen copies of the same
+  // sentence add no information and make the file look worse than it is.
+  if (resolved.unresolvedThemeFont && !ctx.reportedMissingTheme.has(true)) {
+    ctx.reportedMissingTheme.add(true);
     ctx.diagnostics.degraded(
       DiagnosticCode.DOCX_MISSING_THEME,
       "theme1.xml",

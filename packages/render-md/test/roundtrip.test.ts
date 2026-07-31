@@ -4,6 +4,14 @@ import { parseMarkdown } from "@markforge/adapters-md";
 import { renderMarkdown } from "../src/index.js";
 import { selectType, textContent, validateDocument, type AnyNode } from "@markforge/ir";
 
+// A fixed seed, deliberately. fast-check defaults to a random one per run, which finds
+// bugs well and keeps them found badly: a normalize non-idempotency was caught on CI
+// and not locally purely because the seeds differed. Pinning makes a pass mean the same
+// thing on every machine. Counterexamples are kept as named cases, which is what
+// actually keeps a fixed bug fixed; to hunt for new ones, drop the seed locally.
+const SEED = 20260731;
+
+
 /** One `fmt` pass: parse to IR, render back to Markdown. */
 const fmt = (src: string): string => renderMarkdown(parseMarkdown(src).document).markdown;
 
@@ -189,7 +197,7 @@ describe("fmt idempotency — the Phase 1 gate (brief §11)", () => {
         const twice = fmt(once);
         expect(twice).toBe(once);
       }),
-      { numRuns: 400 },
+      { numRuns: 400, seed: SEED },
     );
   });
 

@@ -16,6 +16,14 @@ import {
 } from "../src/index.js";
 import type { AnyNode } from "@markforge/ir";
 
+// A fixed seed, deliberately. fast-check defaults to a random one per run, which finds
+// bugs well and keeps them found badly: a normalize non-idempotency was caught on CI
+// and not locally purely because the seeds differed. Pinning makes a pass mean the same
+// thing on every machine. Counterexamples are kept as named cases, which is what
+// actually keeps a fixed bug fixed; to hunt for new ones, drop the seed locally.
+const SEED = 20260731;
+
+
 const p = (text: string): AnyNode => ({ type: "paragraph", children: [{ type: "text", value: text }] });
 const doc = (...kids: AnyNode[]): AnyNode => ({ type: "root", children: kids });
 
@@ -142,7 +150,7 @@ describe("levenshtein", () => {
         expect(levenshtein([...a], [...a])).toBe(0);
         expect(levenshtein([...a], [...b])).toBe(levenshtein([...b], [...a]));
       }),
-      { numRuns: 200 },
+      { numRuns: 200, seed: SEED },
     );
   });
 
@@ -151,7 +159,7 @@ describe("levenshtein", () => {
       fc.property(fc.string({ maxLength: 12 }), fc.string({ maxLength: 12 }), (a, b) => {
         expect(levenshtein([...a], [...b])).toBeLessThanOrEqual(Math.max(a.length, b.length));
       }),
-      { numRuns: 200 },
+      { numRuns: 200, seed: SEED },
     );
   });
 });

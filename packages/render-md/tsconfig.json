@@ -14,6 +14,9 @@
     },
     {
       "path": "../adapters-md"
+    },
+    {
+      "path": "../render-html"
     }
   ]
 }

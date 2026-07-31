@@ -37,7 +37,7 @@ provably idempotent.
 | `fmt` provably idempotent | done — 35 cases + 400 generated, to three passes |
 | Beats Pandoc on `docx → md → docx` | **done, after fixing three writer defects** |
 | Beats `word-to-markdown-js` | **not done** — the competitor is not in the scoreboard |
-| Golden corpus v1 | **partial** — 5 of the 8 categories Phase 1 required |
+| Golden corpus v1 | **partial** — 7 of the 8 categories Phase 1 required |
 | Three reference DOCX templates | **not done** — `TEMPLATES.md` §2.1 specifies them row by row |
 
 ### The Pandoc comparison, and why it was wrong before
@@ -65,8 +65,9 @@ badly: Pandoc's span F1 went from 90.5% to 100% without Pandoc changing at all.
 
 The lesson is about the measurement, not the code. An aggregate fidelity score cannot say
 *which* node types differ, so four format-destroying defects hid behind a number in the
-nineties. The census diff found all four in under an hour. `run-fidelity.mjs` still reports
-aggregates; a per-node-type census belongs in it.
+nineties. The census diff found all four in under an hour. **That census now lives in
+`@markforge/fidelity` and is reported in `docs/FIDELITY.md`** under *Where the losses are*,
+and it found four more defects on its first run — see *What to fix first*.
 
 ## Phase 2 — breadth
 
@@ -83,13 +84,20 @@ manual cleanup, verified by inspection against the fidelity report.
 | PDF renderer | **not done** — needs Typst WASM (ADR-0003) |
 | Visual regression suite | **not done** |
 | Real-world messy PDF converts cleanly | **not verified** — no such fixture exists |
-| Real-world messy DOCX converts cleanly | **not verified** — `CORPUS.md` §2.3 not built |
+| Real-world messy DOCX converts cleanly | **verified on authored equivalents** — `CORPUS.md` §2.3 built; no committable real specimen |
 
-**The Phase 2 done-criterion is not met**, and the reason is the corpus rather than the
-code: the criterion is about *real-world messy* documents, and every fixture in the corpus
-is authored and clean. `fixtures/local/` holds three genuinely messy real documents that
-cannot be committed (IEEE licensing, and personal data in two of the owner's own files),
-which is why `CORPUS.md` §2.3 specifies authoring equivalents — and that has not happened.
+**The Phase 2 done-criterion is now met on authored equivalents, with one caveat stated
+plainly.** `CORPUS.md` §2.3 and §2.15 are built: eight deliberately defective DOCX fixtures
+are committed and measured, and all eight round-trip at 100% structural, text, table, and
+span fidelity. The caveat is that they are *our* messy documents. `fixtures/local/` holds
+three genuinely messy real documents that cannot be committed (IEEE licensing, and personal
+data in two of the owner's own files), so the real-specimen check remains manual.
+
+That said, the fixtures are not a soft target — building them broke the converter in five
+places the clean corpus could not reach: `w:tcPr` parsed as cell content, heading inference
+blind to run-level formatting, a per-run rather than per-document missing-theme diagnostic,
+`## **TEXT**` from a fully-bold heading, and — the largest — merged table cells silently
+flattened by GFM pipe syntax with no diagnostic. See **Corpus coverage** below.
 
 ## Unbuilt CLI surface
 
@@ -104,14 +112,26 @@ than pretending, which is the right behaviour but is not delivery.
 
 ## Renderer gaps that lose content today
 
-Each emits a diagnostic, so nothing is silent — but a diagnostic is not a feature.
+Each emits a diagnostic — but that was **not true when this section was first written**, and
+the claim is worth correcting rather than quietly fixing. Through `html -> docx -> html` the
+DOCX writer dropped nine node types while emitting exactly one diagnostic, and the Markdown
+writer degraded figures, captions, and description lists in silence. Both now report. Neither
+was found by a test; the node-type census found them.
 
-| Gap | Effect |
-| --- | --- |
-| Images are not embedded in DOCX output | an image becomes `[alt text]` |
-| Footnotes are not written to `footnotes.xml` | footnote bodies become body paragraphs |
-| Cross-references are not resolved on write | become plain links |
-| Tracked changes are read but not written | `revisionMode` affects reading only |
+A diagnostic is still not a feature.
+
+| Gap | Effect | Reported |
+| --- | --- | --- |
+| Images are not embedded in DOCX output | an image becomes `[alt text]` | yes |
+| Footnotes are not written to `footnotes.xml` | footnote bodies become body paragraphs | yes |
+| Cross-references are not resolved on write | become plain links | yes |
+| Tracked changes are read but not written | `revisionMode` affects reading only | yes |
+| DOCX has no figure, caption, or description list | text survives, the construct does not | yes, since this session |
+| Markdown has no figure, caption, or description list | same, and it is a format limit rather than a gap | yes, since this session |
+| `code` and `thematicBreak` are written to DOCX but not read back | a code block returns as prose, a rule as an empty paragraph | **no — the writer is correct and the reader has no case for them** |
+
+The last row is the tractable one: both are written correctly and recoverable by inference
+from the style name and the paragraph border, exactly as blockquotes already are.
 
 ## Corpus coverage
 
@@ -125,7 +145,7 @@ Each emits a diagnostic, so nothing is silent — but a diagnostic is not a feat
 | 2.11 emoji and Unicode | done |
 | 2.13 Markdown flavours | partial — one flavour |
 | 2.2 manuscripts with footnotes and equations | not done |
-| 2.3 badly formatted real-world documents | **not done — blocks the Phase 2 criterion** |
+| 2.3 badly formatted real-world documents | done — 6 fixtures, asserted defect by defect |
 | 2.6 multi-column PDFs | not done |
 | 2.7 scanned PDFs | not done — blocks the Phase 3 OCR criterion |
 | 2.8 slide decks | not done |
@@ -133,24 +153,53 @@ Each emits a diagnostic, so nothing is silent — but a diagnostic is not a feat
 | 2.10 RTL and CJK | partial, inside 2.11; native-speaker review not done |
 | 2.12 tracked changes and comments | not done |
 | 2.14 agentify source sets | not done, Phase 4 |
-| 2.15 library- and LLM-generated documents | not done |
+| 2.15 library- and LLM-generated documents | partial — 2 of 4 producer profiles; Pandoc and LibreOffice exports need the binaries |
 
-The measured numbers in `FIDELITY.md` are therefore over a corpus of clean, authored
-documents. They are honest about what they measured and should not be read as a claim
-about real-world input.
+The measured numbers in `FIDELITY.md` now cover eight deliberately defective DOCX
+documents alongside the clean ones, so they are no longer only a claim about easy input.
+They remain a claim about *authored* input: nothing in the corpus was found in the wild.
 
 ## What to fix first
 
 In the order that removes the most risk:
 
-1. **`CORPUS.md` §2.3 and §2.15.** Every fidelity number is currently measured on easy
-   input. Until messy fixtures exist, the scores describe the wrong thing, and the Phase 2
-   criterion cannot be evaluated at all.
-2. **Per-node-type census in `run-fidelity.mjs`.** Four format-destroying bugs hid behind
-   an aggregate score. The diff that found them should be part of the harness, not a
-   throwaway script.
-3. **`word-to-markdown-js` in the scoreboard.** It is the project's stated baseline and is
+1. **Figures, description lists, and captions in the DOCX writer.** Now the top item,
+   and the largest remaining measured loss. `docs/FIDELITY.md` **Where the losses are**
+   names it exactly: through `html -> docx -> html`, `figure`, `caption`, `image`,
+   `code`, `thematicBreak`, and all three `description*` node types go to zero. DOCX
+   has no description list, so this needs a style convention plus inference the way
+   blockquotes got one. Markdown genuinely cannot express a figure or a description
+   list, so those rows are a format limit — but they are now *reported* rather than
+   silent, which they were not until the census found them.
+2. **`word-to-markdown-js` in the scoreboard.** It is the project's stated baseline and is
    absent from the comparison.
-4. **Images and footnotes in the DOCX writer.** Both currently degrade real content.
-5. **`check --reference-doc`.** Two specification documents describe it as though it
+3. **Images and footnotes in the DOCX writer.** Both currently degrade real content.
+4. **`check --reference-doc`.** Two specification documents describe it as though it
    exists.
+5. **`CORPUS.md` §2.12 (tracked changes) and §2.2 (scanned documents).** The two remaining
+   categories that block a stated done-criterion rather than a nice-to-have.
+
+Completed since this document was first written: `CORPUS.md` §2.3 and §2.15, and the
+per-node-type census, which were items 1 and 2.
+
+The census earned its place immediately. Added to `@markforge/fidelity` and reported in
+`docs/FIDELITY.md`, it found four things the aggregate scores had hidden behind means of
+99% and above:
+
+- **The harness measured a pipeline we do not ship.** It ran `inferHeadings` where
+  `@markforge/core` runs `inferAll`, so blockquote recovery was missing from every
+  measurement and every blockquote through DOCX looked like a permanent loss.
+- **`docx -> md -> docx` compared unlike trees.** Inference ran on one side only, so all
+  five headings in `clean-report` counted as lost and five paragraphs as gained. The loop
+  was reporting 96.8% against itself when it was clean.
+- **A whole table vanished** from `spans-ground-truth` through Markdown, because a GFM
+  pipe cell cannot hold block content any more than it can hold a merge. Table F1 read
+  88.9% while the metric never saw the table that disappeared.
+- **`html -> html` lost an image** — a loop through a single format. A `figure` holds its
+  `image` as a direct child, the block renderer had no case for an inline node, and it
+  produced nothing. `renderRow` already carried a comment about the same mistake costing
+  table F1 0.0%, which is twice.
+
+Mean structural fidelity went 98.9% to 99.7% and mean table F1 96.5% to 100.0% as a
+result — none of which was new capability, all of which was measurement finding real
+defects. That is the argument for keeping the census.

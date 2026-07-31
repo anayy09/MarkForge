@@ -17,6 +17,7 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `codegen-types.mjs` | `json-schema-to-typescript` | Generates TypeScript types from the schemas (`pnpm codegen`) |
 | `add-salient-annotations.mjs` | none | One-shot migration that added `x-salient` to the IR schema |
 | `check-fixtures.mjs` | none | Every fixture has a licence line, and every licence line has a fixture |
+| `build-messy-fixtures.mjs` | none | Generates the deliberately defective DOCX corpus (`docs/CORPUS.md` §2.3, §2.15) |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
@@ -50,6 +51,28 @@ register, because it looks like diligence.
 It runs before the conversion tests in CI, so an unlicensed fixture cannot be used even by a
 test that does not know it is unlicensed. Only `fixtures/local/` and `fixtures/generated/` are
 exempt, and only because they are gitignored: nothing in them is distributed.
+
+## `build-messy-fixtures.mjs`
+
+Writes the DOCX fixtures for `docs/CORPUS.md` §2.3 (badly formatted real-world documents) and
+§2.15 (library- and LLM-generated documents). Every other fixture in the corpus is *clean*
+authored input, which measures the easy path and says nothing about the hard one — and Surface
+B's whole claim is about documents whose structure has to be recovered rather than read.
+
+```sh
+node scripts/build-messy-fixtures.mjs           # write the fixtures
+node scripts/build-messy-fixtures.mjs --check   # exit 1 if a committed file is stale
+```
+
+The OOXML is assembled from small local helpers rather than through `@markforge/render-docx`,
+deliberately. A fixture built by the renderer could only ever contain markup the renderer knows
+how to produce, so it could not test reading the things the renderer would never write —
+direct formatting instead of styles, a broken `w:basedOn` chain, a missing `theme1.xml`.
+
+**The output is committed and CI checks it is current.** `CORPUS.md` §2.15 originally said to
+generate into gitignored `generated/`, which is right for 600 DPI scans and OCR language data.
+These are 2–4 KB each, and committing them means a test needs no build step and a fixture cannot
+silently change underneath a test. `--check` is what keeps the committed bytes honest.
 
 ## `run-fidelity.mjs`
 

@@ -44,6 +44,9 @@ importers:
       '@markforge/ooxml':
         specifier: workspace:*
         version: link:../ooxml
+      '@markforge/render-md':
+        specifier: workspace:*
+        version: link:../render-md
 
   packages/adapters-html:
     dependencies:
@@ -53,6 +56,9 @@ importers:
 
   packages/adapters-md:
     dependencies:
+      '@markforge/adapters-html':
+        specifier: workspace:*
+        version: link:../adapters-html
       '@markforge/ir':
         specifier: workspace:*
         version: link:../ir
@@ -221,6 +227,9 @@ importers:
       '@markforge/ir':
         specifier: workspace:*
         version: link:../ir
+      '@markforge/render-html':
+        specifier: workspace:*
+        version: link:../render-html
       mdast-util-frontmatter:
         specifier: ^2.0.1
         version: 2.0.1
