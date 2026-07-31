@@ -35,8 +35,26 @@ export interface TesseractOptions {
   lang?: string;
   /** Explicit consent to let tesseract.js fetch its language data over the network. */
   allowDownload?: boolean;
-  /** Where tesseract.js may cache what it fetched. */
+  /**
+   * Where tesseract.js may cache what it loaded.
+   *
+   * Defaults to `langPath`, not to tesseract.js's own default of the current working
+   * directory — which drops a 4 MB `eng.traineddata` into whatever directory the command
+   * happened to run from, i.e. the repository root for anyone running the tests. Caching
+   * it next to the copy it was just read from is free and leaves no litter.
+   */
   cachePath?: string;
+  /**
+   * Whether the language data is gzipped.
+   *
+   * tesseract.js defaults to `true` and looks for `<lang>.traineddata.gz`. The tessdata
+   * repositories this file's own error message points at — `tessdata_fast` and friends —
+   * publish **uncompressed** `<lang>.traineddata`, so following those instructions
+   * produced `ENOENT: eng.traineddata.gz` and an offline setup that could not start. So
+   * the default here follows the documentation rather than the library: uncompressed when
+   * `langPath` is a local directory, gzipped when tesseract.js is fetching from its CDN.
+   */
+  gzip?: boolean;
 }
 
 /**
@@ -73,7 +91,10 @@ export function createTesseractRecognizer(options: TesseractOptions = {}) {
     }
     worker = await module.createWorker(lang, 1, {
       ...(options.langPath !== undefined ? { langPath: options.langPath } : {}),
-      ...(options.cachePath !== undefined ? { cachePath: options.cachePath } : {}),
+      ...(options.cachePath ?? options.langPath) !== undefined
+        ? { cachePath: options.cachePath ?? options.langPath }
+        : {},
+      gzip: options.gzip ?? options.langPath === undefined,
       // No logger: tesseract.js's default logger writes progress to stdout, which would
       // corrupt `--json` output on the one command most likely to be piped.
       logger: () => {},

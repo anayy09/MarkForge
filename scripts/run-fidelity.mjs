@@ -155,7 +155,7 @@ const CACHE_DIR = join(REPO, ".markforge/llm-cache");
 const cachedSession = () =>
   new LlmSession({
     baseUrl: "https://api.ai.it.ufl.edu/v1",
-    models: { fast: "gpt-oss-120b", strong: "nemotron-3-super-120b-a12b", vision: "gemma-4-31b-it" },
+    models: { fast: "gpt-oss-120b", strong: "nemotron-3-super-120b-a12b", vision: "gemma-4-31b-it", embed: "nomic-embed-text-v1.5" },
     cache: { dir: CACHE_DIR, mode: "readOnly" },
     // Guided decoding was measured on this deployment (OPEN_QUESTIONS §3) and the recorded
     // cache entries were produced with it, so the cache key must be computed the same way.
@@ -165,6 +165,7 @@ const cachedSession = () =>
       probedModel: "gpt-oss-120b",
       guidedDecoding: true,
       seed: true,
+      probedAt: new Date().toISOString(),
       evidence: ["Pinned to match the committed cache; see docs/OPEN_QUESTIONS.md §3."],
     },
     seed: 20260731,
@@ -194,6 +195,31 @@ if (existsSync(SCAN)) {
     mediaType: "application/pdf",
   });
   measured.push(entry("scanned-150dpi", "scan->md", compare(truth, ocr.document)));
+
+  // The local OCR path. Runs only when `node scripts/fetch-ocr-assets.mjs` has put
+  // `eng.traineddata` in `fixtures/local/tessdata` — it is 4 MB of third-party model
+  // weights and CORPUS.md §4 keeps that out of git — so this row is absent rather than
+  // wrong on a machine that has not fetched it.
+  //
+  // This row is the point of having two recognisers. SPEC §3.3 claims a vision model
+  // recovers structure tesseract cannot, because tesseract returns text and a confidence
+  // while a vision model can see that a line is large and bold. That was an argument until
+  // there were two numbers next to each other; now it is a measurement.
+  const TESSDATA = join(REPO, "fixtures/local/tessdata");
+  if (existsSync(join(TESSDATA, "eng.traineddata"))) {
+    const { createTesseractRecognizer } = await load("adapters-ocr");
+    const recognize = createTesseractRecognizer({ langPath: TESSDATA });
+    try {
+      const local = await documentFromPages(scanRead.pages, recognize, {
+        path: "fixtures/pdf/scanned-150dpi.pdf",
+        sourceBytes: bytes,
+        mediaType: "application/pdf",
+      });
+      measured.push(entry("scanned-150dpi-tesseract", "scan->md", compare(truth, local.document)));
+    } finally {
+      await recognize.close?.();
+    }
+  }
 }
 
 // --- Subset 2: ambiguous headings (CORPUS §2.3).

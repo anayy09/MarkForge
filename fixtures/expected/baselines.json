@@ -698,6 +698,43 @@
       "census": []
     },
     {
+      "fixture": "scanned-150dpi-tesseract",
+      "loop": "scan->md",
+      "structural": 0.1463,
+      "textSensitive": 0.9599,
+      "textInsensitive": 0.9599,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": [
+        {
+          "nodeType": "text",
+          "expected": 15,
+          "actual": 1
+        },
+        {
+          "nodeType": "paragraph",
+          "expected": 9,
+          "actual": 1
+        },
+        {
+          "nodeType": "heading",
+          "expected": 6,
+          "actual": 0
+        },
+        {
+          "nodeType": "listItem",
+          "expected": 5,
+          "actual": 0
+        },
+        {
+          "nodeType": "list",
+          "expected": 2,
+          "actual": 0
+        }
+      ]
+    },
+    {
       "fixture": "ambiguous-headings-nollm",
       "loop": "docx->truth",
       "structural": 0.9608,

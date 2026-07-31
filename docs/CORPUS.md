@@ -238,7 +238,8 @@ so OCR accuracy becomes measurable rather than eyeballed.
 **Metrics:** text (whitespace-insensitive primarily), with per-DPI baselines. Expected to lose
 to marker; see ADR-0010 and ADR-0012.
 
-**Status, Phase 3: the synthesized three are built; the two found scans are not.**
+**Status, Phase 3: the synthesized three are built, one found scan is fetched on demand, and
+the second is deliberately dropped — see limitation 3.**
 `scripts/build-scanned-fixtures.mjs` rasterizes `md/scanned-source.md` at all three DPIs with
 seeded skew and speckle, and writes PDFs whose pages are one bitonal image each with no text
 layer at all. Only 150 DPI is committed (18 KB); the other two are produced into gitignored
@@ -256,10 +257,24 @@ numbers in `FIDELITY.md` are only as honest as this paragraph:
 2. **They are bitonal**, like a document scanner's default or a fax, so skew produces hard
    jaggies rather than antialiased edges. That is realistic, and it is also what keeps 600 DPI
    inside a sane file size.
-3. **The two genuinely scanned public-domain documents are still absent.** Sourcing them means
-   downloading and licence-checking a real artifact, which the build cannot do offline. Until
-   they exist, every OCR number here is a number about *our own* raster — which is the same
-   caveat §2.3 carries, and it is a real gap rather than a rounding error.
+3. **A found scan now exists, and finding it changed what this item is.** `fixtures/local/`
+   holds a 1973 NASA technical report (NTRS 19730010146, public domain as a work of the US
+   federal government), fetched by `scripts/fetch-ocr-assets.mjs` and gitignored under §4's
+   size rule. Real typeface, real scanner noise — the things a 5x7 bitmap font cannot be.
+
+   **It carries an archive-added OCR text layer, and so does every candidate we could
+   reach.** That is the finding rather than a bad pick: NTRS, Internet Archive, and the
+   Library of Congress all run OCR before publishing, so a *text-layer-free* public-domain
+   scan is rare precisely because nobody publishes one. The consequence for the product is
+   the useful part — the common real-world scanned document is not the one this adapter
+   refuses, it is one carrying **somebody else's OCR of unknown quality**, which sails past
+   the 8-characters-per-page test and is read as ordinary text. We handle it (74 blocks, no
+   crash, five distinct provenance confidences), but its accuracy is the archive's, not
+   ours, and nothing in this corpus measures that. **That is the remaining gap**, and it is a
+   different and more interesting one than "we have no found scan."
+
+   The second found scan is deliberately not pursued. A second document with the same
+   property would add a filename, not a case.
 
 **What the measurement said** (`FIDELITY.md`, `scan->md`): the deterministic path scores **0.0%
 on every metric**, because it does not produce a poor document — it produces none, and refuses
@@ -267,6 +282,21 @@ by name. The cached vision path scores **100% structural and 100% text** on the 
 `gemma-4-31b-it` transcribed all fifteen blocks including heading levels and list items. That is
 the Phase 3 done-criterion for the scanned subset, and the gap is as large as it is because the
 deterministic baseline on a scan is zero rather than mediocre.
+
+**And what the third row said.** `tesseract` was carried as "implemented but never measured"
+for the whole of Phase 3. It is measured now, on the same file, from local language data with
+no network: **14.6% structural, 96.0% text.** It reads the words nearly as well as the vision
+model and recovers none of the shape — the node census shows 6 headings, 5 list items, and 2
+lists all going to zero, with 9 paragraphs collapsing into 1. `SPEC.md` §3.3 asserted that a
+vision model recovers structure tesseract cannot, because tesseract returns text and a
+confidence while a vision model can see that a line is large and bold. Three numbers next to
+each other turn that from an argument into a measurement, and they also say plainly what
+`--no-llm` buys on a scan: the text, and not the document.
+
+Running it for the first time also found a bug that reading it never would have. tesseract.js
+looks for `<lang>.traineddata.gz`, while every tessdata repository — including the one our own
+error message tells users to download from — publishes the file uncompressed, so the documented
+offline setup could not start. Fixed, and regression-tested.
 
 ### 2.7.1 The ambiguous subset — *authored, and it did not exist*
 

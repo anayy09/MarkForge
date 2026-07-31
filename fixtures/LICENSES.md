@@ -70,6 +70,8 @@ the rest of `../docs/CORPUS.md` §2. Their absence is a stated gap, not an overs
 | --- | --- |
 | `local/ieee-conference-template.docx` | IEEE provides it for authors preparing IEEE submissions and grants no redistribution right, so it is gitignored rather than committed. It is the structural model for our authored `academic-manuscript.docx`; see `../docs/TEMPLATES.md` §3.1. |
 | `local/sample001.docx` | Owner's own work, so copyright is not the obstacle — but it contains real names including a third party's, which `../docs/CORPUS.md` rule 4 forbids. **Committable after substituting invented names**; every defect it exercises survives that edit. Measurements in `../docs/CORPUS.md` §2.3. |
+| `local/tessdata/eng.traineddata` | Apache-2.0, from `tesseract-ocr/tessdata_fast`. Not committed: 4 MB of third-party model weights, and `../docs/CORPUS.md` §4 keeps anything that size out of git when a committed script reproduces it. Fetched by `../scripts/fetch-ocr-assets.mjs`. |
+| `local/found-scans/nasa-19730010146.pdf` | **Public domain** as a work of the US federal government (NASA NTRS 19730010146). Licence is not the reason it is gitignored — size is, under the same §4 rule. It is the found scan of `../docs/CORPUS.md` §2.7. |
 | `local/sample002.docx` | Owner's own work, but a **confidential conference peer review** identifying an unpublished submission by paper ID and title. Committing it would publish a review of someone else's unpublished paper. **Permanently local — not an anonymization candidate.** |
 
 This table exists so that "why isn't the obvious fixture here?" has a written answer, rather

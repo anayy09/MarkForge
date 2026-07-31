@@ -114,8 +114,8 @@ measurably improves fidelity on the scanned and ambiguous subsets.
 | Per-call token accounting and a `maxTokens` ceiling that refuses before spending | done |
 | Endpoint capability probe recorded in `.markforge/llm-capabilities.json` | done — `markforge check --llm` |
 | LLM tie-breaking within the deterministic candidate set | done |
-| Vision/OCR path (ADR-0012) | done for the vision recogniser; tesseract **implemented but never measured** |
-| `CORPUS.md` §2.7 scanned fixtures | partial — 3 synthesized, the 2 found scans absent |
+| Vision/OCR path (ADR-0012) | done, both recognisers **measured** — vision 100% structural, tesseract 14.6% structural / 96.0% text |
+| `CORPUS.md` §2.7 scanned fixtures | done — 3 synthesized committed, 1 found scan fetched on demand; the 2nd deliberately dropped (CORPUS §2.7 limitation 3) |
 | Non-blocking live drift job | done |
 | Model registry, routing policy, capability tags | **not deliverables** — descoped by the reviewer (ADR-0009) |
 
@@ -128,16 +128,42 @@ the job would fail rather than quietly succeed.
 
 *Improvement.* Measured in `docs/FIDELITY.md`, from the committed cache, offline:
 
-| Subset | Deterministic | Cached LLM |
-| --- | --- | --- |
-| `scanned-150dpi` (`scan->md`) | 0.0% on every metric | 100% structural, 100% text |
-| `ambiguous-headings` (`docx->truth`) | 96.1% structural, span F1 0.0% | 100% on every metric |
+| Subset | Deterministic | Local OCR (tesseract) | Cached LLM |
+| --- | --- | --- | --- |
+| `scanned-150dpi` (`scan->md`) | 0.0% on every metric | 14.6% structural, 96.0% text | 100% structural, 100% text |
+| `ambiguous-headings` (`docx->truth`) | 96.1% structural, span F1 0.0% | n/a | 100% on every metric |
 
 The scanned gap is that large because the deterministic baseline on a scan is *zero*: the adapter
 refuses by name rather than returning three words of a forty-page document. Stating it as
 "0% → 100%" is accurate and would be misleading without that sentence.
 
+The middle column is what `--no-llm` actually buys on a scan, and it is the honest answer to
+"do you need a model for this": **the text, and not the document.** Tesseract reads the words
+about as well as the vision model — 96.0% against 100% — and recovers none of the shape, with
+6 headings, 5 list items, and 2 lists all going to zero and 9 paragraphs collapsing into 1.
+That is not a defect in tesseract; it returns text and a confidence and never claimed to see
+that a line is large and bold. `SPEC.md` §3.3 asserted this difference from the start. It is
+measured now rather than argued, which is the whole reason the row exists.
+
 ### What building it found
+
+**Running tesseract for the first time broke it immediately.** It had been carried as
+"implemented but never measured" for the whole phase. tesseract.js looks for
+`<lang>.traineddata.gz`; every tessdata repository — including the one our own error message
+tells users to download from — publishes the file uncompressed, so the documented offline
+setup could not start at all. A wrapper whose behaviour contradicted its own instructions,
+found in the minute it took to execute rather than read it. `gzip` now defaults to
+uncompressed when `langPath` is local, and three tests guard it. This is the argument for
+"measured" being a different status from "implemented", made concrete.
+
+**Every reachable public-domain scan already has an OCR text layer.** §2.7 asked for two found
+scans. NTRS, the Internet Archive, and the Library of Congress all run OCR before publishing,
+so a text-layer-free public-domain scan is rare precisely because nobody releases one. The
+consequence is worth more than the fixture would have been: the common real-world scanned
+document is not the one this adapter refuses, it is one carrying **somebody else's OCR of
+unknown quality**, which passes the coverage test and is read as ordinary text. One such
+document is wired in and handled; measuring the quality of an archive's OCR is not something
+this corpus can do, and `CORPUS.md` §2.7 now says so instead of leaving a checkbox.
 
 **The ambiguous subset did not exist.** Phase 3's criterion names it, and running every
 committed fixture through `convert --json` produced **zero** ambiguous decisions — so the
@@ -231,7 +257,7 @@ from the style name and the paragraph border, exactly as blockquotes already are
 | 2.2 manuscripts with footnotes and equations | not done |
 | 2.3 badly formatted real-world documents | done — 7 fixtures, asserted defect by defect (the seventh is the Phase 3 ambiguous subset) |
 | 2.6 multi-column PDFs | not done |
-| 2.7 scanned PDFs | **partial** — 3 synthesized (1 committed, 2 generated); the 2 found scans absent |
+| 2.7 scanned PDFs | **done** — 3 synthesized (1 committed, 2 generated), 1 found scan fetched on demand; 2nd dropped with reasons |
 | 2.8 slide decks | not done |
 | 2.9 spreadsheets | not done |
 | 2.10 RTL and CJK | partial, inside 2.11; native-speaker review not done |

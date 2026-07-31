@@ -45,6 +45,7 @@ Corpus: 18 fixture(s). Source: fixtures/md, fixtures/html, and fixtures/docx via
 | nested-restarting-lists | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-150dpi | scan->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-150dpi-nollm | scan->md | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
+| scanned-150dpi-tesseract | scan->md | 14.6% | 96.0% | 96.0% | 100.0% | 100.0% | 100.0% |
 | scanned-source | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-source | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-source | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
@@ -63,7 +64,7 @@ Corpus: 18 fixture(s). Source: fixtures/md, fixtures/html, and fixtures/docx via
 | unicode-edge-cases | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| **mean** | | 97.9% | 98.0% | 98.0% | 98.2% | 98.2% | 96.2% |
+| **mean** | | 96.4% | 98.0% | 98.0% | 98.2% | 98.2% | 96.3% |
 
 ## Where the losses are
 
@@ -77,6 +78,11 @@ limit — nothing is rounded away.
 | ambiguous-headings-nollm | docx->truth | `heading` | 4 | 5 |
 | ambiguous-headings-nollm | docx->truth | `paragraph` | 8 | 7 |
 | ambiguous-headings-nollm | docx->truth | `strong` | 1 | 0 |
+| scanned-150dpi-tesseract | scan->md | `text` | 15 | 1 |
+| scanned-150dpi-tesseract | scan->md | `paragraph` | 9 | 1 |
+| scanned-150dpi-tesseract | scan->md | `heading` | 6 | 0 |
+| scanned-150dpi-tesseract | scan->md | `listItem` | 5 | 0 |
+| scanned-150dpi-tesseract | scan->md | `list` | 2 | 0 |
 | semantic-structure | html->docx->html | `paragraph` | 10 | 14 |
 | semantic-structure | html->docx->html | `text` | 22 | 24 |
 | semantic-structure | html->docx->html | `caption` | 1 | 0 |

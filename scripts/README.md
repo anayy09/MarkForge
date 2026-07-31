@@ -21,6 +21,7 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `build-scanned-fixtures.mjs` | none | Rasterises `fixtures/md/scanned-source.md` into scanned PDFs with no text layer (`docs/CORPUS.md` §2.7) |
 | `check-markdown-lint.mjs` | `markdownlint`, built packages | Lints the Markdown our renderer produces. A gate, not a repair pass (ADR-0006) |
 | `diff-mammoth.mjs` | `mammoth`, built packages | Differential test of our OOXML reader against Mammoth; every divergence triaged in `docs/MAMMOTH-DIFF.md` (ADR-0005) |
+| `fetch-ocr-assets.mjs` | network, once | Downloads tesseract language data and the found scan into gitignored `fixtures/local/` (`docs/CORPUS.md` §2.7) |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
@@ -153,6 +154,21 @@ current list and for what the test deliberately does not cover.
 
 Running without `--check` also writes `docs/.mammoth-diff.generated.md`, a starter table so
 triage is an edit rather than a transcription job. That file is gitignored.
+
+## `fetch-ocr-assets.mjs`
+
+Downloads the two third-party files the OCR path needs into gitignored `fixtures/local/`:
+`eng.traineddata` (4 MB, Apache-2.0, from `tessdata_fast`) and a 1973 NASA technical report
+(1.2 MB, public domain) as the found scan of `docs/CORPUS.md` §2.7.
+
+Neither is committed, per §4's size rule, and everything downstream degrades rather than
+breaking when they are absent: the tesseract fidelity row is omitted and the real-engine tests
+skip. Run this once to turn them on.
+
+The reason the data is not simply downloaded on demand is ADR-0017: `createTesseractRecognizer`
+refuses to start unless `langPath` names a local directory or `allowDownload` is passed
+explicitly, because brief §3.6 makes every network call opt-in. "OCR quietly worked because a
+CDN was up" is not an offline guarantee, so the fetch is a separate, deliberate step.
 
 ## `run-fidelity.mjs`
 

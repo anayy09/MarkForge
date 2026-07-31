@@ -91,6 +91,18 @@ jobs:
       - name: Scanned corpus fixtures are current
         run: node scripts/build-scanned-fixtures.mjs --check
 
+      # ADR-0006: markdownlint runs check-only. A violation means the
+      # remark-stringify configuration has drifted from the rule set, not that the
+      # output needs patching — there is no autofix pass to patch it with.
+      - name: Rendered Markdown satisfies the lint rule set
+        run: node scripts/check-markdown-lint.mjs
+
+      # ADR-0005 builds our own OOXML reader instead of using Mammoth. This keeps the
+      # resulting risk reviewed: every divergence between the two readers must be
+      # triaged in docs/MAMMOTH-DIFF.md, and an untriaged one fails here.
+      - name: OOXML reader differential against Mammoth
+        run: node scripts/diff-mammoth.mjs --check
+
       - name: Test
         run: pnpm run test
 
@@ -107,6 +119,15 @@ jobs:
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
+
+      # The tesseract row of the scanned subset needs eng.traineddata, and the found
+      # scan of CORPUS.md §2.7 needs downloading — both are gitignored under §4's size
+      # rule. Without them the harness measures a *smaller* set than the committed
+      # baselines describe and regenerates a FIDELITY.md missing the OCR row, which the
+      # staleness check below would then report as a stale document. Fetching here keeps
+      # CI measuring exactly what the committed numbers claim.
+      - name: Fetch OCR language data and the found scan
+        run: node scripts/fetch-ocr-assets.mjs
 
       # Exit 4 is the fidelity-regression code from SPEC §8. A drop beyond tolerance
       # fails the build; an unexplained *improvement* is reported but does not, since

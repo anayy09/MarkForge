@@ -8,6 +8,9 @@
  * and block assembly — and that is all engine-independent by construction.
  */
 import { describe, it, expect } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   DEFAULT_LOW_CONFIDENCE,
   createTesseractRecognizer,
@@ -17,6 +20,8 @@ import {
   type Recognizer,
 } from "../src/index.js";
 import { selectType, textContent, validateDocument } from "@markforge/ir";
+
+const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 
 const page = (pageNumber: number): PageImage => ({
   pageNumber,
@@ -214,4 +219,113 @@ describe("the tesseract recogniser", () => {
   it("accepts explicit consent to download", () => {
     expect(() => createTesseractRecognizer({ allowDownload: true })).not.toThrow();
   });
+});
+
+/**
+ * The real engine, on the real corpus — the half the stub tests above cannot cover.
+ *
+ * Skipped unless `node scripts/fetch-ocr-assets.mjs` has put `eng.traineddata` in
+ * `fixtures/local/tessdata`. That data is 4 MB of third-party model weights and
+ * `docs/CORPUS.md` §4 keeps it out of git, so these are opt-in rather than absent from CI
+ * by accident — the skip message says how to turn them on.
+ *
+ * Worth having despite that cost. `docs/STATUS.md` carried "tesseract implemented but never
+ * measured" for the whole of Phase 3, and the first time it was actually run it failed
+ * immediately: tesseract.js looks for `<lang>.traineddata.gz` while every tessdata
+ * repository — including the one our own error message points at — publishes the file
+ * uncompressed. A wrapper whose documentation contradicted its behaviour, found in the one
+ * minute it took to execute rather than read it.
+ */
+const TESSDATA = join(REPO, "fixtures/local/tessdata");
+const describeIfTessdata = existsSync(join(TESSDATA, "eng.traineddata"))
+  ? describe
+  : describe.skip;
+
+describeIfTessdata("the tesseract recogniser, against real language data", () => {
+  const scanPage = async (): Promise<PageImage> => {
+    const { readPdf } = await import("@markforge/adapters-pdf");
+    const bytes = new Uint8Array(readFileSync(join(REPO, "fixtures/pdf/scanned-150dpi.pdf")));
+    const read = await readPdf(bytes);
+    if (read.kind !== "scan") throw new Error("fixture is no longer detected as a scan");
+    return read.pages[0]!;
+  };
+
+  it("runs offline from a local langPath and transcribes the page", async () => {
+    const recognize = createTesseractRecognizer({ langPath: TESSDATA });
+    try {
+      const result = await recognize(await scanPage());
+      expect(result.engine).toMatchObject({ kind: "ocr", engine: "tesseract.js" });
+      expect(result.confidence).toBeGreaterThan(0.5);
+      const text = result.blocks.map((b) => b.text).join(" ");
+      expect(text).toContain("Facilities Inspection Report");
+      expect(text).toContain("plant room");
+    } finally {
+      await recognize.close?.();
+    }
+  }, 120_000);
+
+  // The regression guard for the bug these tests were written to catch.
+  it("reads uncompressed .traineddata, which is what tessdata repositories publish", async () => {
+    const recognize = createTesseractRecognizer({ langPath: TESSDATA });
+    try {
+      await expect(recognize(await scanPage())).resolves.toBeDefined();
+    } finally {
+      await recognize.close?.();
+    }
+  }, 120_000);
+
+  // SPEC §3.3 ranks the two recognisers rather than treating them as interchangeable, and
+  // this is the half that can be checked without a network: tesseract returns text and a
+  // confidence, never a heading, so structure has to come from somewhere else.
+  it("recovers text but not structure, which is why the vision path exists", async () => {
+    const recognize = createTesseractRecognizer({ langPath: TESSDATA });
+    try {
+      const result = await recognize(await scanPage());
+      expect(result.blocks.length).toBeGreaterThan(0);
+      expect(result.blocks.some((b) => b.kind === "heading")).toBe(false);
+    } finally {
+      await recognize.close?.();
+    }
+  }, 120_000);
+});
+
+/**
+ * A genuinely scanned document, not one we rasterised ourselves.
+ *
+ * `docs/CORPUS.md` §2.7 asks for found scans because the synthesized ones cannot validate
+ * their own realism: their glyphs are a 5x7 bitmap font, so absolute accuracy on them
+ * predicts nothing about a real page. This is a 1973 NASA technical report — real typeface,
+ * real scanner noise, public domain.
+ *
+ * It carries an archive-added OCR text layer, so it exercises the *text* path rather than
+ * the scan path. That is the finding rather than a mis-selection: publishers OCR their scans
+ * before releasing them, which makes a text-layer-free public-domain scan genuinely rare and
+ * makes "scanned page plus somebody else's OCR" the common real input. See CORPUS.md §2.7.
+ */
+const FOUND_SCAN = join(REPO, "fixtures/local/found-scans/nasa-19730010146.pdf");
+const describeIfFoundScan = existsSync(FOUND_SCAN) ? describe : describe.skip;
+
+describeIfFoundScan("a found scan with an archive-added OCR layer", () => {
+  it("reads it as text, and does not mistake it for an unreadable scan", async () => {
+    const { readPdf } = await import("@markforge/adapters-pdf");
+    const read = await readPdf(new Uint8Array(readFileSync(FOUND_SCAN)), { maxPages: 8 });
+    expect(read.kind).toBe("text");
+    if (read.kind !== "text") return;
+    expect(read.scannedPages).toHaveLength(0);
+    expect(textContent(read.document.body)).toContain("RADIATIVE COOLER");
+  }, 120_000);
+
+  // The §7h payoff on input nobody tuned it against. A constant would report one value
+  // here no matter what the page looked like.
+  it("assigns a range of confidences, not one value, on a real document", async () => {
+    const { readPdf } = await import("@markforge/adapters-pdf");
+    const read = await readPdf(new Uint8Array(readFileSync(FOUND_SCAN)), { maxPages: 8 });
+    if (read.kind !== "text") throw new Error("expected a text result");
+    const distinct = new Set(Object.values(read.document.provenance).map((p) => p.confidence));
+    expect(distinct.size).toBeGreaterThan(2);
+    for (const c of distinct) {
+      expect(c).toBeGreaterThan(0);
+      expect(c).toBeLessThanOrEqual(1);
+    }
+  }, 120_000);
 });
