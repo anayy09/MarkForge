@@ -89,8 +89,9 @@ export function renderDocx(doc: MarkForgeDocument, options: DocxRenderOptions = 
     onMissing,
     revisionMode: options.revisionMode ?? "clean",
     synthesized: new Map(),
-    numberingIds: new Map(),
+    numbering: [],
     nextNumId: 1,
+    hyperlinks: [],
   };
 
   const bodyXml = renderBlocks(doc.body as unknown as AnyNode, ctx, doc);
@@ -120,8 +121,11 @@ interface RenderContext {
   onMissing: "warn" | "error" | "synthesize";
   revisionMode: "clean" | "showInsertions" | "showAll";
   synthesized: Map<string, string>;
-  numberingIds: Map<string, number>;
+  /** One entry per allocated numbering id. Nested levels share their parent's. */
+  numbering: { numId: number; ordered: boolean; start: number }[];
   nextNumId: number;
+  /** Hyperlink targets in allocation order, so each gets a stable relationship id. */
+  hyperlinks: string[];
 }
 
 function collectStyles(pkg: OpcPackage): AvailableStyle[] {
@@ -181,6 +185,23 @@ function styleFor(role: string, ctx: RenderContext): string | undefined {
   );
   return undefined;
 }
+
+/**
+ * Allocates a relationship id for a hyperlink target, reusing it for a repeated URL.
+ *
+ * Ids start at rId3: rId1 and rId2 belong to styles.xml and numbering.xml in the
+ * scaffold below. Colliding with those produces a file Word refuses to open, which is
+ * slow to diagnose from a generic error dialog.
+ */
+function registerHyperlink(ctx: RenderContext, url: string): string {
+  const existing = ctx.hyperlinks.indexOf(url);
+  const index = existing === -1 ? ctx.hyperlinks.push(url) - 1 : existing;
+  return `rId${index + HYPERLINK_REL_BASE}`;
+}
+
+const HYPERLINK_REL_BASE = 3;
+const HYPERLINK_REL_TYPE =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
 
 const synthesizeId = (name: string): string => name.replace(/[^A-Za-z0-9]/g, "") || "MarkForgeStyle";
 
@@ -305,7 +326,12 @@ function paragraph(runs: string, styleId: string | undefined, list?: { numId: nu
  * highlight. Never a font family, never a size, never a colour from a style. Those
  * belong to the named style, which is the entire argument of brief §5.1.
  */
-function inlineRuns(node: AnyNode, ctx: RenderContext, marks: Set<string> = new Set()): string {
+function inlineRuns(
+  node: AnyNode,
+  ctx: RenderContext,
+  marks: Set<string> = new Set(),
+  characterStyle?: string | undefined,
+): string {
   const children = Array.isArray(node.children) ? (node.children as AnyNode[]) : [];
   let out = "";
 
@@ -314,7 +340,7 @@ function inlineRuns(node: AnyNode, ctx: RenderContext, marks: Set<string> = new 
       case "text": {
         const value = typeof child["value"] === "string" ? child["value"] : "";
         if (value === "") break;
-        out += run(value, marks, ctx);
+        out += run(value, marks, ctx, characterStyle);
         break;
       }
       case "inlineCode": {
@@ -352,12 +378,22 @@ function inlineRuns(node: AnyNode, ctx: RenderContext, marks: Set<string> = new 
         out += `<w:r><w:br/></w:r>`;
         break;
       case "link": {
-        // Without writing a relationship part, the URL would be lost. Emitting it as
-        // visible text keeps the information in the document rather than dropping it.
-        const label = textOf(child);
+        // A real w:hyperlink with a relationship, not the URL flattened into prose.
+        //
+        // An earlier version emitted the label underlined followed by "(url)" in body
+        // text, reasoning that visible beats dropped. It was worse than dropped: the
+        // link *type* was destroyed, the URL became prose a reader has to untangle, and
+        // the round trip reported an invented `underline` where a `link` had been.
+        // Pandoc preserves the link, so there was no excuse.
         const url = typeof child["url"] === "string" ? child["url"] : "";
-        out += run(label, new Set([...marks, "u"]), ctx);
-        if (url && url !== label) out += run(` (${url})`, marks, ctx);
+        if (url === "") {
+          out += inlineRuns(child, ctx, marks);
+          break;
+        }
+        const relationshipId = registerHyperlink(ctx, url);
+        const linkStyle = styleFor("link", ctx);
+        const inner = inlineRuns(child, ctx, marks, linkStyle);
+        out += `<w:hyperlink r:id="${relationshipId}">${inner}</w:hyperlink>`;
         break;
       }
       case "deletion":
@@ -387,9 +423,17 @@ function inlineRuns(node: AnyNode, ctx: RenderContext, marks: Set<string> = new 
   return out;
 }
 
-function run(text: string, marks: Set<string>, _ctx: RenderContext): string {
+function run(
+  text: string,
+  marks: Set<string>,
+  _ctx: RenderContext,
+  characterStyle?: string | undefined,
+): string {
   if (text === "") return "";
   const props: string[] = [];
+  // A character style comes first, as OOXML requires: w:rStyle precedes the toggles
+  // that override it.
+  if (characterStyle) props.push(`<w:rStyle w:val="${encodeEntities(characterStyle)}"/>`);
   // Emitted in a fixed order so identical formatting always produces identical
   // bytes; Set iteration order would otherwise depend on insertion order.
   if (marks.has("b")) props.push("<w:b/>");
@@ -404,15 +448,48 @@ function run(text: string, marks: Set<string>, _ctx: RenderContext): string {
   return `<w:r>${rPr}<w:t xml:space="preserve">${encodeEntities(text)}</w:t></w:r>`;
 }
 
-function renderList(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, level = 0): string {
+/**
+ * A list and everything nested inside it.
+ *
+ * **One `numId` for the whole list tree; nesting is expressed by `w:ilvl` alone.**
+ * That is how Word encodes it, and getting it wrong destroys nesting completely: an
+ * earlier version keyed the numbering id on `(ordered, start, level)`, so every depth
+ * got its own `numId`. A reader grouping consecutive paragraphs by `numId` — which is
+ * the only thing it can group by — then saw a *different* list at each level, and
+ * `md → docx → md` turned three nested `ul`s into five flat one-item lists.
+ *
+ * Measured before the fix: `nested-restarting-lists.md` round-tripped from 9 lists to
+ * 12, with all nesting gone. That is a worse defect than the "numbered lists become
+ * bullets" bug this project exists to fix, and it was invisible because the fidelity
+ * metric counted node types without looking at depth.
+ */
+function renderList(
+  node: AnyNode,
+  ctx: RenderContext,
+  doc: MarkForgeDocument,
+  level = 0,
+  inherited?: { numId: number; ordered: boolean },
+): string {
   const ordered = node["ordered"] === true;
   const start = typeof node["start"] === "number" ? node["start"] : 1;
-  const key = `${ordered ? "ol" : "ul"}:${start}:${level}`;
-  let numId = ctx.numberingIds.get(key);
-  if (numId === undefined) {
-    numId = ctx.nextNumId++;
-    ctx.numberingIds.set(key, numId);
-  }
+
+  // A nested list inherits its parent's numbering id — unless its *kind* differs.
+  //
+  // One numbering definition describes one sequence of level formats, so a bullet list
+  // nested inside a numbered list cannot share it: the nested level would render with
+  // the parent's ordered format. A fresh definition is what Word emits for genuinely
+  // mixed nesting, and without it `1. parent / - child` came back as `1. parent /
+  // a. child`. Pandoc gets this wrong the same way, which is why matching Pandoc was
+  // not a good enough target.
+  const numbering =
+    inherited !== undefined && inherited.ordered === ordered
+      ? inherited
+      : (() => {
+          const numId = ctx.nextNumId++;
+          ctx.numbering.push({ numId, ordered, start });
+          return { numId, ordered };
+        })();
+  const numId = numbering.numId;
 
   const items = Array.isArray(node.children) ? (node.children as AnyNode[]) : [];
   let out = "";
@@ -420,7 +497,7 @@ function renderList(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, l
     const blocks = Array.isArray(item.children) ? (item.children as AnyNode[]) : [];
     for (const block of blocks) {
       if (block.type === "list") {
-        out += renderList(block, ctx, doc, level + 1);
+        out += renderList(block, ctx, doc, level + 1, numbering);
       } else if (block.type === "paragraph") {
         out += paragraph(inlineRuns(block, ctx), styleFor("paragraph", ctx), { numId, level });
       } else {
@@ -541,16 +618,25 @@ function ensureScaffold(pkg: OpcPackage, ctx: RenderContext): void {
         `</Relationships>`,
     );
   }
-  if (!pkg.has(Part.DOCUMENT_RELS)) {
-    pkg.set(
-      Part.DOCUMENT_RELS,
-      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
-        `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-        `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
-        `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>` +
-        `</Relationships>`,
-    );
-  }
+  // Always rewritten, never merely defaulted: hyperlink relationships are discovered
+  // while rendering the body, so this part cannot be written before it, and it cannot
+  // be left alone just because the reference document happened to have one.
+  const hyperlinkRels = ctx.hyperlinks
+    .map(
+      (url, i) =>
+        `<Relationship Id="rId${i + HYPERLINK_REL_BASE}" Type="${HYPERLINK_REL_TYPE}" ` +
+        `Target="${encodeEntities(url)}" TargetMode="External"/>`,
+    )
+    .join("");
+  pkg.set(
+    Part.DOCUMENT_RELS,
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+      `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+      `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>` +
+      hyperlinkRels +
+      `</Relationships>`,
+  );
   pkg.set(Part.NUMBERING, numberingXml(ctx));
 }
 
@@ -578,6 +664,8 @@ function minimalStyles(): string {
     `<w:pPr><w:ind w:left="720"/></w:pPr></w:style>` +
     `<w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/><w:basedOn w:val="Normal"/>` +
     `<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/></w:rPr></w:style>` +
+    `<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/>` +
+    `<w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>` +
     `<w:style w:type="character" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/>` +
     `<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/></w:rPr></w:style>` +
     `<w:style w:type="table" w:styleId="Table"><w:name w:val="Table"/>` +
@@ -592,15 +680,21 @@ function minimalStyles(): string {
 
 /** Numbering definitions for the lists actually emitted. */
 function numberingXml(ctx: RenderContext): string {
-  const entries = [...ctx.numberingIds.entries()];
-  const abstracts = entries
-    .map(([key, numId]) => {
-      const ordered = key.startsWith("ol");
-      const start = Number.parseInt(key.split(":")[1] ?? "1", 10);
+  const abstracts = ctx.numbering
+    .map(({ numId, ordered, start }) => {
+      // Nine levels per definition, because one definition serves an entire list
+      // tree and w:ilvl selects the depth. Alternating formats per level is what
+      // Word does and what a reader expects.
       const levels = Array.from({ length: 9 }, (_, i) => {
         const indent = 720 * (i + 1);
-        const fmt = ordered ? (i % 3 === 0 ? "decimal" : i % 3 === 1 ? "lowerLetter" : "lowerRoman") : "bullet";
-        const text = ordered ? `%${i + 1}.` : "•";
+        const fmt = ordered
+          ? i % 3 === 0
+            ? "decimal"
+            : i % 3 === 1
+              ? "lowerLetter"
+              : "lowerRoman"
+          : "bullet";
+        const text = ordered ? `%${i + 1}.` : "\u2022";
         return (
           `<w:lvl w:ilvl="${i}"><w:start w:val="${i === 0 ? start : 1}"/>` +
           `<w:numFmt w:val="${fmt}"/><w:lvlText w:val="${encodeEntities(text)}"/>` +
@@ -611,7 +705,9 @@ function numberingXml(ctx: RenderContext): string {
     })
     .join("");
 
-  const nums = entries.map(([, numId]) => `<w:num w:numId="${numId}"><w:abstractNumId w:val="${numId}"/></w:num>`).join("");
+  const nums = ctx.numbering
+    .map(({ numId }) => `<w:num w:numId="${numId}"><w:abstractNumId w:val="${numId}"/></w:num>`)
+    .join("");
 
   return (
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +

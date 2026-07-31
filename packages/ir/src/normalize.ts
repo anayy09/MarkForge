@@ -25,6 +25,22 @@ export interface NormalizeOptions {
   preserveHardBreaks: boolean;
   /** Rule 3: trailing whitespace trimmed at block boundaries. */
   trimTrailing: boolean;
+  /**
+   * Rule 7: a table cell containing exactly one paragraph unwraps to that
+   * paragraph's children.
+   *
+   * This exists so every adapter agrees on one shape for a simple cell. Markdown and
+   * HTML produce phrasing content directly; DOCX and PPTX wrap it in a paragraph,
+   * because that is what those formats contain. Both are schema-legal, and leaving
+   * both in circulation meant `md -> docx -> md` came back structurally different from
+   * its source: `clean-report.md` gained 16 paragraphs, one per table cell, and the
+   * structural fidelity score dropped accordingly.
+   *
+   * Unwrapping the single-paragraph case picks the flatter shape as canonical. A cell
+   * with two paragraphs, a list, or a nested table keeps its blocks, because there the
+   * structure is real.
+   */
+  unwrapSingleParagraphCells: boolean;
 }
 
 export const DEFAULT_NORMALIZE_OPTIONS: NormalizeOptions = {
@@ -32,6 +48,7 @@ export const DEFAULT_NORMALIZE_OPTIONS: NormalizeOptions = {
   collapseInteriorWhitespace: true,
   preserveHardBreaks: true,
   trimTrailing: true,
+  unwrapSingleParagraphCells: true,
 };
 
 /** Types whose text is literal and must never be whitespace-normalised. */
@@ -148,6 +165,12 @@ export function normalize(
   // already become genuinely empty.
   if (opts.emptyParagraphsToSpacing) {
     changed += absorbEmptyParagraphs(root, sidecar, diagnostics);
+  }
+
+  // Rule 7: a table cell holding exactly one paragraph and nothing else unwraps to
+  // that paragraph's children.
+  if (opts.unwrapSingleParagraphCells) {
+    changed += unwrapCells(root);
   }
 
   return { diagnostics, changed };
@@ -295,6 +318,31 @@ function dropEmptyText(root: AnyNode): number {
     }
   });
   return removed;
+}
+
+/**
+ * Unwraps a table cell that holds exactly one paragraph.
+ *
+ * Only the unambiguous case: one child, of type `paragraph`. Anything else — two
+ * paragraphs, a list, a nested table — is left alone, because there the block
+ * structure carries meaning that flattening would destroy.
+ */
+function unwrapCells(root: AnyNode): number {
+  let unwrapped = 0;
+  visit(root, (n) => {
+    if (n.type !== "tableCell") return;
+    const kids = n.children;
+    if (!Array.isArray(kids) || kids.length !== 1) return;
+    const only = kids[0]!;
+    if (only.type !== "paragraph") return;
+    const inner = Array.isArray(only.children) ? only.children : [];
+    // An empty cell keeps its paragraph: OOXML requires at least one, and stripping it
+    // would make a written DOCX unopenable rather than merely empty.
+    if (inner.length === 0) return;
+    n.children = inner;
+    unwrapped++;
+  });
+  return unwrapped;
 }
 
 const BLOCK_TYPES = new Set([

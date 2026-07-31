@@ -277,14 +277,28 @@ function parseBlockContainer(container: XmlElement, state: ParseState, basePath:
       const info = listInfoFor(el, state);
       if (info) {
         // Consume the whole run of adjacent list paragraphs at once.
+        //
+        // The run continues while a paragraph either shares the run's numbering id, or
+        // sits at a *deeper* level than the run started at — whatever its numbering id.
+        //
+        // That second clause matters. A bullet list nested inside a numbered list needs
+        // its own numbering definition, because one definition describes one sequence of
+        // level formats. Grouping strictly by numId therefore cut the parent list in two
+        // at the nested child: `1. a / - x / 2. b` came back as three sibling lists
+        // instead of one list with a nested child. Depth is the reliable signal for
+        // nesting; the numbering id only tells you which definition supplies the marker.
         const items: { el: XmlElement; level: number; ordered: boolean; restartsAt?: number }[] = [];
         let j = i;
-        let numberingId = info.numberingId;
+        const baseNumberingId = info.numberingId;
+        const baseLevel = info.level;
         while (j < children.length) {
           const candidate = children[j]!;
           if (candidate.local !== "p") break;
           const candidateInfo = listInfoFor(candidate, state);
-          if (!candidateInfo || candidateInfo.numberingId !== numberingId) break;
+          if (!candidateInfo) break;
+          const sameList = candidateInfo.numberingId === baseNumberingId;
+          const nestedDeeper = candidateInfo.level > baseLevel;
+          if (!sameList && !nestedDeeper) break;
           const item: { el: XmlElement; level: number; ordered: boolean; restartsAt?: number } = {
             el: candidate,
             level: candidateInfo.level,

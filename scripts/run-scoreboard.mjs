@@ -207,34 +207,43 @@ const lines = [
   "",
   "## What this shows",
   "",
-  "**Text, table, and span fidelity tie.** Both tools recover the words, the cells, and the",
-  "inline marks equally well on this corpus. That is the part a user notices.",
+  "On this corpus MarkForge and Pandoc both recover text, tables, and inline marks exactly,",
+  "and MarkForge is marginally ahead on structure.",
   "",
-  "**Pandoc scores higher on the structural metric, so the brief's Phase 1 criterion —",
-  '"beats the reference project and Pandoc" — is not met on that metric.* Saying so is more',
-  "useful than adjusting the metric until it is.",
+  "**This was not true a day ago, and the reason is worth recording.** The first run of this",
+  "scoreboard had Pandoc ahead on structure, 97.5% against 92.8%. I attributed the gap to",
+  "MarkForge keeping a richer representation than the Markdown-shaped reference — plausible,",
+  "and wrong. Diffing the node-type census against ground truth found three defects in our",
+  "own DOCX *writer*:",
   "",
-  "The mechanism is worth understanding before treating the gap as a defect. Ground truth is",
-  "Markdown-shaped, and Pandoc's route passes through Markdown, so its output matches the",
-  "target's shape by construction. MarkForge reads DOCX into the IR directly, and the IR keeps",
-  "structure Markdown cannot express: a list item wrapping a paragraph, a cell holding block",
-  "content, evidence in the sidecar. Tree-edit distance counts those nodes as differences from",
-  "a flatter reference.",
+  "1. **Nested lists were flattened.** The writer allocated a numbering id per nesting level,",
+  "   so a reader grouping paragraphs by numbering id saw a separate list at each depth. Three",
+  "   nested bullet lists round-tripped into five flat one-item lists.",
+  "2. **Links lost their URL.** The writer emitted the label underlined followed by the URL in",
+  "   parentheses, rather than writing a hyperlink relationship. The link type was destroyed",
+  "   and the address became prose.",
+  "3. **Every table cell gained a paragraph.** Markdown cells hold phrasing content; ours",
+  "   wrapped each in a paragraph, so one fixture came back with sixteen extra nodes.",
   "",
-  "So part of the gap is real and part is an artefact of measuring a richer representation",
-  "against a flatter one. **Which part is which is not yet separated**, and until it is, this",
-  "table should not be quoted as either a win or a loss.",
+  "Fixing those raised **both** tools' scores, because both were reading a DOCX we had",
+  "written badly — Pandoc's span F1 went from 90.5% to 100% without Pandoc changing at all.",
+  "That is the useful lesson: a comparison that looked like a reader deficiency was a writer",
+  "defect, and the *shape* of the loss (which node types differed, and by how many) is what",
+  "pointed at it. The aggregate score never would have.",
   "",
-  "## What would make this fair",
+  "## What this still does not show",
   "",
-  "1. **Pandoc-authored DOCX files as input**, so the writer is not ours.",
-  "2. **Ground truth that is not Markdown-shaped** — a hand-authored IR per fixture, which is",
-  "   what the construct inventories in `fixtures/expected/` are for.",
-  "3. **A corpus of real documents.** Seven authored fixtures is not a sample. Categories §2.3",
-  "   and §2.15 of `docs/CORPUS.md` exist for this and are not built yet.",
+  "1. **Pandoc-authored DOCX files are not tested.** The input is always written by us, so",
+  "   this measures our writer and both readers, not Pandoc's writer.",
+  "2. **Ground truth is Markdown-shaped**, so a construct Markdown cannot express is invisible",
+  "   to the comparison rather than scored. Hand-authored IR per fixture would fix that; it is",
+  "   what `fixtures/expected/` construct inventories are for.",
+  "3. **Seven authored fixtures is not a sample.** Categories §2.3 (badly formatted real-world",
+  "   documents) and §2.15 (library-generated) of `docs/CORPUS.md` are not built, and they are",
+  "   where a converter actually earns its score.",
   "",
-  "Until those exist, this measures one narrow thing honestly rather than a broad thing",
-  "loosely.",
+  "Scoring 100% here means the round trip is clean on documents we designed. It does not mean",
+  "the converter is finished.",
   "",
 ];
 
@@ -250,17 +259,19 @@ console.log("docs/SCOREBOARD.md written.");
 // forever or invite tuning the metric until it passed. The honest gate is "do not get
 // worse at what we are currently equal on".
 if (CHECK) {
+  // Every metric is now included. The Structural exemption existed only while we were
+  // behind on it, and keeping an exemption after the reason for it is fixed is how a
+  // gate quietly stops testing anything.
   const lost = [];
   for (const row of rows) {
     for (const [label, getMine, getTheirs] of METRICS) {
-      if (label === "Structural") continue; // known gap, explained above
       if (getTheirs(row) - getMine(row) > TIE_BAND) lost.push(`${row.fixture}/${label}`);
     }
   }
   if (lost.length > 0) {
-    console.log(`\nRegression against Pandoc on previously-tied metrics: ${lost.join(", ")}.`);
+    console.log(`\nMarkForge now scores below Pandoc on: ${lost.join(", ")}.`);
     process.exit(4);
   }
-  console.log("No regression against Pandoc on text, table, or span fidelity.");
+  console.log("MarkForge matches or beats Pandoc on every metric-fixture pair.");
 }
 process.exit(0);

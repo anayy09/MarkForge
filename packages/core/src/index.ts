@@ -18,7 +18,7 @@ import { renderDocx, type DocxRenderOptions } from "@markforge/render-docx";
 import { parseHtmlDocument } from "@markforge/adapters-html";
 import { renderHtml, DEFAULT_STYLESHEET, type HtmlRenderOptions } from "@markforge/render-html";
 import { parsePptx, parseXlsx } from "@markforge/adapters-office";
-import { inferHeadings, explainDecisions, type Decision, type InferOptions } from "@markforge/infer";
+import { inferAll, explainDecisions, type Decision, type InferOptions } from "@markforge/infer";
 
 const CORE = { kind: "rule" as const, name: "@markforge/core", version: "0.1.0" };
 
@@ -193,7 +193,7 @@ export function convert(
 
   let decisions: Decision[] = [];
   if (options.infer !== false) {
-    const inferred = inferHeadings(parsed.document, options.infer ?? {});
+    const inferred = inferAll(parsed.document, options.infer ?? {});
     all.merge(inferred.diagnostics);
     decisions = inferred.decisions;
   }
@@ -226,7 +226,7 @@ export async function convertAsync(
 
   let decisions: Decision[] = [];
   if (options.infer !== false) {
-    const inferred = inferHeadings(parsed.document, options.infer ?? {});
+    const inferred = inferAll(parsed.document, options.infer ?? {});
     all.merge(inferred.diagnostics);
     decisions = inferred.decisions;
   }

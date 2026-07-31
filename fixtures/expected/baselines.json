@@ -15,7 +15,7 @@
     {
       "fixture": "clean-report",
       "loop": "md->docx->md",
-      "structural": 0.9059,
+      "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
       "tableF1": 1,
@@ -25,7 +25,7 @@
     {
       "fixture": "clean-report",
       "loop": "docx->md->docx",
-      "structural": 0.9731,
+      "structural": 0.9675,
       "textSensitive": 1,
       "textInsensitive": 1,
       "tableF1": 1,
@@ -35,7 +35,7 @@
     {
       "fixture": "clean-report",
       "loop": "md->html->md",
-      "structural": 0.9059,
+      "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
       "tableF1": 1,
@@ -55,12 +55,12 @@
     {
       "fixture": "inline-marks",
       "loop": "md->docx->md",
-      "structural": 0.9848,
-      "textSensitive": 0.9321,
-      "textInsensitive": 0.9321,
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
       "tableF1": 1,
       "tableContentF1": 1,
-      "spanF1": 0.8571
+      "spanF1": 1
     },
     {
       "fixture": "inline-marks",
@@ -70,7 +70,7 @@
       "textInsensitive": 1,
       "tableF1": 1,
       "tableContentF1": 1,
-      "spanF1": 0.8571
+      "spanF1": 1
     },
     {
       "fixture": "inline-marks",
@@ -95,7 +95,7 @@
     {
       "fixture": "nested-restarting-lists",
       "loop": "md->docx->md",
-      "structural": 0.898,
+      "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
       "tableF1": 1,
@@ -105,7 +105,7 @@
     {
       "fixture": "nested-restarting-lists",
       "loop": "docx->md->docx",
-      "structural": 0.9521,
+      "structural": 0.9931,
       "textSensitive": 1,
       "textInsensitive": 1,
       "tableF1": 1,
@@ -135,27 +135,27 @@
     {
       "fixture": "tables",
       "loop": "md->docx->md",
-      "structural": 0.8503,
-      "textSensitive": 0.8817,
-      "textInsensitive": 0.8817,
-      "tableF1": 0.95,
-      "tableContentF1": 0.95,
-      "spanF1": 0.6667
-    },
-    {
-      "fixture": "tables",
-      "loop": "docx->md->docx",
-      "structural": 0.9882,
+      "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
       "tableF1": 1,
       "tableContentF1": 1,
-      "spanF1": 0.6667
+      "spanF1": 1
+    },
+    {
+      "fixture": "tables",
+      "loop": "docx->md->docx",
+      "structural": 0.9921,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
     },
     {
       "fixture": "tables",
       "loop": "md->html->md",
-      "structural": 0.863,
+      "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
       "tableF1": 1,
@@ -215,12 +215,12 @@
     {
       "fixture": "semantic-structure",
       "loop": "html->docx->html",
-      "structural": 0.8716,
-      "textSensitive": 0.7455,
-      "textInsensitive": 0.7455,
+      "structural": 0.9174,
+      "textSensitive": 0.8244,
+      "textInsensitive": 0.8244,
       "tableF1": 1,
       "tableContentF1": 1,
-      "spanF1": 0.75
+      "spanF1": 1
     },
     {
       "fixture": "semantic-structure",
@@ -245,7 +245,7 @@
     {
       "fixture": "spans-ground-truth",
       "loop": "html->docx->html",
-      "structural": 0.9619,
+      "structural": 0.9239,
       "textSensitive": 1,
       "textInsensitive": 1,
       "tableF1": 0.7,
@@ -255,7 +255,7 @@
     {
       "fixture": "spans-ground-truth",
       "loop": "html->md->html",
-      "structural": 0.7303,
+      "structural": 0.8025,
       "textSensitive": 0.7775,
       "textInsensitive": 0.7775,
       "tableF1": 0.2727,
