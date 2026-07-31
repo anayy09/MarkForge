@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parsePdf, readPdf, groupIntoLines, detectColumns, joinBlockText, type TextRun, type Line } from "../src/index.js";
+import { analysePage, parsePdf, readPdf, groupIntoLines, detectColumns, joinBlockText, type TextRun, type Line } from "../src/index.js";
 import { buildPdf, paragraphPage } from "./helpers.js";
 import { checkUnknownNodesDiagnosed, selectType, textContent, validateDocument } from "@markforge/ir";
 
@@ -268,6 +268,127 @@ describe("PDF adapter", () => {
     const { document } = await parsePdf(buildPdf([paragraphPage(["Some body text here."])]));
     const confidences = Object.values(document.provenance).map((p) => p.confidence);
     expect(confidences.every((c) => typeof c === "number" && c < 1)).toBe(true);
+  });
+
+  // OPEN_QUESTIONS §7h. A constant 0.8 on every inference made the field decorative:
+  // reading order in a clean single-column page is near-certain, column segmentation
+  // across a narrow gutter is a guess, and both reported the same number. These assert
+  // the property the reviewer actually asked for — the value is monotonic in the
+  // strength of the evidence — rather than any particular calibration.
+  describe("confidence is derived from the evidence", () => {
+    /** Confidence of the first node whose text matches. */
+    const confidenceOf = async (pdf: Uint8Array, needle: string): Promise<number> => {
+      const { document } = await parsePdf(pdf);
+      const children = (document.body as { children: { id?: string }[] }).children;
+      for (const child of children) {
+        if (!textContent(child as never).includes(needle)) continue;
+        return document.provenance[child.id as string]!.confidence as number;
+      }
+      throw new Error(`no node containing ${JSON.stringify(needle)}`);
+    };
+
+    /**
+     * A lead block, then body at ordinary leading with a wide gap between.
+     *
+     * The gap has to be generous: `groupIntoBlocks` splits on a vertical gap materially
+     * larger than the column's own measured leading, so a lead line only 28pt above
+     * 18pt-leaded body lands in the *same* block and the test would measure a paragraph
+     * containing everything.
+     */
+    const leadThenBody = (lead: { text: string; sizePt: number }) =>
+      buildPdf([
+        {
+          items: [
+            { text: lead.text, x: 72, y: 72, sizePt: lead.sizePt },
+            { text: "Body text establishing the document median size.", x: 72, y: 140, sizePt: 11 },
+            { text: "A second sentence of ordinary body prose here.", x: 72, y: 158, sizePt: 11 },
+            { text: "A third sentence, so the leading is unambiguous.", x: 72, y: 176, sizePt: 11 },
+            { text: "A fourth, which fixes the median gap at eighteen.", x: 72, y: 194, sizePt: 11 },
+          ],
+        },
+      ]);
+
+    it("is more confident about a clearly oversized heading than a marginal one", async () => {
+      // 11pt body. 12.7pt is 1.15x — only just over the threshold. 22pt is not in doubt.
+      const marginal = await confidenceOf(
+        leadThenBody({ text: "Marginal Heading", sizePt: 12.7 }),
+        "Marginal Heading",
+      );
+      const obvious = await confidenceOf(
+        leadThenBody({ text: "Obvious Heading", sizePt: 22 }),
+        "Obvious Heading",
+      );
+      expect(obvious).toBeGreaterThan(marginal);
+    });
+
+    it("is less confident about a paragraph that nearly became a heading", async () => {
+      // Short, no terminal punctuation, single line, but below the size threshold —
+      // three of the four heading signals. Exactly what a reviewer should look at.
+      const nearMiss = await confidenceOf(
+        leadThenBody({ text: "Results And Discussion", sizePt: 11 }),
+        "Results And Discussion",
+      );
+      const plainBody = await confidenceOf(
+        leadThenBody({ text: "A lead sentence that ends in a full stop.", sizePt: 11 }),
+        "A lead sentence",
+      );
+      expect(nearMiss).toBeLessThan(plainBody);
+    });
+
+    it("is more confident about a wide gutter than a narrow one", () => {
+      const twoColumns = (gutterPt: number) => {
+        const rightX = 72 + 200 + gutterPt;
+        const lines: Line[] = [];
+        for (let i = 0; i < 4; i++) {
+          const y = 100 + i * 14;
+          lines.push({ runs: [], text: `left ${i}`, x: 72, y, width: 200, height: 10 });
+          lines.push({ runs: [], text: `right ${i}`, x: rightX, y, width: 200, height: 10 });
+        }
+        return lines;
+      };
+      // detectColumns is the segmentation; analysePage is what scores it. Drive the
+      // scorer through a real page so the word-gap unit is measured, not supplied.
+      const page = (gutterPt: number) => {
+        const runs: TextRun[] = [];
+        const rightX = 72 + 200 + gutterPt;
+        for (let i = 0; i < 4; i++) {
+          const y = 100 + i * 14;
+          // Two runs per line, 3pt apart: that 3pt is the page's word-space unit.
+          runs.push(run("left", 72, y, 10, 98), run("side", 173, y, 10, 99));
+          runs.push(run("right", rightX, y, 10, 98), run("side", rightX + 101, y, 10, 99));
+        }
+        return analysePage(runs, 612);
+      };
+      expect(twoColumns(60)).toHaveLength(8); // the helper is sane
+      const wide = page(80);
+      const narrow = page(20);
+      expect(wide.columns.length).toBe(2);
+      expect(narrow.columns.length).toBe(2);
+      expect(wide.readingOrderConfidence).toBeGreaterThan(narrow.readingOrderConfidence);
+      // And the measurements behind the number are recorded, not just the number.
+      expect(wide.readingOrderEvidence.narrowestGutterPt).toBeGreaterThan(
+        narrow.readingOrderEvidence.narrowestGutterPt!,
+      );
+      expect(wide.readingOrderEvidence.wordGapPt).toBeGreaterThan(0);
+    });
+
+    it("treats a single column as near-certain, and never as certain", () => {
+      const runs: TextRun[] = [];
+      for (let i = 0; i < 4; i++) runs.push(run("a single column of text", 72, 100 + i * 14, 10, 400));
+      const layout = analysePage(runs, 612);
+      expect(layout.columns).toHaveLength(1);
+      expect(layout.readingOrderConfidence).toBeGreaterThan(0.9);
+      // Never 1: whitespace-laid-out tables read as one column and come back wrong.
+      expect(layout.readingOrderConfidence).toBeLessThan(1);
+    });
+
+    it("does not report one value for every node, which is the whole point", async () => {
+      const { document } = await parsePdf(
+        leadThenBody({ text: "A Clear Section Heading", sizePt: 20 }),
+      );
+      const distinct = new Set(Object.values(document.provenance).map((p) => p.confidence));
+      expect(distinct.size).toBeGreaterThan(1);
+    });
   });
 
   it("records layoutGeometry as the evidence origin", async () => {

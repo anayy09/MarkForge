@@ -19,9 +19,11 @@
     "check:schemas": "node scripts/check-schemas.mjs",
     "check:fixtures": "node scripts/check-fixtures.mjs",
     "check:corpus": "node scripts/build-messy-fixtures.mjs --check",
+    "check:markdown": "node scripts/check-markdown-lint.mjs",
+    "check:mammoth": "node scripts/diff-mammoth.mjs --check",
     "codegen": "node scripts/codegen-types.mjs",
     "fidelity": "node scripts/run-fidelity.mjs",
-    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run typecheck && pnpm run test"
+    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run typecheck && pnpm run check:markdown && pnpm run check:mammoth && pnpm run test"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -29,6 +31,8 @@
     "ajv-formats": "^3.0.1",
     "fast-check": "^3.23.2",
     "json-schema-to-typescript": "^15.0.4",
+    "mammoth": "^1.12.0",
+    "markdownlint": "^0.41.1",
     "pdfjs-dist": "^4.10.38",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8",

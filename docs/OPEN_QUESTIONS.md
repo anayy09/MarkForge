@@ -12,7 +12,7 @@ asking, and §8, questions that can only be answered by running code.
 | --- | --- | --- |
 | License | Apache-2.0 | [ADR-0008](adr/0008-license-apache-2.md) |
 | PDF engine | Typst via `typst.ts` | [ADR-0003](adr/0003-pdf-engine-typst.md) |
-| DOCX parse strategy | Own OOXML reader, not Mammoth (deviation from brief §5.2) | [ADR-0005](adr/0005-docx-adapter-own-ooxml-reader.md) |
+| DOCX parse strategy | Own OOXML reader, not Mammoth (deviation from brief §5.2), guarded by a triaged differential test against Mammoth | [ADR-0005](adr/0005-docx-adapter-own-ooxml-reader.md), [MAMMOTH-DIFF.md](MAMMOTH-DIFF.md) |
 | Phase 4 agent targets | `AGENTS.md` + `CLAUDE.md` first-class, plus Claude Code skills, slash commands, and MCP manifest | [ADR-0013](adr/0013-target-registry-agents-md-base.md) |
 | Model registry, routing policy, capability tags | **Descoped.** No registry. A URL, an env-var name, and three model names | [ADR-0009](adr/0009-llm-openai-compatible-only.md), `SPEC.md` §6.1–6.2 |
 | API key environment variable | `MODEL_API_KEY` | [ADR-0009](adr/0009-llm-openai-compatible-only.md) |
@@ -264,6 +264,17 @@ Added during Phase 2:
 amending the Phase 0 schema. The schema followed mdast literally; `CORPUS.md` §2.5 requires
 cells containing block content, so the two contradicted each other. Argued in `SPEC.md` §2.7.1.
 
+*Affirmed 2026-07-31, with the degradation policy now written down.* Widening the cell type
+was right — mdast is a Markdown AST and our IR supersedes it by design — but it collides with
+GFM, whose pipe cell holds one line of inline content and can express neither a merged cell
+nor block content. The policy is `markdown.tables`, specified in `SPEC.md` §4.1: `auto`
+(default) writes pipe syntax when every cell fits and a raw HTML `<table>` for the whole table
+when any does not; `gfm` always writes pipes; `html` always writes HTML. **No setting is
+silent** — `auto` emits an `info` recording the switch, `gfm` emits a `degraded` naming what
+was flattened. The whole table degrades rather than the offending cell, because a table half
+in pipes and half in HTML is valid as neither, and the HTML comes from `renderHtmlFragment` so
+it round-trips through our own adapter rather than into a second dialect nobody tests.
+
 **7f. PPTX and XLSX are read-only.** The brief's §11 Phase 2 lists them without saying which
 direction. Adapters exist; renderers do not, because generating a presentation or a spreadsheet
 was not asked for and would be speculative machinery. `--to pptx` refuses by name. Cheap to
@@ -277,8 +288,20 @@ and splitting them would duplicate that scaffolding for no boundary anyone needs
 adapter records evidence and leaves decisions to `@markforge/infer`, because every other format
 states its own structure. A PDF has glyphs at coordinates and nothing else, so refusing to infer
 would mean refusing to read PDFs. The inference is deterministic, thresholds derive from the
-document's own measurements, and provenance carries `confidence: 0.8` so the guess is labelled
-as one. ADR-0012 anticipated this; it is recorded here as an explicit A5 exception.
+document's own measurements, and provenance carries a confidence so the guess is labelled as
+one. ADR-0012 anticipated this; it is recorded here as an explicit A5 exception.
+
+*Affirmed 2026-07-31, but the constant is gone.* The A5 exception stands. `confidence: 0.8` on
+every inference did not: it made the field decorative, because reading order in a clean
+single-column page is near-certain while column segmentation across a narrow gutter is a
+guess, and both reported the same number — so `@markforge/infer` and the tie-break layer had
+no signal to act on and "route the ambiguous cases to a stronger model" meant nothing.
+Confidence is now derived from the evidence that produced the inference: gutter width measured
+**in units of the page's own word gap** rather than in points, distance above the heading size
+threshold, and how many heading signals a paragraph nearly satisfied. A node takes the weaker
+of its reading-order and block-type confidences. Not calibrated and not a probability — only
+monotonic in the strength of the evidence, which is all "escalate the bottom decile" requires.
+`SPEC.md` §3.3, `PageLayout.readingOrderEvidence`.
 
 **7i. A PDF with no text layer throws rather than returning an empty document. — RULED ON
 2026-07-31: modify. The check is per page, not per document.**
@@ -303,9 +326,24 @@ adapter rule A6 and is what makes `--strict` exit non-zero. This keeps no-silent
 the tool useful on documents that actually exist. `packages/adapters-pdf/src/index.ts`; the
 mixed case is covered by its own suite in `packages/adapters-pdf/test/pdf.test.ts`.
 
-**7j. `parseAsync`/`convertAsync` exist alongside the synchronous pair.** PDF extraction is
-inherently asynchronous, and making every conversion async would force every caller to await a
-Markdown conversion that does no I/O. `parse("pdf")` throws and names the function that works.
+**7j. `parseAsync`/`convertAsync` exist alongside the synchronous pair. — RULED ON 2026-07-31:
+reversed. The API is async-only.**
+
+*Original entry:* PDF extraction is inherently asynchronous, and making every conversion async
+would force every caller to await a Markdown conversion that does no I/O.
+
+*Verdict:* the ergonomic cost being avoided was one `await`. The cost being taken on was a
+second public surface that every adapter and renderer had to keep in parity — and it was going
+to break anyway, because `typst.ts` needs async WASM initialisation, the DOCX renderer reads a
+reference document and may load fonts, and the browser build has no synchronous file access at
+all. The sync half could only ever have covered Markdown-to-Markdown, while imposing a "which
+variant does this go in" decision on every future contribution.
+
+So `parse`, `render`, and `convert` are async; `parseAsync` and `convertAsync` are gone.
+`formatMarkdown` is renamed **`formatMarkdownSync`** — the single synchronous entry point,
+suffixed precisely so it reads as an exception rather than half of a pair, and documented as
+not generalisable. `render` is async today even though every renderer built so far is
+synchronous, so that the signature does not change on the day PDF output lands.
 
 ---
 
@@ -319,6 +357,19 @@ Not open questions for the reviewer — recorded so they are not mistaken for ov
 - **Do the fidelity metric definitions in `SPEC.md` §9 produce stable scores** on the corpus,
   or do they need tolerance tuning? ADR-0010 commits to committed baselines; the initial
   tolerance of 0.005 is a guess until the corpus exists.
-- **Is `remark-stringify` + markdownlint autofix genuinely idempotent** under the pinned option
-  set of ADR-0006, or does a fixed point require iteration to converge? Property tests decide;
-  `maxIterations: 8` is a guard, not a claim.
+- **~~Is `remark-stringify` + markdownlint autofix genuinely idempotent~~ — ANSWERED
+  2026-07-31, by removing the autofix pass.** The reviewer asked whether the iteration was
+  avoidable *by construction* before we committed to guarding it, and it is. Two tools that
+  can disagree about emphasis markers, list bullets, and line wrapping can each undo the
+  other, and that mutual undoing was the only reason a fixed point was ever in doubt.
+  Configuring `remark-stringify` to satisfy the rule set up front and running markdownlint
+  **check-only in CI** makes idempotency follow from `stringify` being a pure function of the
+  tree: no loop, no `maxIterations`, nothing to oscillate.
+
+  Measured before adopting it (`scripts/check-markdown-lint.mjs`, wired into `pnpm verify`):
+  34 rendered files, **zero violations**, no autofix pass. Five rules are disabled and each
+  conflicts with a decision recorded elsewhere rather than being one the configuration could
+  not meet. The interesting one is `MD029`, which wants every ordered list renumbered from 1
+  and would therefore destroy `restartsAt` — the field the IR carries precisely so a list
+  starting at 7 survives a round trip. ADR-0006 is amended; a lint violation now means the
+  stringify configuration has drifted, which is a better failure than a silent 9th iteration.

@@ -304,6 +304,32 @@ function scoreHeading(node: AnyNode, evidence: StyleEvidence, bodySize: number):
     return out;
   }
 
+  // --- 2b. A style *id* of "HeadingN" whose definition is missing from styles.xml.
+  //
+  // Found by the Mammoth differential test (ADR-0005, docs/MAMMOTH-DIFF.md): on
+  // `messy-inconsistent-cascade.docx` Mammoth recovers an `<h4>` where we produced a
+  // paragraph. The document references `w:pStyle w:val="Heading4"` and never defines it,
+  // so there is no style *name* to match on and no inherited `outlineLevel` — but the id
+  // itself states the author's intent, and dropping it loses a heading that Word would
+  // also render unstyled yet every human reader would call a heading.
+  //
+  // Scored below the resolved-name case rather than equal to it. An id is a weaker
+  // witness than a definition: it could be a coincidental name, and nothing corroborates
+  // the level. That gap is what makes this a candidate the tie-breaker can revisit rather
+  // than a fact, which is the right status for a recovery from missing data.
+  const styleId = evidence.sourceStyleId ?? "";
+  const byId = /^heading\s*([1-9])$/i.exec(styleId.trim());
+  if (byId) {
+    out.push({
+      interpretation: `heading${byId[1]}`,
+      score: 0.8,
+      reasons: [
+        `style id "${styleId}" names a heading level, though styles.xml does not define it`,
+      ],
+    });
+    return out;
+  }
+
   // --- 3. Direct formatting. Only when the schema says the author formatted by
   // hand: `origin === "directFormatting"` is the documented signal that inference
   // is needed, and running this branch on styled text would second-guess the author.

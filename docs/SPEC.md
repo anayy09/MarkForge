@@ -505,8 +505,53 @@ analysis is ours:
    confidence-gated escalation is copied from marker's architecture
    (`PRIOR_ART.md` §4).
 6. **Figure and caption binding** by proximity and caption-pattern matching.
-7. **Missing text layer** (no extractable glyphs, or glyph coverage below a threshold)
-   routes to OCR or VLM with an `info` diagnostic recording the decision.
+7. **Missing text layer**, tested **per page** rather than against a document average
+   (OPEN_QUESTIONS §7i). An average hides the common real case — a born-digital report
+   with a signed cover sheet, a photocopied appendix — which passes the document test
+   while its scanned pages vanish. Three outcomes:
+   - *every* page below the coverage threshold: `readPdf` returns `kind: "scan"` with the
+     page images, and `parsePdf` throws, because a caller that asked for a document
+     cannot be handed one;
+   - *some* pages below: the readable pages convert, each unreadable page becomes an
+     `unknown` placeholder node in reading position carrying a lossy diagnostic with its
+     node id and page number, and only those pages are rasterised for a recogniser.
+     Lossiness is what makes `--strict` exit non-zero;
+   - *no* page below: the ordinary path.
+
+   Either scanned branch routes to a recogniser with an `info` diagnostic recording the
+   decision. **Two recognisers satisfy one interface** (`Recognizer` in
+   `@markforge/adapters-ocr`, ADR-0017): tesseract.js locally, and a vision model behind
+   `@markforge/llm`. That is what gives `--no-llm` a real scanned-page path rather than a
+   refusal — tesseract is deterministic, offline, and needs no key. It is an
+   `optionalDependency`, imported lazily on first use, and it refuses to run unless
+   `langPath` names a local language-data directory or `allowDownload` is passed
+   explicitly, because brief §3.6 makes every network call opt-in. A vision model reads
+   structure tesseract cannot — it can see that a line is large and bold, where tesseract
+   returns text and a confidence — so the two are ranked rather than interchangeable, and
+   the difference is reported in the OCR rows of `FIDELITY.md`.
+
+**Confidence is derived, not constant** (OPEN_QUESTIONS §7h). Every node this adapter
+produces carries a `confidence` in provenance, computed from the evidence that produced it
+rather than from a fixed value:
+
+- *Reading order*, per page. One column scores 0.95 — near-certain, but deliberately not 1,
+  because text laid out as a table with whitespace reads as one column and comes back as
+  run-together lines. Multiple columns score on the narrowest gutter measured **in units of
+  the page's own median word gap**, not in points: 12pt is a decisive break in 8pt type and
+  ordinary word spacing in an 18pt display face. Below 2× is no evidence; 10× or more is as
+  good as this measurement gets. The measurements themselves are kept in
+  `PageLayout.readingOrderEvidence`.
+- *Block type*. A heading scores on how far its size ratio clears the 1.15 threshold. A
+  paragraph scores on how *few* of the four heading signals held — three of four is a near
+  miss and is reported as such, because a near miss is precisely what a reviewer or a
+  stronger model should be pointed at. A list scores highest of the three, because a marker
+  is a character in the file rather than a measurement of one.
+
+A node takes the weaker of the two, not their product: they are independent kinds of doubt,
+and a node is only as trustworthy as its weakest link. The scale is **not calibrated and not
+a probability**. It is required only to be monotonic in the strength of the evidence, which
+is what makes "escalate the least confident decile to the vision model" a sentence that means
+something — and what a constant made impossible.
 
 ### 3.4 Other adapters
 
@@ -561,21 +606,48 @@ interface OutputFile { path: string; bytes: Uint8Array; role: "primary" | "asset
 
 ### 4.1 Markdown renderer (ADR-0006)
 
-`remark-stringify` with a fully pinned option set, then `markdownlint` autofix as a
-verification-and-repair pass, in that fixed order, then a re-parse check. Prettier is not in
-the pipeline (`PRIOR_ART.md` §16).
+`remark-stringify` with a fully pinned option set, configured so its output already
+satisfies the lint rule set, then `markdownlint` in **check-only** mode as a CI gate, then a
+re-parse check. Prettier is not in the pipeline (`PRIOR_ART.md` §16), and neither is
+markdownlint autofix: ADR-0006 was amended on 2026-07-31 to drop the repair loop, because
+two formatters that can disagree can each undo the other, and that mutual undoing was the
+only reason a fixed point was ever in doubt. Measured at 34 files, zero violations, no
+autofix pass (`scripts/check-markdown-lint.mjs`).
 
 Flavour presets are **data**: CommonMark, GFM, MDX, Docusaurus, MkDocs Material, Obsidian,
 Pandoc. A preset declares available syntax (footnote form, math delimiters, admonition
 syntax, table style, front-matter language) plus a `remark-stringify` option set. Nothing
 about a flavour lives in code.
 
+**Table degradation policy** (OPEN_QUESTIONS §7e). A GFM pipe cell holds one line of inline
+content, so it can express neither a merged cell nor a cell containing block content — and
+our `TableCell.children` was deliberately widened to allow the latter (§2.7.1), which makes
+the collision structural rather than incidental. The policy, `markdown.tables`:
+
+| Value | Behaviour |
+| --- | --- |
+| `auto` (default) | Pipe syntax when every cell fits it; a raw HTML `<table>` for the whole table when any cell does not. Nothing is lost, and an `info` diagnostic records the switch. |
+| `gfm` | Always pipe syntax. Merges and block content are flattened, and every table it damages gets a `degraded` diagnostic naming what went. |
+| `html` | Always an HTML table, so a downstream tool sees one syntax rather than two. |
+
+The whole table degrades, not the offending cell: a table half in pipes and half in HTML is
+not valid either way. HTML blocks are CommonMark, and the fragment is produced by
+`renderHtmlFragment` — the same serializer our HTML adapter reads back — so `auto` output
+round-trips into the same IR rather than into a second dialect nobody tests.
+
+**Under no setting is the choice silent.** Writing a merged table as pipes does not merely
+lose the merge: covered grid positions come back as empty cells, so a 6-cell table with two
+merges re-parses as 8 cells with only 3 on their original coordinates. That measured at a
+table-cell F1 of 42.9% on `fixtures/docx/messy-combined.docx`, undiagnosed, before this
+policy existed — which is exactly the failure §1.3 forbids.
+
 **Idempotency proof obligation.** `fmt(fmt(x)) == fmt(x)` for all `x`, established by:
 (a) `stringify` is a total function of the tree; (b) `parse(stringify(t))` is
 tree-equivalent to `t` under the flavour's normalization — property-tested by round-tripping
-generated trees; (c) markdownlint autofix is applied to a fixed point with a documented
-iteration cap, and hitting the cap is an error, not a silent stop. Exposed standalone as
-`markforge fmt`, which brief §5.4 rightly notes is a useful product by itself.
+generated trees. There is no clause (c): with one authority in the pipeline the property
+follows from (a) and (b) rather than needing a convergence argument. Exposed standalone as
+`markforge fmt`, which brief §5.4 rightly notes is a useful product by itself, and as
+`formatMarkdownSync` — the one synchronous entry point in `@markforge/core` (§7j).
 
 ### 4.2 DOCX renderer (ADR-0004)
 

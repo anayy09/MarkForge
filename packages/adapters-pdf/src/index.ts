@@ -182,6 +182,7 @@ export async function readPdf(
   const blocks: AnyNode[] = [];
   const evidence = new Map<AnyNode, StyleEvidence>();
   const pageOf = new Map<AnyNode, number>();
+  const confidenceOf = new Map<AnyNode, number>();
   let totalChars = 0;
   const allHeights: number[] = [];
 
@@ -333,9 +334,17 @@ export async function readPdf(
 
     for (const column of layout.columns) {
       for (const lines of groupIntoBlocks(column, layout.bodyLeading)) {
-        const node = blockToNode(lines, documentBodyHeight, evidence);
+        const node = blockToNode(lines, documentBodyHeight, evidence, confidenceOf);
         if (node) {
           pageOf.set(node, pageNumber);
+          // The weaker of the two doubts, not their product. They are independent kinds
+          // of doubt — "is this a heading" and "did we read the page in the right order"
+          // — and a node is only as trustworthy as its weakest link. Multiplying would
+          // punish a confident node on a confident page for no reason.
+          confidenceOf.set(
+            node,
+            Math.min(confidenceOf.get(node) ?? 0.8, layout.readingOrderConfidence),
+          );
           blocks.push(node);
         }
       }
@@ -352,7 +361,7 @@ export async function readPdf(
   assignIds(doc.body as unknown as AnyNode);
   if (typeof doc.body.id === "string") doc.id = doc.body.id;
   if (typeof doc.body.contentHash === "string") doc.contentHash = doc.body.contentHash;
-  attachSideTables(doc, sourceId, evidence, pageOf);
+  attachSideTables(doc, sourceId, evidence, pageOf, confidenceOf);
 
   if (options.normalize !== false) {
     const result = normalize(doc.body as unknown as AnyNode, doc.sidecar);
@@ -360,7 +369,7 @@ export async function readPdf(
     assignIds(doc.body as unknown as AnyNode);
     if (typeof doc.body.id === "string") doc.id = doc.body.id;
     if (typeof doc.body.contentHash === "string") doc.contentHash = doc.body.contentHash;
-    attachSideTables(doc, sourceId, evidence, pageOf);
+    attachSideTables(doc, sourceId, evidence, pageOf, confidenceOf);
   }
 
   // Emitted after the last `assignIds`, so each diagnostic names the node it describes.
@@ -424,6 +433,7 @@ function blockToNode(
   lines: Line[],
   bodyHeight: number,
   evidence: Map<AnyNode, StyleEvidence>,
+  confidenceOf: Map<AnyNode, number>,
 ): AnyNode | undefined {
   const text = joinBlockText(lines);
   if (text === "") return undefined;
@@ -443,13 +453,18 @@ function blockToNode(
   // block is a paragraph the marker is ordinary text, indistinguishable from a
   // sentence that begins with a numeral.
   const listItems = splitListItems(lines);
-  if (listItems) return listItems;
+  if (listItems) {
+    // A marker is a character in the file, not a measurement of one — the strongest
+    // evidence this adapter ever has, short of a declared style.
+    confidenceOf.set(listItems, 0.9);
+    return listItems;
+  }
 
   const isShort = text.length <= 90;
   const noTerminalPunctuation = !/[.!?;:,]\s*$/.test(text);
   const singleLine = lines.length <= 2;
 
-  if (ratio >= 1.15 && isShort && noTerminalPunctuation && singleLine) {
+  if (ratio >= HEADING_MIN_RATIO && isShort && noTerminalPunctuation && singleLine) {
     // Coarse levels, because the evidence is coarse. Claiming six distinguishable
     // heading levels from font size alone would imply a precision the geometry does
     // not carry.
@@ -465,13 +480,30 @@ function blockToNode(
       font: { sizePt: round(height) },
       outlineLevel: level - 1,
     });
+    // How far above the threshold the size sits. A block at 1.15× only just cleared it
+    // and could as easily be emphasised body text; one at 1.7× could not.
+    const margin = (ratio - HEADING_MIN_RATIO) / (1.7 - HEADING_MIN_RATIO);
+    confidenceOf.set(node, round2(0.55 + 0.4 * clamp01(margin)));
     return node;
   }
 
   const node: AnyNode = { type: "paragraph", children: [{ type: "text", value: text }] };
   evidence.set(node, { origin: "layoutGeometry", font: { sizePt: round(height) } });
+  // Paragraph is the default interpretation, so its confidence is the confidence that
+  // nothing else fit — which falls as the block gets closer to being a heading. Three of
+  // the four heading signals holding is a near miss, and a near miss is exactly what a
+  // reviewer or a stronger model should be pointed at. A constant would have hidden it.
+  const nearMisses = [ratio >= HEADING_MIN_RATIO, isShort, noTerminalPunctuation, singleLine]
+    .filter(Boolean).length;
+  confidenceOf.set(node, nearMisses >= 3 ? 0.65 : nearMisses === 2 ? 0.85 : 0.95);
   return node;
 }
+
+/** Size ratio at which a block becomes eligible to be a heading. */
+const HEADING_MIN_RATIO = 1.15;
+
+const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 const BULLET = /^\s*([\u2022\u00b7\u25aa\u25e6\u2023\u2013\u2014*-])\s+(\S.*)$/;
 const NUMBERED = /^\s*(\d{1,3})[.)]\s+(\S.*)$/;
@@ -550,14 +582,20 @@ function attachSideTables(
   sourceId: string,
   evidence: Map<AnyNode, StyleEvidence>,
   pageOf: Map<AnyNode, number>,
+  confidenceOf: Map<AnyNode, number>,
 ): void {
   const provenance: Record<string, Provenance> = {};
   const sidecar: Record<string, StyleEvidence> = {};
   let currentPage = 1;
+  let currentConfidence = 0.8;
 
   visit(doc.body as unknown as AnyNode, (n) => {
     const page = pageOf.get(n);
     if (page !== undefined) currentPage = page;
+    // Inherited, like the page number: a heading's own text node is exactly as much of
+    // a guess as the heading, and re-deriving it per child would invent precision.
+    const confidence = confidenceOf.get(n);
+    if (confidence !== undefined) currentConfidence = confidence;
     if (typeof n.id !== "string") return;
     provenance[n.id] = {
       sourceId,
@@ -565,8 +603,10 @@ function attachSideTables(
       locator: { kind: "page", pageNumber: currentPage },
       // Confidence is stated because this adapter genuinely guessed. Every other
       // adapter reads structure the file declares; this one reconstructed it, and a
-      // consumer deciding whether to trust a heading deserves to know which.
-      confidence: 0.8,
+      // consumer deciding whether to trust a heading deserves to know which. It is
+      // derived from the evidence rather than constant (OPEN_QUESTIONS §7h) so that
+      // ranking by it is meaningful.
+      confidence: currentConfidence,
     };
     const e = evidence.get(n);
     if (e) sidecar[n.id] = e;

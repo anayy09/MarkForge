@@ -19,6 +19,8 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `check-fixtures.mjs` | none | Every fixture has a licence line, and every licence line has a fixture |
 | `build-messy-fixtures.mjs` | none | Generates the deliberately defective DOCX corpus (`docs/CORPUS.md` §2.3, §2.15) |
 | `build-scanned-fixtures.mjs` | none | Rasterises `fixtures/md/scanned-source.md` into scanned PDFs with no text layer (`docs/CORPUS.md` §2.7) |
+| `check-markdown-lint.mjs` | `markdownlint`, built packages | Lints the Markdown our renderer produces. A gate, not a repair pass (ADR-0006) |
+| `diff-mammoth.mjs` | `mammoth`, built packages | Differential test of our OOXML reader against Mammoth; every divergence triaged in `docs/MAMMOTH-DIFF.md` (ADR-0005) |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
@@ -109,6 +111,48 @@ The script also refuses rather than degrades: a source construct it cannot draw,
 wrapped across two lines, throws with the reason. A rasteriser that quietly skipped a table
 would produce a fixture whose committed ground truth claims content the image does not contain,
 which would make every OCR number measured against it meaningless.
+
+## `check-markdown-lint.mjs`
+
+Renders every `docs/`, `docs/adr/`, and `fixtures/md/` Markdown file through
+`formatMarkdownSync` and lints the result.
+
+**It never fixes anything**, which is the point. ADR-0006 originally specified
+`remark-stringify` followed by markdownlint autofix iterated to a fixed point, guarded by
+`maxIterations: 8`. Two formatters that can disagree — about emphasis markers, list
+bullets, line wrapping — can each undo the other, and that is what made the fixed point
+uncertain enough to need a guard. Configuring `remark-stringify` to satisfy the rule set up
+front and then *checking* gets idempotency from `stringify` being a pure function of the
+tree instead: no loop, no cap, nothing to oscillate.
+
+Measured before adopting it: 34 files, **zero violations**, no autofix pass. Five rules are
+disabled, each because it conflicts with a decision recorded elsewhere rather than because
+the configuration could not satisfy it — the reasons are in the file next to each one. The
+one worth knowing about is `MD029`, which wants every ordered list renumbered to start at 1
+and would therefore destroy `restartsAt`, the field the IR carries specifically so a list
+starting at 7 survives a round trip.
+
+A failure here means the stringify configuration has drifted from the rule set. Fix the
+configuration in `@markforge/render-md`; do not post-process the output.
+
+## `diff-mammoth.mjs`
+
+Runs both OOXML readers over `fixtures/docx/`, reduces each to plain text plus a structural
+outline, and diffs.
+
+**A divergence is not a failure.** Beating Mammoth on documents whose structure is carried by
+direct formatting is the entire point of ADR-0005, so the exit code is driven by the triage
+file rather than by the diff: every divergence must appear in `docs/MAMMOTH-DIFF.md`
+classified `improvement`, `bug`, or `accepted`, and `--check` fails on an untriaged one. That
+is all this can honestly do — Mammoth is a second opinion, not an oracle.
+
+It has already earned its keep once. It found that a `w:pStyle` referencing a style
+`styles.xml` never defines was dropped by our inference rules while Mammoth recovered the
+heading, which is fixed as rule 2b in `@markforge/infer`. See `docs/MAMMOTH-DIFF.md` for the
+current list and for what the test deliberately does not cover.
+
+Running without `--check` also writes `docs/.mammoth-diff.generated.md`, a starter table so
+triage is an edit rather than a transcription job. That file is gitignored.
 
 ## `run-fidelity.mjs`
 

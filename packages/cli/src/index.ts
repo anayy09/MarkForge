@@ -16,11 +16,11 @@ import { resolve, relative } from "node:path";
 import {
   ExitCode,
   OUTPUT_FORMATS,
-  convertAsync,
-  formatMarkdown,
+  convert,
+  formatMarkdownSync,
   formatFromPath,
   isOutputFormat,
-  parseAsync,
+  parse,
   type Assist,
   type Format,
 } from "@markforge/core";
@@ -249,7 +249,7 @@ convertCommand
       const assist = buildAssist(opts, process.argv, assistFailures);
       if (assist.describe && !flags.json) log(assist.describe, flags);
 
-      const result = await convertAsync(bytes, {
+      const result = await convert(bytes, {
         from,
         to,
         // Relative, so the recorded provenance does not embed this machine's
@@ -326,7 +326,7 @@ program
           process.exit(ExitCode.ERROR);
         }
         const source = await readFile(path, "utf8");
-        const result = formatMarkdown(source);
+        const result = formatMarkdownSync(source);
         results.push({ file, changed: result.changed });
 
         if (result.changed && !check) {
@@ -449,7 +449,7 @@ checkCommand
           process.exit(ExitCode.ERROR);
         }
         const bytes = new Uint8Array(await readFile(path));
-        const parsed = await parseAsync(bytes, format, file);
+        const parsed = await parse(bytes, format, file);
         const validation = validateDocument(parsed.document);
         const lossy = parsed.diagnostics.lossy();
         documents.push({
@@ -523,6 +523,7 @@ for (const [name, description, phase] of [
     });
 }
 
+// commander's own async entry point, unrelated to @markforge/core's `parse`.
 program.parseAsync(process.argv).catch((error: Error) => {
   fail(error.message);
   process.exit(ExitCode.ERROR);

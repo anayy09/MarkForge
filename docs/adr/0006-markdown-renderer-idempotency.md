@@ -13,12 +13,45 @@ assumed. Brief §2 also lists `prettier` as a candidate for deterministic normal
 
 ## Decision
 
-A single generator, then a repair pass, in a fixed order:
+A single generator, then a **gate**, in a fixed order:
 
-1. `remark-stringify` with a fully pinned option set from the flavour preset.
-2. `markdownlint` autofix applied to a fixed point, with `maxIterations` (default 8).
-   Reaching the cap is an **error**, not a silent stop.
+1. `remark-stringify` with a fully pinned option set from the flavour preset, configured so
+   its output already satisfies the lint rule set.
+2. `markdownlint` in **check-only** mode, in CI. A violation is a build failure meaning the
+   stringify configuration has drifted — it is never repaired after the fact.
 3. Re-parse and compare trees; a semantic difference is an error, not a warning.
+
+### Amended 2026-07-31: the autofix loop is gone
+
+This decision originally read *"`markdownlint` autofix applied to a fixed point, with
+`maxIterations` (default 8); reaching the cap is an error"*, and `OPEN_QUESTIONS.md` §8
+listed "is the pipeline genuinely idempotent, or does a fixed point need iteration?" as a
+question only running code could answer.
+
+It turned out to be the wrong question. The reviewer asked whether the iteration was
+avoidable *by construction*, and it is. Two tools that can disagree — about emphasis
+markers, list bullets, line wrapping — can each undo the other, and that mutual undoing is
+the only reason a fixed point was ever in doubt. Remove the second author and the property
+follows from `stringify` being a pure function of the tree. There is no loop, so there is no
+cap, so there is nothing to oscillate and nothing to detect.
+
+**Measured before adopting it** (`scripts/check-markdown-lint.mjs`): 34 rendered files,
+**zero violations**, no autofix pass. Five rules are disabled, and every one conflicts with
+a decision recorded elsewhere rather than being a rule the configuration could not meet:
+`MD013` line length (ADR-0006's own no-reflow rule, below), `MD024`/`MD025`/`MD041` (all
+properties of the *source* document, which a formatter may not rewrite), `MD033` inline HTML
+(required by SPEC §4.1's table degradation policy), and `MD040` fenced-code language (a
+formatter cannot invent one).
+
+`MD029` is the exception worth recording, because it is a genuine conflict rather than a
+category error. It wants every ordered list renumbered to start at 1. The IR carries
+`restartsAt` precisely so a list starting at 7 survives a round trip — DOCX and HTML both
+express it, and losing it is measurable fidelity loss. Our requirement wins and the rule is
+off.
+
+The cost of being wrong here is small and symmetric: if a flavour preset is ever added whose
+rule set stringify genuinely cannot satisfy, the gate fails loudly and the autofix pass can
+come back for that preset. That is a better failure than a silent 9th iteration.
 
 Flavour presets are data: CommonMark, GFM, MDX, Docusaurus, MkDocs Material, Obsidian,
 Pandoc. A preset declares available syntax (footnote form, math delimiters, admonition
@@ -41,10 +74,15 @@ Markdown behaviour is instead treated as a *conformance target* for one flavour 
 `markforge fmt` output can be Prettier-stable for teams that run both. That gets the
 compatibility benefit without putting two authorities in one pipeline.
 
-**markdownlint as a gate rather than a repair pass.** Simpler and avoids the fixed-point
-question entirely: generate, then fail if lint complains. Rejected because it pushes the work
-onto the user for defects our own generator introduced, and brief §5.4 explicitly wants
-autofix.
+**~~markdownlint as a gate rather than a repair pass.~~ Adopted 2026-07-31 — see the
+amendment above.** Originally rejected on the grounds that it "pushes the work onto the user
+for defects our own generator introduced, and brief §5.4 explicitly wants autofix." Both
+halves turned out to be wrong in practice. The first assumed there would be defects to push:
+measured, there are none, because the generator is configured to satisfy the rules rather
+than to be corrected afterwards. The second reads brief §5.4 too literally — it asks for
+lint-clean deterministic output, and autofix was its proposed means, not its requirement.
+Getting the same output without a second authority in the pipeline satisfies the intent
+better than obeying the letter would.
 
 **Reflowing prose to a line width.** Produces prettier source. Rejected because it destroys
 diff stability: editing one word reflows a paragraph and the `git diff` shows the whole

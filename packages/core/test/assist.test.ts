@@ -10,7 +10,7 @@
  *   - A scan without a recogniser refuses rather than returning an empty document.
  */
 import { describe, it, expect } from "vitest";
-import { convert, convertAsync, type Assist } from "../src/index.js";
+import { convert, convert, type Assist } from "../src/index.js";
 import type { PageImage as OcrPageImage, Recognizer } from "@markforge/adapters-ocr";
 import type { PageImage as PdfPageImage } from "@markforge/adapters-pdf";
 import { inferAll, resolveAmbiguities, type HeadingTiebreaker } from "@markforge/infer";
@@ -67,8 +67,8 @@ describeIfFixture("heading tie-breaking", () => {
   });
 
   it("leaves the document untouched when the tie-breaker declines to answer", async () => {
-    const plain = await convertAsync(bytes(), { from: "docx", to: "md" });
-    const declined = await convertAsync(bytes(), {
+    const plain = await convert(bytes(), { from: "docx", to: "md" });
+    const declined = await convert(bytes(), {
       from: "docx",
       to: "md",
       assist: { headingTiebreak: async () => undefined },
@@ -77,8 +77,8 @@ describeIfFixture("heading tie-breaking", () => {
   });
 
   it("leaves the document untouched when the tie-breaker throws", async () => {
-    const plain = await convertAsync(bytes(), { from: "docx", to: "md" });
-    const failed = await convertAsync(bytes(), {
+    const plain = await convert(bytes(), { from: "docx", to: "md" });
+    const failed = await convert(bytes(), {
       from: "docx",
       to: "md",
       assist: {
@@ -146,18 +146,28 @@ describeIfFixture("heading tie-breaking", () => {
   });
 
   it("says so in the diagnostics when ambiguity was left to the rules", async () => {
-    const plain = await convertAsync(bytes(), { from: "docx", to: "md" });
+    const plain = await convert(bytes(), { from: "docx", to: "md" });
     expect(plain.diagnostics.some((d) => d.code === "MF-LLM-0004")).toBe(true);
   });
 
-  it("refuses assistance synchronously rather than ignoring it", () => {
-    expect(() =>
-      convert(bytes(), {
-        from: "docx",
-        to: "md",
-        assist: { headingTiebreak: async () => undefined },
-      }),
-    ).toThrow(/convertAsync/);
+  // Was: "refuses assistance synchronously rather than ignoring it", guarding the old
+  // sync `convert` against being handed an async-only option. OPEN_QUESTIONS §7j removed
+  // the sync half, so the refusal has nothing left to refuse — assistance is simply
+  // awaited. What still matters is that a supplied tie-breaker is actually consulted
+  // rather than quietly dropped, which is the failure the old test really guarded.
+  it("consults a supplied tie-breaker rather than ignoring it", async () => {
+    let consulted = 0;
+    await convert(bytes(), {
+      from: "docx",
+      to: "md",
+      assist: {
+        headingTiebreak: async () => {
+          consulted += 1;
+          return undefined;
+        },
+      },
+    });
+    expect(consulted).toBeGreaterThan(0);
   });
 });
 
@@ -176,8 +186,8 @@ describeIfScan("the scanned-PDF route", () => {
   });
 
   it("refuses a scan with no recogniser rather than producing an empty document", async () => {
-    await expect(convertAsync(bytes(), { from: "pdf", to: "md" })).rejects.toThrow(/no text layer/);
-    await expect(convertAsync(bytes(), { from: "pdf", to: "md" })).rejects.toThrow(/--ocr|--llm/);
+    await expect(convert(bytes(), { from: "pdf", to: "md" })).rejects.toThrow(/no text layer/);
+    await expect(convert(bytes(), { from: "pdf", to: "md" })).rejects.toThrow(/--ocr|--llm/);
   });
 
   it("routes a scan to the recogniser and hands it a real page image", async () => {
@@ -192,7 +202,7 @@ describeIfScan("the scanned-PDF route", () => {
         return stubRecognizer(page);
       },
     };
-    const result = await convertAsync(bytes(), { from: "pdf", to: "md", assist });
+    const result = await convert(bytes(), { from: "pdf", to: "md", assist });
     expect(seen).toHaveLength(1);
     expect(Buffer.from(result.bytes).toString()).toContain("Page 1 heading");
     // Both bags survive: the PDF adapter's says *why* OCR happened, the OCR adapter's says
@@ -203,13 +213,13 @@ describeIfScan("the scanned-PDF route", () => {
 
   it("produces byte-identical output for the same recogniser answers", async () => {
     const assist: Assist = { recognize: stubRecognizer };
-    const a = await convertAsync(bytes(), { from: "pdf", to: "md", assist, path: "x.pdf" });
-    const b = await convertAsync(bytes(), { from: "pdf", to: "md", assist, path: "x.pdf" });
+    const a = await convert(bytes(), { from: "pdf", to: "md", assist, path: "x.pdf" });
+    const b = await convert(bytes(), { from: "pdf", to: "md", assist, path: "x.pdf" });
     expect(Buffer.from(a.bytes).toString()).toBe(Buffer.from(b.bytes).toString());
   });
 
   it("keeps a recogniser's confidence out of the text and in the provenance", async () => {
-    const result = await convertAsync(bytes(), {
+    const result = await convert(bytes(), {
       from: "pdf",
       to: "md",
       assist: { recognize: stubRecognizer },

@@ -60,3 +60,6 @@ desktop.ini
 # Word and Excel write these next to a file that is open; they are valid ZIP
 # containers, so a fixture glob will otherwise try to parse them.
 ~$*
+
+# Starter table from scripts/diff-mammoth.mjs; triage lives in docs/MAMMOTH-DIFF.md
+docs/.mammoth-diff.generated.md

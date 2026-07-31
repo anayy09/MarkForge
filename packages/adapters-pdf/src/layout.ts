@@ -48,6 +48,26 @@ export interface PageLayout {
   bodyHeight: number;
   /** Median gap between consecutive lines within a column. */
   bodyLeading: number;
+  /**
+   * How strongly this page's geometry supported the reading order it produced, 0–1
+   * (OPEN_QUESTIONS §7h).
+   *
+   * Not a probability and not calibrated. It is required only to be **monotonic in the
+   * strength of the evidence**, so that "review the least confident pages" and "escalate
+   * the bottom decile to a vision model" are sentences that mean something. A flat
+   * constant made the field decorative: single-column reading order is near-certain,
+   * while two columns separated by a gutter barely wider than a word space is a guess,
+   * and both reported the same number.
+   */
+  readingOrderConfidence: number;
+  /** The measurements `readingOrderConfidence` was derived from, for the record. */
+  readingOrderEvidence: {
+    columnCount: number;
+    /** Narrowest gap between adjacent columns, in points. Undefined at one column. */
+    narrowestGutterPt?: number;
+    /** Median gap between words within a line, in points — the unit of comparison. */
+    wordGapPt?: number;
+  };
 }
 
 /**
@@ -326,8 +346,85 @@ export function analysePage(allRuns: TextRun[], pageWidth: number): PageLayout {
   }
   const bodyLeading = median(gaps) ?? bodyHeight * 1.2;
 
-  return { columns: populated.length > 0 ? populated : columns, bodyHeight, bodyLeading };
+  const final = populated.length > 0 ? populated : columns;
+  const { confidence, evidence } = readingOrderConfidenceOf(final, lines);
+
+  return {
+    columns: final,
+    bodyHeight,
+    bodyLeading,
+    readingOrderConfidence: confidence,
+    readingOrderEvidence: evidence,
+  };
 }
+
+/**
+ * Reading-order confidence, derived from the geometry that produced the segmentation.
+ *
+ * The comparison that matters is **gutter width against the page's own word spacing**,
+ * not against an absolute point value. A 12pt gap is a decisive column break in 8pt type
+ * and is ordinary word spacing in a loosely tracked 18pt display face, so a constant
+ * threshold would be confident about the wrong pages. Measuring in units of the
+ * document's own word gap makes the number mean the same thing at every size.
+ *
+ * One column is near-certain but deliberately not 1: text laid out as a table with
+ * whitespace reads as a single column and comes back as run-together lines, which is a
+ * real failure this measurement cannot see.
+ */
+function readingOrderConfidenceOf(
+  columns: Column[],
+  lines: Line[],
+): { confidence: number; evidence: PageLayout["readingOrderEvidence"] } {
+  const columnCount = columns.length;
+  if (columnCount <= 1) {
+    return { confidence: 0.95, evidence: { columnCount } };
+  }
+
+  const gutters: number[] = [];
+  for (let i = 1; i < columns.length; i++) {
+    gutters.push(columns[i]!.left - columns[i - 1]!.right);
+  }
+  const narrowestGutterPt = Math.min(...gutters);
+  const wordGapPt = medianWordGap(lines);
+  const evidence: PageLayout["readingOrderEvidence"] = {
+    columnCount,
+    narrowestGutterPt,
+    ...(wordGapPt !== undefined ? { wordGapPt } : {}),
+  };
+
+  // No measurable word spacing means no unit to compare against, so the segmentation is
+  // unsupported rather than merely weak.
+  if (wordGapPt === undefined || wordGapPt <= 0) {
+    return { confidence: 0.5, evidence };
+  }
+
+  // Calibrated against what real pages do rather than against intuition. In 11pt type a
+  // word space is about 3pt and a two-column gutter is 20–25pt, so an ordinary academic
+  // two-column layout sits near 7x. The dangerous case — justified text whose inter-word
+  // spacing stretches far enough to look like a column break — sits at 2–3x. So 2x is
+  // where this stops being evidence and 10x is where it stops improving; an earlier
+  // version saturated at 6x, which reported a 20pt gutter and an 80pt one as equally
+  // certain and would have made the bottom decile meaningless.
+  const separation = narrowestGutterPt / wordGapPt;
+  const t = Math.max(0, Math.min(1, (separation - 2) / 8));
+  return { confidence: round2(0.55 + 0.4 * t), evidence };
+}
+
+/** Median gap between adjacent runs on a line: the page's own word-space width. */
+function medianWordGap(lines: Line[]): number | undefined {
+  const gaps: number[] = [];
+  for (const line of lines) {
+    for (let i = 1; i < line.runs.length; i++) {
+      const gap = line.runs[i]!.x - (line.runs[i - 1]!.x + line.runs[i - 1]!.width);
+      // Negative is kerning overlap; a very large gap is a layout column inside the
+      // line, not a word space, and would inflate the unit we divide by.
+      if (gap > 0 && gap < line.height * 3) gaps.push(gap);
+    }
+  }
+  return median(gaps);
+}
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
  * Groups a column's lines into paragraphs.

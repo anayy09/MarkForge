@@ -125,12 +125,25 @@ export interface ConvertResult {
   explanation?: string;
 }
 
-/** Parses bytes into the IR. */
-export function parse(
+/**
+ * Parses bytes into the IR.
+ *
+ * **Async, like every entry point here** (OPEN_QUESTIONS §7j). There was briefly a
+ * `parse`/`parseAsync` pair, on the reasoning that a Markdown conversion does no I/O and
+ * should not force callers to await. Reversed: the sync half could only ever cover
+ * Markdown-to-Markdown, because `typst.ts` needs async WASM init, the DOCX renderer reads
+ * a reference document, and the browser build has no synchronous file access at all — so
+ * the pair bought one saved `await` in exchange for a second public surface that every
+ * adapter and renderer had to keep in parity, plus a "which variant does this go in"
+ * decision on every future contribution. `formatMarkdownSync` is the single, deliberately
+ * narrow exception.
+ */
+export async function parse(
   bytes: Uint8Array,
   format: Format,
   path?: string,
-): { document: MarkForgeDocument; diagnostics: DiagnosticBag } {
+  assist?: Assist,
+): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
   const opts = path !== undefined ? { path } : {};
   switch (format) {
     case "docx":
@@ -144,30 +157,8 @@ export function parse(
     case "xlsx":
       return parseXlsx(bytes, opts);
     case "pdf":
-      // PDF extraction is async, so it cannot be served here. Throwing names the
-      // function that can, rather than returning undefined and failing later.
-      throw new Error(
-        "markforge: PDF parsing is asynchronous. Use parseAsync or convertAsync instead " +
-          "of parse or convert.",
-      );
+      return parsePdfOrScan(bytes, path, assist);
   }
-}
-
-/**
- * Parses bytes into the IR, including the formats whose parsers are async.
- *
- * PDF extraction is inherently asynchronous (pdf.js is), so it needs this rather than
- * the synchronous `parse`. Kept separate instead of making everything async: a
- * Markdown conversion does no I/O and should not force every caller to await.
- */
-export async function parseAsync(
-  bytes: Uint8Array,
-  format: Format,
-  path?: string,
-  assist?: Assist,
-): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
-  if (format === "pdf") return parsePdfOrScan(bytes, path, assist);
-  return parse(bytes, format, path);
 }
 
 /**
@@ -213,12 +204,19 @@ async function parsePdfOrScan(
   return ocr;
 }
 
-/** Renders the IR into bytes. Throws for input-only formats, by name. */
-export function render(
+/**
+ * Renders the IR into bytes. Throws for input-only formats, by name.
+ *
+ * Async even though every renderer built so far is synchronous, because the next one is
+ * not: ADR-0003 chose Typst, and `typst.ts` needs asynchronous WASM initialisation. A
+ * signature that changed the day PDF output landed would break every caller then instead
+ * of costing one `await` now (OPEN_QUESTIONS §7j).
+ */
+export async function render(
   document: MarkForgeDocument,
   format: Format,
   options: ConvertOptions = {},
-): { bytes: Uint8Array; diagnostics: DiagnosticBag } {
+): Promise<{ bytes: Uint8Array; diagnostics: DiagnosticBag }> {
   switch (format) {
     case "md": {
       const result = renderMarkdown(document, options.markdown ?? {});
@@ -254,57 +252,13 @@ export function render(
  * renderers consume structure, so the one place that turns evidence into structure
  * is here, in the open, where it can be logged and turned off.
  */
-export function convert(
-  bytes: Uint8Array,
-  options: ConvertOptions & { from: Format; to: Format; path?: string },
-): ConvertResult {
-  const all = new DiagnosticBag(CORE);
-
-  if (options.assist?.headingTiebreak || options.assist?.recognize) {
-    // A tie-break is a network call, so it cannot happen inside a synchronous function.
-    // Naming the alternative beats silently ignoring the option, which would produce a
-    // deterministic document while the caller believed a model had been consulted.
-    throw new Error(
-      "markforge: assistance (heading tie-breaking, OCR) is asynchronous. Use " +
-        "convertAsync instead of convert, or drop the assist option to convert " +
-        "deterministically.",
-    );
-  }
-
-  const parsed = parse(bytes, options.from, options.path);
-  all.merge(parsed.diagnostics);
-
-  let decisions: Decision[] = [];
-  if (options.infer !== false) {
-    const inferred = inferAll(parsed.document, options.infer ?? {});
-    all.merge(inferred.diagnostics);
-    decisions = inferred.decisions;
-  }
-
-  const rendered = render(parsed.document, options.to, options);
-  all.merge(rendered.diagnostics);
-
-  const diagnostics = all.all();
-  parsed.document.diagnostics = diagnostics;
-
-  const result: ConvertResult = {
-    bytes: rendered.bytes,
-    document: parsed.document,
-    diagnostics,
-    decisions,
-  };
-  if (options.explain) result.explanation = explainDecisions(decisions);
-  return result;
-}
-
-/** `convert`, for input formats whose parser is async (currently PDF). */
-export async function convertAsync(
+export async function convert(
   bytes: Uint8Array,
   options: ConvertOptions & { from: Format; to: Format; path?: string },
 ): Promise<ConvertResult> {
   const all = new DiagnosticBag(CORE);
 
-  const parsed = await parseAsync(bytes, options.from, options.path, options.assist);
+  const parsed = await parse(bytes, options.from, options.path, options.assist);
   all.merge(parsed.diagnostics);
 
   let decisions: Decision[] = [];
@@ -338,7 +292,7 @@ export async function convertAsync(
     }
   }
 
-  const rendered = render(parsed.document, options.to, options);
+  const rendered = await render(parsed.document, options.to, options);
   all.merge(rendered.diagnostics);
 
   const diagnostics = all.all();
@@ -357,8 +311,15 @@ export async function convertAsync(
  * Idempotent by construction — the same parse and render the round-trip tests
  * exercise. `changed` is what `--check` reports, and it compares bytes rather than
  * trees so a whitespace-only difference still counts as a change.
+ *
+ * **The only synchronous entry point in this package, and it will not be generalised**
+ * (OPEN_QUESTIONS §7j). Markdown-to-Markdown genuinely does no I/O, and `fmt` over a
+ * thousand files should not pay for a thousand promises. The `Sync` suffix is the whole
+ * point: it marks this as the exception rather than one of a matched pair, so there is no
+ * "which variant does this belong in" question for anything added later. Every other
+ * entry point — `parse`, `render`, `convert` — is async.
  */
-export function formatMarkdown(
+export function formatMarkdownSync(
   source: string,
   options: MarkdownRenderOptions = {},
 ): { markdown: string; changed: boolean; diagnostics: Diagnostic[] } {
