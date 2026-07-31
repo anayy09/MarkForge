@@ -175,6 +175,12 @@ continuation cells, nested tables, tables broken across pages, and cells contain
 content.
 **Plan:** four authored DOCX and two authored HTML (HTML is where span semantics are
 unambiguous, giving us a ground truth to compare the DOCX and PDF paths against).
+
+**Status:** the two HTML fixtures exist — `fixtures/html/spans-ground-truth.html` and
+`fixtures/html/semantic-structure.html`. They are measured through three loops each, and the
+gap between `html->html` and `html->md->html` on table F1 is the honest cost of Markdown
+having no rowspan: 100% against 27%. `docs/FIDELITY.md` lists that under known limitations so
+it reads as a format constraint rather than a defect.
 **Metrics:** table full-cell F1 and content-only F1 — the gap between them is the point
 (`SPEC.md` §9.3).
 
@@ -186,6 +192,26 @@ text, which is the single most visible PDF conversion defect.
 papers under CC-BY. Includes at least one with a full-width figure interrupting the columns and
 one with a footnote rule that could be mistaken for a column boundary.
 **Metrics:** text (both variants), structural.
+
+### 2.6.1 Status: what the text-layer path measured
+
+The PDF adapter is built and its layout analysis is tested against authored fixtures
+(`packages/adapters-pdf/test/`). Three findings from doing it, all about pdf.js rather than
+about PDFs:
+
+1. **pdf.js synthesises a whitespace run to represent a horizontal gap, with the width of the
+   gap.** On a two-column page that is a ~170pt-wide `" "` sitting exactly across the gutter.
+   Counting it as occupancy fills every gutter, so no columns are found and the page reads
+   interleaved — the defect this category exists to catch, caused by a helpful parser filling
+   in a blank. Whitespace-only runs are now excluded from occupancy.
+2. **Columns must be detected before lines are grouped.** Two columns share baselines
+   constantly, so grouping runs into lines first merges "left column line one" with "right
+   column line one" into one full-width line, after which no gutter exists to find.
+3. **pdf.js clips text extending past the MediaBox and reports the survivors with no flag.**
+   Measured: a 125-character line at 16pt on a 612pt page came back as 78 characters, cut
+   mid-word. The loss happens before we see the items, so it cannot be detected directly; a run
+   reaching the page edge now emits a "this may be incomplete" diagnostic, which is the only
+   honest thing available.
 
 ### 2.7 Scanned PDFs — *public domain + synthesized*
 

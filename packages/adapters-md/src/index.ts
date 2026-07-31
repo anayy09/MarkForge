@@ -161,7 +161,15 @@ function convert(
   }
 
   // GFM tables carry alignment on the table; mdast puts `align` on the table node
-  // as an array. The IR keeps it there too, so no translation is needed.
+  // as an array, and the IR keeps it there, so no translation is needed.
+  //
+  // The header row does need translating. In GFM the first row *is* the header —
+  // that is what the delimiter line means — but mdast records no count, so the IR
+  // has to say so explicitly or every renderer emits a table with no <thead> and no
+  // repeated header when it breaks across pages.
+  if (node.type === "table" && Array.isArray(node.children) && node.children.length > 0) {
+    out["headerRowCount"] = 1;
+  }
 
   if (Array.isArray(node.children)) {
     out.children = node.children.map((c) => convert(c as AnyNode, diagnostics, positions));

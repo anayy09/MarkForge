@@ -20,6 +20,7 @@ import {
   contentHashOfBytes,
   emptyDocument,
   normalize,
+  tableCell as makeCell,
   type AnyNode,
   type Furniture,
   type MarkForgeDocument,
@@ -522,6 +523,8 @@ function parseTable(tbl: XmlElement, state: ParseState, locator: string): AnyNod
   rowEls.forEach((tr, rowIndex) => {
     const cells: AnyNode[] = [];
     let col = 0;
+    const trPr = childNamed(tr, "trPr");
+    const headerMarked = trPr !== undefined && childNamed(trPr, "tblHeader") !== undefined;
     for (const tc of childrenNamed(tr, "tc")) {
       const tcPr = childNamed(tc, "tcPr");
       const gridSpan = intVal(tcPr ? childNamed(tcPr, "gridSpan") : undefined) ?? 1;
@@ -537,11 +540,10 @@ function parseTable(tbl: XmlElement, state: ParseState, locator: string): AnyNod
         }
       }
 
-      const cell: AnyNode = {
-        type: "tableCell",
-        children: parseBlockContainer(tc, state, `${locator}/tr[${rowIndex}]/tc[${col}]`),
-      };
-      if (gridSpan > 1) cell["colSpan"] = gridSpan;
+      const cell = makeCell(
+        parseBlockContainer(tc, state, `${locator}/tr[${rowIndex}]/tc[${col}]`),
+        { colSpan: gridSpan, isHeader: headerMarked },
+      );
       if (vMergeVal === "restart") openMerge.set(col, cell);
       else if (vMergeVal === undefined) openMerge.delete(col);
 
@@ -558,10 +560,13 @@ function parseTable(tbl: XmlElement, state: ParseState, locator: string): AnyNod
     return trPr && childNamed(trPr, "tblHeader") ? Math.max(acc, idx + 1) : acc;
   }, 0);
 
-  const table: AnyNode = { type: "table", children: rows };
-  if (headerRows > 0) table["headerRows"] = headerRows;
-  state.pendingLocator.set(table, locator);
-  return table;
+  // `headerRowCount`, the schema's name for it. An earlier version wrote
+  // `headerRows`, which is not a field: it validated as an unevaluated property and
+  // every renderer read undefined, so header rows were silently lost.
+  const tableNode: AnyNode = { type: "table", children: rows };
+  if (headerRows > 0) tableNode["headerRowCount"] = headerRows;
+  state.pendingLocator.set(tableNode, locator);
+  return tableNode;
 }
 
 function parseFurniture(state: ParseState, rels: Map<string, { type: string; target: string }>): Furniture[] {

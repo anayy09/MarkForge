@@ -6,7 +6,7 @@
  * score". A single number hides which half of the document broke; four numbers with
  * names tell you where to look.
  */
-import { textContent, visit, type AnyNode } from "@markforge/ir";
+import { cellSpan, textContent, visit, type AnyNode } from "@markforge/ir";
 
 // ---------------------------------------------------------------------------
 // Structural: Zhang–Shasha ordered tree edit distance
@@ -31,8 +31,10 @@ function label(node: AnyNode): string {
       return `heading:${node["resolvedLevel"] ?? node["depth"] ?? 1}`;
     case "list":
       return `list:${node["ordered"] === true ? "ordered" : "unordered"}`;
-    case "tableCell":
-      return `tableCell:${node["rowSpan"] ?? 1}x${node["colSpan"] ?? 1}`;
+    case "tableCell": {
+      const { rowSpan, colSpan } = cellSpan(node);
+      return `tableCell:${rowSpan}x${colSpan}`;
+    }
     case "code":
       return `code:${typeof node["lang"] === "string" ? node["lang"] : ""}`;
     default:
@@ -264,8 +266,7 @@ export function extractCells(root: AnyNode): TableCell[] {
       let colStart = 0;
       for (const cell of cells) {
         while (occupied.has(`${rowStart},${colStart}`)) colStart++;
-        const rowSpan = typeof cell["rowSpan"] === "number" ? cell["rowSpan"] : 1;
-        const colSpan = typeof cell["colSpan"] === "number" ? cell["colSpan"] : 1;
+        const { rowSpan, colSpan } = cellSpan(cell);
         for (let r = rowStart; r < rowStart + rowSpan; r++) {
           for (let c = colStart; c < colStart + colSpan; c++) occupied.add(`${r},${c}`);
         }

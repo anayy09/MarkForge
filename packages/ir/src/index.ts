@@ -77,6 +77,15 @@ export type {
   ResourceId,
 } from "./document.js";
 
+export {
+  tableCell,
+  tableRow,
+  table,
+  cellSpan,
+  headerRowCount,
+} from "./table.js";
+export type { TableCellOptions, TableOptions } from "./table.js";
+
 export { normalize, DEFAULT_NORMALIZE_OPTIONS } from "./normalize.js";
 export { styleEvidence } from "./document.js";
 export type { NormalizeOptions, NormalizeResult } from "./normalize.js";

@@ -462,7 +462,10 @@ export type TableCell = NodeBase & {
   rowSpan: number;
   colSpan: number;
   isHeader: boolean;
-  children: PhrasingContent[];
+  /**
+   * Cell content. Either phrasing content directly (the mdast shape, which is what Markdown and HTML produce for a simple cell) or block content (which is what DOCX and PPTX produce, and what docs/CORPUS.md section 2.5 lists as a construct under test). Both are accepted because both occur: restricting this to phrasing content would make every DOCX table with a multi-paragraph cell unrepresentable.
+   */
+  children: (BlockContent | PhrasingContent)[];
 };
 /**
  * This interface was referenced by `MarkForgeDocument`'s JSON-Schema

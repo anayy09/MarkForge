@@ -27,26 +27,30 @@ const { parseMarkdown } = await load("adapters-md");
 const { renderMarkdown } = await load("render-md");
 const { renderDocx } = await load("render-docx");
 const { parseDocx } = await load("adapters-docx");
+const { parseHtmlDocument } = await load("adapters-html");
+const { renderHtml } = await load("render-html");
 const { inferHeadings } = await load("infer");
 const { compare, compareToBaselines, renderFidelityMarkdown } = await load("fidelity");
 
-const CORPUS = join(REPO, "fixtures/md");
+const MD_CORPUS = join(REPO, "fixtures/md");
+const HTML_CORPUS = join(REPO, "fixtures/html");
 const BASELINES = join(REPO, "fixtures/expected/baselines.json");
 
-const fixtures = readdirSync(CORPUS)
-  .filter((f) => f.endsWith(".md"))
-  .sort();
+const mdFixtures = readdirSync(MD_CORPUS).filter((f) => f.endsWith(".md")).sort();
+const htmlFixtures = existsSync(HTML_CORPUS)
+  ? readdirSync(HTML_CORPUS).filter((f) => f.endsWith(".html")).sort()
+  : [];
 
-if (fixtures.length === 0) {
-  console.error("No fixtures under fixtures/md/. Nothing to measure.");
+if (mdFixtures.length + htmlFixtures.length === 0) {
+  console.error("No fixtures found. Nothing to measure.");
   process.exit(1);
 }
 
 const measured = [];
 
-for (const file of fixtures) {
+for (const file of mdFixtures) {
   const name = file.replace(/\.md$/, "");
-  const source = readFileSync(join(CORPUS, file), "utf8");
+  const source = readFileSync(join(MD_CORPUS, file), "utf8");
   const original = parseMarkdown(source, { path: `fixtures/md/${file}` }).document;
 
   // --- Loop 1: md -> md. The formatter's own fixed point.
@@ -67,6 +71,31 @@ for (const file of fixtures) {
   }).bytes;
   const secondParsed = parseDocx(secondDocx).document;
   measured.push(entry(name, "docx->md->docx", compare(fromDocx, secondParsed)));
+
+  // --- Loop 4: md -> html -> md. Phase 2.
+  const html = renderHtml(original, { fullDocument: false }).html;
+  const fromHtml = parseHtmlDocument(html).document;
+  measured.push(entry(name, "md->html->md", compare(original, fromHtml)));
+}
+
+// HTML fixtures are the table-span ground truth (docs/CORPUS.md §2.5), so they are
+// measured through DOCX as well: the gap between the html->html and html->docx->html
+// table scores is exactly how much the DOCX path loses.
+for (const file of htmlFixtures) {
+  const name = file.replace(/\.html$/, "");
+  const source = readFileSync(join(HTML_CORPUS, file), "utf8");
+  const original = parseHtmlDocument(source, { path: `fixtures/html/${file}` }).document;
+
+  const html = renderHtml(original, { fullDocument: false }).html;
+  measured.push(entry(name, "html->html", compare(original, parseHtmlDocument(html).document)));
+
+  const docxBytes = renderDocx(original, { onMissingStyle: "synthesize" }).bytes;
+  const viaDocx = parseDocx(docxBytes).document;
+  inferHeadings(viaDocx);
+  measured.push(entry(name, "html->docx->html", compare(original, viaDocx)));
+
+  const md = renderMarkdown(original).markdown;
+  measured.push(entry(name, "html->md->html", compare(original, parseMarkdown(md).document)));
 }
 
 function entry(fixture, loop, score) {
@@ -89,8 +118,8 @@ function round(n) {
 }
 
 const markdown = renderFidelityMarkdown(measured, {
-  generatedFrom: "fixtures/md via scripts/run-fidelity.mjs",
-  corpusSize: fixtures.length,
+  generatedFrom: "fixtures/md and fixtures/html via scripts/run-fidelity.mjs",
+  corpusSize: mdFixtures.length + htmlFixtures.length,
 });
 writeFileSync(join(REPO, "docs/FIDELITY.md"), markdown, "utf8");
 
@@ -101,7 +130,9 @@ if (UPDATE || !existsSync(BASELINES)) {
     JSON.stringify({ version: 1, tolerance: 0.005, entries: measured }, null, 2) + "\n",
     "utf8",
   );
-  console.log(`Wrote ${measured.length} baseline entries for ${fixtures.length} fixture(s).`);
+  console.log(
+    `Wrote ${measured.length} baseline entries for ${mdFixtures.length + htmlFixtures.length} fixture(s).`,
+  );
   console.log("docs/FIDELITY.md regenerated.");
   process.exit(0);
 }
@@ -125,7 +156,7 @@ for (const k of result.missing) console.log(`missing    ${k} (in baselines, not 
 for (const k of result.added) console.log(`new        ${k} (measured, not in baselines) — run --update`);
 
 console.log(
-  `\n${measured.length} measurements across ${fixtures.length} fixture(s): ` +
+  `\n${measured.length} measurements across ${mdFixtures.length + htmlFixtures.length} fixture(s): ` +
     `${result.regressions.length} regression(s), ${result.improvements.length} improvement(s).`,
 );
 

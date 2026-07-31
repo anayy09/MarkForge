@@ -202,6 +202,36 @@ likely to need widening — a fourth role would be a code change, not a config e
 **7d. `markforge check --llm` capability probing** was invented to close question 3 rather than
 leaving it open. It adds a command flag and a cache file that the brief does not mention.
 
+Added during Phase 2:
+
+**7e. `TableCell.children` was widened to accept block content as well as phrasing content**,
+amending the Phase 0 schema. The schema followed mdast literally; `CORPUS.md` §2.5 requires
+cells containing block content, so the two contradicted each other. Argued in `SPEC.md` §2.7.1.
+
+**7f. PPTX and XLSX are read-only.** The brief's §11 Phase 2 lists them without saying which
+direction. Adapters exist; renderers do not, because generating a presentation or a spreadsheet
+was not asked for and would be speculative machinery. `--to pptx` refuses by name. Cheap to
+add if wanted.
+
+**7g. `@markforge/adapters-office` holds both PPTX and XLSX** rather than being two packages.
+They share a shape — one OPC container, many sub-documents, each becoming a top-level IR node —
+and splitting them would duplicate that scaffolding for no boundary anyone needs.
+
+**7h. `@markforge/adapters-pdf` infers, which rule A5 forbids for adapters.** Every other
+adapter records evidence and leaves decisions to `@markforge/infer`, because every other format
+states its own structure. A PDF has glyphs at coordinates and nothing else, so refusing to infer
+would mean refusing to read PDFs. The inference is deterministic, thresholds derive from the
+document's own measurements, and provenance carries `confidence: 0.8` so the guess is labelled
+as one. ADR-0012 anticipated this; it is recorded here as an explicit A5 exception.
+
+**7i. A PDF with no text layer throws rather than returning an empty document.** OCR is Phase 3.
+Until then, a conversion that "succeeds" with three words of a forty-page scan is worse than one
+that says what is wrong, so the adapter names the phase that will fix it and stops.
+
+**7j. `parseAsync`/`convertAsync` exist alongside the synchronous pair.** PDF extraction is
+inherently asynchronous, and making every conversion async would force every caller to await a
+Markdown conversion that does no I/O. `parse("pdf")` throws and names the function that works.
+
 ---
 
 ## 8. Questions only Phase 1+ can answer

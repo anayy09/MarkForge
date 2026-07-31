@@ -13,23 +13,45 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 
 ---
 
-## Status: Phase 1 — the deterministic spine works
+## Status: Phase 2 — six formats read, three written
 
-`markforge convert` and `markforge fmt` are real. Markdown ↔ DOCX round-trips, `fmt` is
-provably idempotent, and every number in [docs/FIDELITY.md](docs/FIDELITY.md) is measured
-rather than claimed.
+`markforge convert` and `markforge fmt` are real, and every number in
+[docs/FIDELITY.md](docs/FIDELITY.md) is measured rather than claimed.
+
+| Format | Read | Write |
+| --- | :-: | :-: |
+| Markdown | yes | yes |
+| DOCX | yes | yes |
+| HTML | yes | yes |
+| PPTX | yes | — |
+| XLSX | yes | — |
+| PDF | yes | — |
+
+PPTX, XLSX, and PDF are read-only. For the first two, nobody asked MarkForge to *generate* a
+spreadsheet and building it on speculation would be machinery with no user. PDF output needs a
+layout engine — [ADR-0003](docs/adr/0003-pdf-engine-typst.md) chose Typst — and is not built
+yet. `--to xlsx` and `--to pdf` say so by name instead of failing somewhere internal.
+
+Reading a PDF is the one place an *adapter* infers rather than recording evidence, because a
+PDF states no structure at all: it has glyphs at coordinates. That inference is deterministic,
+every threshold is derived from the document's own measurements rather than hardcoded, and the
+provenance records `confidence: 0.8` so a consumer can tell a reconstructed heading from a
+declared one.
 
 ```sh
 pnpm install && pnpm build
 
-node packages/cli/dist/index.js convert report.md -o report.docx
-node packages/cli/dist/index.js convert report.docx -o report.md
+node packages/cli/dist/index.js convert report.md   -o report.docx
+node packages/cli/dist/index.js convert deck.pptx   -o deck.md
+node packages/cli/dist/index.js convert data.xlsx   -o data.html
+node packages/cli/dist/index.js convert paper.pdf   -o paper.md
 node packages/cli/dist/index.js fmt docs/**/*.md --check
 ```
 
-Not yet built: PDF, HTML, PPTX, XLSX (Phase 2), the LLM layer (Phase 3), and `agentify`
-(Phase 4). Those subcommands exist in `--help` and **refuse rather than pretend** — a command
-that silently does nothing is worse than one that says it does not exist yet.
+Not yet built: PDF *output* and OCR for scanned PDFs (Phase 3), the LLM layer (Phase 3), and
+`agentify` (Phase 4).
+Those subcommands exist in `--help` and **refuse rather than pretend** — a command that
+silently does nothing is worse than one that says it does not exist yet.
 
 ## What to read, in order
 
@@ -42,6 +64,7 @@ that silently does nothing is worse than one that says it does not exist yet.
 | [docs/TEMPLATES.md](docs/TEMPLATES.md) | Reference documents: what ships, and how to use a publisher template we cannot ship |
 | [docs/OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md) | Everything unresolved, and every decision made without asking |
 | [docs/FIDELITY.md](docs/FIDELITY.md) | Measured conversion fidelity. Generated; every fixture appears |
+| [docs/SCOREBOARD.md](docs/SCOREBOARD.md) | MarkForge against Pandoc on the same corpus, with the bias disclosed |
 
 Machine-readable contracts live beside the docs, not inside them:
 

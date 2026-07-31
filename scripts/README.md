@@ -18,6 +18,7 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `add-salient-annotations.mjs` | none | One-shot migration that added `x-salient` to the IR schema |
 | `check-fixtures.mjs` | none | Every fixture has a licence line, and every licence line has a fixture |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
+| `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
 
 ## Running them
@@ -67,6 +68,23 @@ regressions without failing on them: an unexplained jump is as likely to mean th
 as that the converter improved, so it asks a human to look rather than quietly banking the win.
 
 It imports from `dist/`, not `src/`, so it measures what ships.
+
+## `run-scoreboard.mjs`
+
+Scores MarkForge against Pandoc on the same corpus and writes `docs/SCOREBOARD.md`.
+`docs/CORPUS.md` §3 requires the comparison, and the Phase 1 done-criterion is phrased in terms
+of it.
+
+**Skips with exit 0 when pandoc is absent**, because a comparison with a missing competitor is
+impossible rather than failed. Install it with `winget install JohnMacFarlane.Pandoc`.
+
+`--check` guards the metrics where the two tools currently tie. It deliberately does *not*
+require beating Pandoc overall: MarkForge does not beat it on the structural metric today, and a
+gate asserting something untrue would either fail forever or invite tuning the metric until it
+passed. The honest gate is "do not get worse at what we are currently equal on".
+
+The report opens with its own bias in both directions — one favouring us, one favouring Pandoc —
+because a comparison that hides its methodology is an advertisement.
 
 ## `codegen-types.mjs`
 
