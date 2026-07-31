@@ -153,6 +153,7 @@ export function inferHeadings(
     n.type = "heading";
     n["depth"] = Math.min(6, level);
     n["resolvedLevel"] = level;
+    unwrapEvidenceMarks(n);
     changed++;
   });
 
@@ -162,6 +163,30 @@ export function inferHeadings(
   reportLevelSkips(doc, diagnostics);
 
   return { decisions, diagnostics, changed };
+}
+
+/**
+ * Removes an inline mark that spans a promoted heading entirely.
+ *
+ * When a paragraph is promoted because it is bold and large, that bold *was the
+ * evidence*. Leaving it as an inline mark too renders `## **PROJECT STATUS REPORT**` —
+ * the formatting counted twice, and on the way back to DOCX it becomes direct run
+ * formatting inside a heading style, which is the defect brief §5.1 exists to remove.
+ *
+ * Only a mark covering the whole heading is removed. Bold on three words inside a
+ * heading is genuine emphasis the author added on top, and unwrapping that would be
+ * losing information rather than de-duplicating it.
+ */
+function unwrapEvidenceMarks(heading: AnyNode): void {
+  const EVIDENCE_MARKS = new Set(["strong", "emphasis", "smallCaps"]);
+  for (;;) {
+    const kids = heading.children;
+    if (!Array.isArray(kids) || kids.length !== 1) return;
+    const only = kids[0]!;
+    if (!EVIDENCE_MARKS.has(only.type)) return;
+    if (!Array.isArray(only.children)) return;
+    heading.children = only.children;
+  }
 }
 
 function scoreHeading(node: AnyNode, evidence: StyleEvidence, bodySize: number): Candidate[] {

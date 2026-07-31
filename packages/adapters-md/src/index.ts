@@ -17,6 +17,7 @@ import { frontmatterFromMarkdown } from "mdast-util-frontmatter";
 import { frontmatter } from "micromark-extension-frontmatter";
 import { mathFromMarkdown } from "mdast-util-math";
 import { math } from "micromark-extension-math";
+import { parseHtmlDocument } from "@markforge/adapters-html";
 import {
   DiagnosticBag,
   DiagnosticCode,
@@ -172,10 +173,94 @@ function convert(
   }
 
   if (Array.isArray(node.children)) {
-    out.children = node.children.map((c) => convert(c as AnyNode, diagnostics, positions));
+    // flatMap, not map: recovering an embedded HTML block can yield several block
+    // nodes where mdast had one `html` node.
+    out.children = node.children.flatMap((c) =>
+      convertNodes(c as AnyNode, diagnostics, positions),
+    );
   }
 
   return out;
+}
+
+/**
+ * Block-level HTML elements worth reading as structure rather than as text.
+ *
+ * Each one is here because `@markforge/adapters-html` recovers it into real IR —
+ * verified, not assumed. `table` is the one that matters most: GFM pipe syntax cannot
+ * express a merged cell, so `@markforge/render-md` writes merged tables as HTML, and
+ * without this the round trip would return that table as an opaque string.
+ *
+ * Deliberately excludes `div`, `span`, and comments. A `div` carries no semantics
+ * worth recovering, and comments are how an `unknown` node preserves its source
+ * across a round trip (SPEC §3.2) — parsing those back would break that.
+ */
+const RECOVERABLE_HTML_BLOCKS = new Set([
+  "table", "ul", "ol", "dl", "blockquote", "figure",
+]);
+
+/**
+ * Converts one mdast node, expanding a recoverable HTML block into IR.
+ *
+ * Real-world Markdown carries HTML for everything Markdown cannot say, and treating
+ * it as an opaque string is a silent content loss: the text is not searchable, the
+ * table has no cells, and a DOCX renderer emits the markup as literal prose. Where
+ * the HTML adapter can read the block, reading it is strictly better.
+ */
+function convertNodes(
+  node: AnyNode,
+  diagnostics: DiagnosticBag,
+  positions: Map<AnyNode, MarkdownPosition>,
+): AnyNode[] {
+  if (node.type !== "html") return [convert(node, diagnostics, positions)];
+
+  const raw = typeof node["value"] === "string" ? node["value"] : "";
+  const tag = balancedBlockTag(raw);
+  if (tag === undefined) return [convert(node, diagnostics, positions)];
+
+  const { document: parsed, diagnostics: nested } = parseHtmlDocument(raw, {
+    path: "embedded.html",
+  });
+  const recovered = (parsed.body as unknown as AnyNode).children as AnyNode[] | undefined;
+  if (!recovered || recovered.length === 0) return [convert(node, diagnostics, positions)];
+
+  diagnostics.merge(nested);
+  diagnostics.info(
+    DiagnosticCode.MD_EMBEDDED_HTML_RECOVERED,
+    `Embedded <${tag}> block parsed as structure rather than kept as raw HTML, so its ` +
+      `content is in the IR. Nothing was lost; a Markdown renderer writes it back out.`,
+  );
+  for (const r of recovered) recordPosition(node, r, positions);
+  return recovered;
+}
+
+/**
+ * Returns the tag name if the string is exactly one balanced recoverable block.
+ *
+ * The balance check is what keeps this safe. A CommonMark HTML block ends at a blank
+ * line, so `<div>\n\ntext\n\n</div>` reaches mdast as *three* nodes — an opening tag,
+ * a paragraph, a closing tag. Parsing a fragment that only opens a tag would swallow
+ * the rest of the document into it, so anything that does not open and close within
+ * the one node is left exactly as it is today.
+ */
+function balancedBlockTag(raw: string): string | undefined {
+  const html = raw.trim();
+  const open = /^<([a-zA-Z][a-zA-Z0-9]*)(?=[\s/>])/.exec(html);
+  if (!open) return undefined;
+  const tag = open[1]!.toLowerCase();
+  if (!RECOVERABLE_HTML_BLOCKS.has(tag)) return undefined;
+  if (!new RegExp(`</${tag}\\s*>$`, "i").test(html)) return undefined;
+
+  // One block, not several siblings: `<ul>…</ul><ul>…</ul>` would pass the ends-with
+  // test while the first tag closes early, so require the opening tag to be the only
+  // unclosed one until the very end.
+  let depth = 0;
+  const tagPattern = new RegExp(`<(/?)${tag}(?=[\\s/>])[^>]*>`, "gi");
+  for (let m = tagPattern.exec(html); m !== null; m = tagPattern.exec(html)) {
+    depth += m[1] === "/" ? -1 : 1;
+    if (depth === 0 && tagPattern.lastIndex !== html.length) return undefined;
+  }
+  return depth === 0 ? tag : undefined;
 }
 
 /**

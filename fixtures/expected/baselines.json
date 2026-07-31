@@ -43,6 +43,46 @@
       "spanF1": 1
     },
     {
+      "fixture": "generated-profile-source",
+      "loop": "md->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "generated-profile-source",
+      "loop": "md->docx->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "generated-profile-source",
+      "loop": "docx->md->docx",
+      "structural": 0.9778,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "generated-profile-source",
+      "loop": "md->html->md",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
       "fixture": "inline-marks",
       "loop": "md->md",
       "structural": 1,
@@ -203,6 +243,166 @@
       "spanF1": 1
     },
     {
+      "fixture": "generated-no-theme",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "generated-no-theme",
+      "loop": "docx->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "generated-run-per-word",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "generated-run-per-word",
+      "loop": "docx->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-combined",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-combined",
+      "loop": "docx->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-direct-formatting",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-direct-formatting",
+      "loop": "docx->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-inconsistent-cascade",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-inconsistent-cascade",
+      "loop": "docx->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-manual-numbering",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-manual-numbering",
+      "loop": "docx->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-mixed-fonts",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-mixed-fonts",
+      "loop": "docx->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-whitespace-as-structure",
+      "loop": "docx->md->docx",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
+      "fixture": "messy-whitespace-as-structure",
+      "loop": "docx->html",
+      "structural": 1,
+      "textSensitive": 1,
+      "textInsensitive": 1,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1
+    },
+    {
       "fixture": "semantic-structure",
       "loop": "html->html",
       "structural": 0.9913,
@@ -245,21 +445,21 @@
     {
       "fixture": "spans-ground-truth",
       "loop": "html->docx->html",
-      "structural": 0.9239,
+      "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
-      "tableF1": 0.7,
-      "tableContentF1": 0.8,
+      "tableF1": 1,
+      "tableContentF1": 1,
       "spanF1": 1
     },
     {
       "fixture": "spans-ground-truth",
       "loop": "html->md->html",
-      "structural": 0.8025,
+      "structural": 0.8831,
       "textSensitive": 0.7775,
       "textInsensitive": 0.7775,
-      "tableF1": 0.2727,
-      "tableContentF1": 0.5455,
+      "tableF1": 0.8889,
+      "tableContentF1": 0.8889,
       "spanF1": 1
     }
   ]

@@ -45,6 +45,7 @@ export {
 } from "./cascade.js";
 export type {
   CascadeInput,
+  PartialEvidence,
   ResolveRequest,
   ResolvedStyle,
   ThemeFonts,

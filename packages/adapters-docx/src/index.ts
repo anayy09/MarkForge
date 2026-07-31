@@ -39,6 +39,7 @@ import {
   intVal,
   parseDocDefaults,
   parseNumbering,
+  readProperties,
   parseRelationships,
   parseStyles,
   parseTheme,
@@ -49,6 +50,7 @@ import {
   val,
   type CascadeInput,
   type ParsedNumbering,
+  type PartialEvidence,
   type XmlElement,
 } from "@markforge/ooxml";
 import { parseRun, parseHyperlink, type RunContext } from "./runs.js";
@@ -93,6 +95,8 @@ interface ParseState {
   pendingLocator: Map<AnyNode, string>;
   relationships: Map<string, { type: string; target: string }>;
   resourceIds: Map<string, string>;
+  /** Document-scoped guard so the missing-theme warning is emitted once. */
+  reportedMissingTheme: Set<true>;
 }
 
 export function parseDocx(bytes: Uint8Array, options: DocxParseOptions = {}): DocxParseResult {
@@ -157,6 +161,7 @@ export function parseDocx(bytes: Uint8Array, options: DocxParseOptions = {}): Do
     pendingLocator: new Map(),
     relationships,
     resourceIds: new Map(),
+    reportedMissingTheme: new Set(),
   };
 
   collectResources(state, rels);
@@ -321,11 +326,11 @@ function parseBlockContainer(container: XmlElement, state: ParseState, basePath:
       continue;
     }
 
-    if (el.local === "sectPr" || el.local === "bookmarkStart" || el.local === "bookmarkEnd") {
-      // sectPr is section geometry, captured via furniture; bookmarks are link
-      // targets handled by crossReference resolution. Neither is content.
-      continue;
-    }
+    // Property and layout elements are not content. Missing one here does not
+    // produce a missing feature, it produces a phantom `unknown` child on every
+    // node that carries the property — which is how `w:tcPr` ended up inside every
+    // table cell, failing schema validation.
+    if (PROPERTY_ELEMENTS.has(el.local)) continue;
 
     if (el.local === "sdt") {
       // A structured document tag (content control). Its content lives in sdtContent
@@ -347,6 +352,20 @@ function parseBlockContainer(container: XmlElement, state: ParseState, basePath:
 
   return out;
 }
+
+/**
+ * Elements that describe a node rather than being one.
+ *
+ * `sectPr` is section geometry, captured via furniture. `bookmarkStart`/`End` are
+ * link targets handled by crossReference resolution. The `*Pr` family and
+ * `tblGrid` are properties of their parent. None of them is content, and treating
+ * any of them as content produces a phantom child rather than a missing feature.
+ */
+const PROPERTY_ELEMENTS = new Set([
+  "sectPr", "bookmarkStart", "bookmarkEnd",
+  "tcPr", "trPr", "tblPr", "tblGrid", "tblPrEx", "pPr", "rPr",
+  "proofErr", "commentRangeStart", "commentRangeEnd", "commentReference",
+]);
 
 function listInfoFor(p: XmlElement, state: ParseState) {
   const pPr = childNamed(p, "pPr");
@@ -430,9 +449,66 @@ function parseParagraph(p: XmlElement, state: ParseState, locator: string): AnyN
 
   const children = parseInlineContainer(p, state);
   const node: AnyNode = { type: "paragraph", children };
-  state.pendingEvidence.set(node, resolved.evidence);
+
+  // Fold the runs' shared direct formatting into the paragraph's evidence. In a
+  // document that uses direct formatting instead of styles — the premise of
+  // Surface B — the size and weight live on the runs and the paragraph mark is
+  // bare, so without this heading inference has nothing to look at.
+  state.pendingEvidence.set(node, withRunEvidence(resolved.evidence, p, state));
   state.pendingLocator.set(node, locator);
   return node;
+}
+
+/**
+ * Adds the runs' *shared* direct formatting to a paragraph's evidence.
+ *
+ * Only properties every run agrees on are recorded. A paragraph whose runs differ
+ * in size has no single size, and claiming one would be inventing a fact rather
+ * than reading it — which also stops a single bold word mid-sentence from making
+ * its paragraph look like a heading.
+ *
+ * Style-supplied values are left alone: this only fills gaps the cascade left, so
+ * a properly styled document is unaffected.
+ */
+function withRunEvidence(
+  base: StyleEvidence,
+  p: XmlElement,
+  state: ParseState,
+): StyleEvidence {
+  const runs = childrenNamed(p, "r");
+  if (runs.length === 0) return base;
+
+  const perRun = runs.map((r) => readProperties(undefined, childNamed(r, "rPr")));
+  // A run with no properties at all cannot agree, so a paragraph mixing formatted
+  // and unformatted runs is treated as having no shared formatting.
+  const shared = <T,>(get: (e: PartialEvidence) => T | undefined): T | undefined => {
+    const first = get(perRun[0]!);
+    if (first === undefined) return undefined;
+    return perRun.every((e) => get(e) === first) ? first : undefined;
+  };
+
+  const sizePt = shared((e) => e.font?.sizePt);
+  const weight = shared((e) => e.font?.weight);
+  const allCaps = shared((e) => e.font?.allCaps);
+  const smallCaps = shared((e) => e.font?.smallCaps);
+
+  // Direct run properties *override* what the cascade supplied, rather than only
+  // filling gaps. This is layer 6 of the documented cascade beating layers 1 and 2, and
+  // getting it backwards is not a subtle loss: docDefaults always supplies a size, so a
+  // gap-filling version silently masked every run size and heading inference promoted
+  // nothing at all on the one fixture built to require it.
+  const font = { ...base.font };
+  let touched = false;
+  if (sizePt !== undefined && font.sizePt !== sizePt) { font.sizePt = sizePt; touched = true; }
+  if (weight !== undefined && font.weight !== weight) { font.weight = weight; touched = true; }
+  if (allCaps !== undefined && font.allCaps !== allCaps) { font.allCaps = allCaps; touched = true; }
+  if (smallCaps !== undefined && font.smallCaps !== smallCaps) { font.smallCaps = smallCaps; touched = true; }
+  if (!touched) return base;
+
+  void state;
+  // origin becomes directFormatting: the values came from runs the author formatted
+  // by hand, and that is exactly the signal inference keys on.
+  return { ...base, font, origin: "directFormatting" };
 }
 
 function parseInlineContainer(container: XmlElement, state: ParseState): AnyNode[] {
@@ -446,6 +522,7 @@ function parseInlineContainer(container: XmlElement, state: ParseState): AnyNode
     relationships: state.relationships,
     resourceIds: state.resourceIds,
     recordEvidence: (node, evidence) => state.pendingEvidence.set(node, evidence),
+    reportedMissingTheme: state.reportedMissingTheme,
     paragraphStyleId: styleId,
   };
 

@@ -37,7 +37,7 @@ provably idempotent.
 | `fmt` provably idempotent | done — 35 cases + 400 generated, to three passes |
 | Beats Pandoc on `docx → md → docx` | **done, after fixing three writer defects** |
 | Beats `word-to-markdown-js` | **not done** — the competitor is not in the scoreboard |
-| Golden corpus v1 | **partial** — 5 of the 8 categories Phase 1 required |
+| Golden corpus v1 | **partial** — 7 of the 8 categories Phase 1 required |
 | Three reference DOCX templates | **not done** — `TEMPLATES.md` §2.1 specifies them row by row |
 
 ### The Pandoc comparison, and why it was wrong before
@@ -83,13 +83,20 @@ manual cleanup, verified by inspection against the fidelity report.
 | PDF renderer | **not done** — needs Typst WASM (ADR-0003) |
 | Visual regression suite | **not done** |
 | Real-world messy PDF converts cleanly | **not verified** — no such fixture exists |
-| Real-world messy DOCX converts cleanly | **not verified** — `CORPUS.md` §2.3 not built |
+| Real-world messy DOCX converts cleanly | **verified on authored equivalents** — `CORPUS.md` §2.3 built; no committable real specimen |
 
-**The Phase 2 done-criterion is not met**, and the reason is the corpus rather than the
-code: the criterion is about *real-world messy* documents, and every fixture in the corpus
-is authored and clean. `fixtures/local/` holds three genuinely messy real documents that
-cannot be committed (IEEE licensing, and personal data in two of the owner's own files),
-which is why `CORPUS.md` §2.3 specifies authoring equivalents — and that has not happened.
+**The Phase 2 done-criterion is now met on authored equivalents, with one caveat stated
+plainly.** `CORPUS.md` §2.3 and §2.15 are built: eight deliberately defective DOCX fixtures
+are committed and measured, and all eight round-trip at 100% structural, text, table, and
+span fidelity. The caveat is that they are *our* messy documents. `fixtures/local/` holds
+three genuinely messy real documents that cannot be committed (IEEE licensing, and personal
+data in two of the owner's own files), so the real-specimen check remains manual.
+
+That said, the fixtures are not a soft target — building them broke the converter in five
+places the clean corpus could not reach: `w:tcPr` parsed as cell content, heading inference
+blind to run-level formatting, a per-run rather than per-document missing-theme diagnostic,
+`## **TEXT**` from a fully-bold heading, and — the largest — merged table cells silently
+flattened by GFM pipe syntax with no diagnostic. See **Corpus coverage** below.
 
 ## Unbuilt CLI surface
 
@@ -125,7 +132,7 @@ Each emits a diagnostic, so nothing is silent — but a diagnostic is not a feat
 | 2.11 emoji and Unicode | done |
 | 2.13 Markdown flavours | partial — one flavour |
 | 2.2 manuscripts with footnotes and equations | not done |
-| 2.3 badly formatted real-world documents | **not done — blocks the Phase 2 criterion** |
+| 2.3 badly formatted real-world documents | done — 6 fixtures, asserted defect by defect |
 | 2.6 multi-column PDFs | not done |
 | 2.7 scanned PDFs | not done — blocks the Phase 3 OCR criterion |
 | 2.8 slide decks | not done |
@@ -133,24 +140,28 @@ Each emits a diagnostic, so nothing is silent — but a diagnostic is not a feat
 | 2.10 RTL and CJK | partial, inside 2.11; native-speaker review not done |
 | 2.12 tracked changes and comments | not done |
 | 2.14 agentify source sets | not done, Phase 4 |
-| 2.15 library- and LLM-generated documents | not done |
+| 2.15 library- and LLM-generated documents | partial — 2 of 4 producer profiles; Pandoc and LibreOffice exports need the binaries |
 
-The measured numbers in `FIDELITY.md` are therefore over a corpus of clean, authored
-documents. They are honest about what they measured and should not be read as a claim
-about real-world input.
+The measured numbers in `FIDELITY.md` now cover eight deliberately defective DOCX
+documents alongside the clean ones, so they are no longer only a claim about easy input.
+They remain a claim about *authored* input: nothing in the corpus was found in the wild.
 
 ## What to fix first
 
 In the order that removes the most risk:
 
-1. **`CORPUS.md` §2.3 and §2.15.** Every fidelity number is currently measured on easy
-   input. Until messy fixtures exist, the scores describe the wrong thing, and the Phase 2
-   criterion cannot be evaluated at all.
-2. **Per-node-type census in `run-fidelity.mjs`.** Four format-destroying bugs hid behind
-   an aggregate score. The diff that found them should be part of the harness, not a
-   throwaway script.
-3. **`word-to-markdown-js` in the scoreboard.** It is the project's stated baseline and is
+1. **Per-node-type census in `run-fidelity.mjs`.** Now the top item. Five
+   format-destroying bugs have hidden behind an aggregate score, most recently merged
+   table cells: the harness reported 42.9% table F1 and could not say *which* cells
+   disagreed, so the cause took a throwaway script to find. An aggregate cannot name a
+   node type, and that is precisely what is needed. The diff belongs in the harness.
+2. **`word-to-markdown-js` in the scoreboard.** It is the project's stated baseline and is
    absent from the comparison.
-4. **Images and footnotes in the DOCX writer.** Both currently degrade real content.
-5. **`check --reference-doc`.** Two specification documents describe it as though it
+3. **Images and footnotes in the DOCX writer.** Both currently degrade real content.
+4. **`check --reference-doc`.** Two specification documents describe it as though it
    exists.
+5. **`CORPUS.md` §2.12 (tracked changes) and §2.2 (scanned documents).** The two remaining
+   categories that block a stated done-criterion rather than a nice-to-have.
+
+Completed since this document was first written: `CORPUS.md` §2.3 and §2.15, which were
+items 1 and the reason the Phase 2 criterion could not be evaluated.

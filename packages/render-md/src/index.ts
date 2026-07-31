@@ -17,9 +17,11 @@ import { mathToMarkdown } from "mdast-util-math";
 import {
   DiagnosticBag,
   DiagnosticCode,
+  cellSpan,
   type AnyNode,
   type MarkForgeDocument,
 } from "@markforge/ir";
+import { renderHtmlFragment } from "@markforge/render-html";
 
 const RENDERER = { kind: "adapter" as const, name: "@markforge/render-md", version: "0.1.0" };
 
@@ -41,6 +43,27 @@ export interface MarkdownRenderOptions {
    * formats nothing.
    */
   lineWidth?: number;
+  /**
+   * How to write a table whose cells are merged.
+   *
+   * GFM pipe syntax has no `rowspan`/`colspan`, so a merged table cannot be
+   * expressed: the merge is lost and covered grid positions become empty cells.
+   * On `fixtures/docx/messy-combined.docx` that costs more than half the table
+   * cell F1, and it is silent data loss of exactly the kind that makes a
+   * conversion need manual cleanup.
+   *
+   * - `auto` (default) — pipe syntax when the table has no merged cells, a raw
+   *   HTML `<table>` when it does. HTML blocks are CommonMark, so the output is
+   *   still valid Markdown, and `@markforge/adapters-md` reads it back into the
+   *   same IR. You pay the readability cost only where the alternative is losing
+   *   the merge.
+   * - `gfm` — always pipe syntax, flattening merges. Emits
+   *   `MF-RENDER-0006` for each table it damages. Choose this when the consumer
+   *   cannot handle embedded HTML and readability outranks fidelity.
+   * - `html` — always a raw HTML table, merged or not. Choose this when a
+   *   downstream tool needs one table syntax rather than two.
+   */
+  tables?: "auto" | "gfm" | "html";
 }
 
 export interface MarkdownRenderResult {
@@ -56,6 +79,7 @@ export const DEFAULT_MD_OPTIONS: Required<MarkdownRenderOptions> = {
   fence: "`",
   listIndent: "one",
   lineWidth: 0,
+  tables: "auto",
 };
 
 function buildOptions(opts: Required<MarkdownRenderOptions>): ToMarkdownOptions {
@@ -100,7 +124,7 @@ export function renderMarkdown(
   const opts = { ...DEFAULT_MD_OPTIONS, ...options };
   const diagnostics = new DiagnosticBag(RENDERER);
 
-  const tree = toMdast(doc.body as unknown as AnyNode, diagnostics);
+  const tree = toMdast(doc.body as unknown as AnyNode, { diagnostics, opts });
   let markdown = toMarkdown(tree as never, buildOptions(opts));
 
   // toMarkdown does not guarantee a trailing newline in every configuration, and a
@@ -108,6 +132,11 @@ export function renderMarkdown(
   if (!markdown.endsWith("\n")) markdown += "\n";
 
   return { markdown, diagnostics };
+}
+
+interface MdastContext {
+  diagnostics: DiagnosticBag;
+  opts: Required<MarkdownRenderOptions>;
 }
 
 /**
@@ -118,9 +147,10 @@ export function renderMarkdown(
  * comments that survive a round trip, and the rest emit a diagnostic. Silence is
  * never an option (brief §3.3).
  */
-function toMdast(node: AnyNode, diagnostics: DiagnosticBag): AnyNode {
+function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
+  const { diagnostics } = ctx;
   const children = Array.isArray(node.children)
-    ? node.children.map((c) => toMdast(c as AnyNode, diagnostics)).filter((c): c is AnyNode => c !== null)
+    ? node.children.map((c) => toMdast(c as AnyNode, ctx)).filter((c): c is AnyNode => c !== null)
     : undefined;
 
   switch (node.type) {
@@ -133,7 +163,6 @@ function toMdast(node: AnyNode, diagnostics: DiagnosticBag): AnyNode {
     case "code":
     case "thematicBreak":
     case "definition":
-    case "table":
     case "tableRow":
     case "tableCell":
     case "footnoteDefinition":
@@ -154,6 +183,9 @@ function toMdast(node: AnyNode, diagnostics: DiagnosticBag): AnyNode {
     case "math":
     case "inlineMath":
       return strip(node, children);
+
+    case "table":
+      return tableToMdast(node, children ?? [], ctx);
 
     case "heading": {
       // Markdown caps at 6. A DOCX heading at resolved level 7 or deeper has no
@@ -285,6 +317,68 @@ function toMdast(node: AnyNode, diagnostics: DiagnosticBag): AnyNode {
       return { type: "root", children: children ?? [] };
     }
   }
+}
+
+/**
+ * Writes a table as pipe syntax or as raw HTML.
+ *
+ * GFM pipe tables cannot express a merged cell. Writing one anyway does not merely
+ * lose the merge: the covered grid positions come back as *empty cells*, so a 6-cell
+ * table with two merges re-parses as 8 cells, only 3 of which land on their original
+ * coordinates. Measured on `fixtures/docx/messy-combined.docx` that is a table cell
+ * F1 of 42.9% — and until this function existed it happened without a diagnostic,
+ * which is the failure mode brief §3.3 exists to forbid.
+ *
+ * So a merged table is written as a real HTML `<table>`, which is valid CommonMark
+ * and which `@markforge/adapters-md` reads back into the same IR. Unmerged tables,
+ * which is nearly all of them, still get readable pipe syntax.
+ */
+function tableToMdast(node: AnyNode, children: AnyNode[], ctx: MdastContext): AnyNode {
+  const { diagnostics, opts } = ctx;
+  const merged = mergedCellCount(node);
+  const at = typeof node.id === "string" ? [{ nodeId: node.id }] : [];
+
+  if (opts.tables === "gfm" || (opts.tables === "auto" && merged === 0)) {
+    if (merged > 0) {
+      diagnostics.degraded(
+        DiagnosticCode.RENDER_TABLE_SPANS_FLATTENED,
+        "table",
+        `Table has ${merged} merged cell(s), which GFM pipe syntax cannot express: ` +
+          `the merges are dropped and covered positions become empty cells. Render ` +
+          `with tables: "auto" to emit an HTML table instead and keep them.`,
+        ...at,
+      );
+    }
+    return strip(node, children);
+  }
+
+  // renderHtmlFragment, not a local serializer: the HTML we embed must be the HTML
+  // our own HTML adapter round-trips, and two serializers would drift.
+  const { html, diagnostics: nested } = renderHtmlFragment([node], { headingIds: false });
+  diagnostics.merge(nested);
+  if (merged > 0) {
+    diagnostics.info(
+      DiagnosticCode.RENDER_TABLE_AS_HTML,
+      `Table has ${merged} merged cell(s) and was written as an HTML table, which is ` +
+        `valid Markdown and preserves the merges. Nothing was lost.`,
+      ...at,
+    );
+  }
+  return { type: "html", value: html.trimEnd() };
+}
+
+/** Counts cells whose span covers more than their own grid position. */
+function mergedCellCount(table: AnyNode): number {
+  let n = 0;
+  const walk = (node: AnyNode): void => {
+    if (node.type === "tableCell") {
+      const { rowSpan, colSpan } = cellSpan(node as never);
+      if (rowSpan > 1 || colSpan > 1) n += 1;
+    }
+    if (Array.isArray(node.children)) for (const c of node.children) walk(c as AnyNode);
+  };
+  walk(table);
+  return n;
 }
 
 /** Copies a node, dropping IR-only fields that mdast would not understand. */

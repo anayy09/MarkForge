@@ -17,6 +17,9 @@
     },
     {
       "path": "../infer"
+    },
+    {
+      "path": "../render-md"
     }
   ]
 }

@@ -72,6 +72,13 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # The messy DOCX corpus is committed rather than built on demand, so a test can
+      # run without a build step. That trade only holds if the committed bytes still
+      # match the generator — otherwise a fixture drifts and every assertion against
+      # it silently measures something else.
+      - name: Messy corpus fixtures are current
+        run: node scripts/build-messy-fixtures.mjs --check
+
       - name: Test
         run: pnpm run test
 
