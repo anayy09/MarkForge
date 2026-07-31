@@ -213,9 +213,26 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
 
     case "figure":
     case "captionedFigure":
+      // Markdown has no <figure>. The children survive as a paragraph, so no text is
+      // lost, but the binding between an image and its caption is — and a caption that
+      // is only a nearby paragraph cannot be re-bound on the way back.
+      diagnostics.degraded(
+        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+        node.type,
+        `Markdown has no figure syntax: the image and caption survive as a paragraph, ` +
+          `but their binding does not. Render to HTML to keep it.`,
+        ...(typeof node.id === "string" ? [{ nodeId: node.id }] : []),
+      );
       return { type: "paragraph", children: children ?? [] };
 
     case "caption":
+      diagnostics.degraded(
+        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+        "caption",
+        `Markdown has no caption syntax: the text survives as a paragraph, so it reads ` +
+          `correctly but is no longer marked as a caption.`,
+        ...(typeof node.id === "string" ? [{ nodeId: node.id }] : []),
+      );
       return { type: "paragraph", children: children ?? [] };
 
     case "admonition": {
@@ -236,6 +253,17 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
       return { type: "math", value: typeof node["value"] === "string" ? node["value"] : "" };
 
     case "descriptionList":
+      // No CommonMark or GFM definition-list syntax exists. Terms become bold
+      // paragraphs and details plain ones: readable, but the association is gone and
+      // a re-parse cannot tell a term from any other bold line.
+      diagnostics.degraded(
+        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+        "descriptionList",
+        `Markdown has no description-list syntax: terms become bold paragraphs and ` +
+          `details plain ones, so the text survives but the term-to-detail association ` +
+          `does not. Render to HTML or DOCX to keep it.`,
+        ...(typeof node.id === "string" ? [{ nodeId: node.id }] : []),
+      );
       return { type: "root", children: children ?? [] };
     case "descriptionTerm":
       return { type: "paragraph", children: [{ type: "strong", children: children ?? [] }] };
@@ -336,16 +364,22 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
 function tableToMdast(node: AnyNode, children: AnyNode[], ctx: MdastContext): AnyNode {
   const { diagnostics, opts } = ctx;
   const merged = mergedCellCount(node);
+  const blockCells = blockContentCellCount(node);
+  const inexpressible = merged + blockCells;
   const at = typeof node.id === "string" ? [{ nodeId: node.id }] : [];
 
-  if (opts.tables === "gfm" || (opts.tables === "auto" && merged === 0)) {
-    if (merged > 0) {
+  if (opts.tables === "gfm" || (opts.tables === "auto" && inexpressible === 0)) {
+    if (inexpressible > 0) {
+      const reasons = [
+        ...(merged > 0 ? [`${merged} merged cell(s)`] : []),
+        ...(blockCells > 0 ? [`${blockCells} cell(s) holding block content`] : []),
+      ];
       diagnostics.degraded(
         DiagnosticCode.RENDER_TABLE_SPANS_FLATTENED,
         "table",
-        `Table has ${merged} merged cell(s), which GFM pipe syntax cannot express: ` +
-          `the merges are dropped and covered positions become empty cells. Render ` +
-          `with tables: "auto" to emit an HTML table instead and keep them.`,
+        `Table has ${reasons.join(" and ")}, which GFM pipe syntax cannot express: a ` +
+          `pipe cell holds one line of inline content, and merges become empty cells. ` +
+          `Render with tables: "auto" to emit an HTML table instead and keep them.`,
         ...at,
       );
     }
@@ -356,15 +390,50 @@ function tableToMdast(node: AnyNode, children: AnyNode[], ctx: MdastContext): An
   // our own HTML adapter round-trips, and two serializers would drift.
   const { html, diagnostics: nested } = renderHtmlFragment([node], { headingIds: false });
   diagnostics.merge(nested);
-  if (merged > 0) {
+  if (inexpressible > 0) {
+    const reasons = [
+      ...(merged > 0 ? [`${merged} merged cell(s)`] : []),
+      ...(blockCells > 0 ? [`${blockCells} cell(s) holding block content`] : []),
+    ];
     diagnostics.info(
       DiagnosticCode.RENDER_TABLE_AS_HTML,
-      `Table has ${merged} merged cell(s) and was written as an HTML table, which is ` +
-        `valid Markdown and preserves the merges. Nothing was lost.`,
+      `Table has ${reasons.join(" and ")} and was written as an HTML table, which is ` +
+        `valid Markdown and preserves both. Nothing was lost.`,
       ...at,
     );
   }
   return { type: "html", value: html.trimEnd() };
+}
+
+/**
+ * Counts cells whose content a GFM pipe cell cannot hold.
+ *
+ * A pipe cell is one line of inline content: it cannot contain a nested table, a list,
+ * a fenced code block, a blockquote, or a second paragraph. Writing such a table as
+ * pipes flattens the cell to its text, or loses it — `fixtures/html/spans-ground-truth.html`
+ * lost an entire nested table this way, at 88.3% structural and 77.8% text while table
+ * F1 still read 88.9%, because the metric never saw the table that vanished.
+ *
+ * A *single* paragraph does not count. Normalisation unwraps single-paragraph cells
+ * (rule 7) except empty ones, which must keep a paragraph because OOXML requires one —
+ * so counting a lone paragraph would push every table with an empty cell to HTML.
+ */
+function blockContentCellCount(table: AnyNode): number {
+  const PIPE_HOSTILE = new Set(["table", "list", "code", "blockquote", "heading", "thematicBreak"]);
+  let n = 0;
+  const walk = (node: AnyNode): void => {
+    if (node.type === "tableCell") {
+      const kids = Array.isArray(node.children) ? (node.children as AnyNode[]) : [];
+      const paragraphs = kids.filter((c) => c.type === "paragraph").length;
+      if (kids.some((c) => PIPE_HOSTILE.has(c.type)) || paragraphs > 1) n += 1;
+      // Do not descend: a nested table's own cells are the nested table's problem, and
+      // counting them would report the same loss several times.
+      return;
+    }
+    if (Array.isArray(node.children)) for (const c of node.children) walk(c as AnyNode);
+  };
+  walk(table);
+  return n;
 }
 
 /** Counts cells whose span covers more than their own grid position. */

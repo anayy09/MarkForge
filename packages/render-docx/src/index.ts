@@ -205,9 +205,45 @@ const HYPERLINK_REL_TYPE =
 
 const synthesizeId = (name: string): string => name.replace(/[^A-Za-z0-9]/g, "") || "MarkForgeStyle";
 
+/**
+ * Renders a node's children as blocks, gathering inline siblings into paragraphs.
+ *
+ * The gathering is not tidiness. OOXML has no place to put a bare run outside a
+ * `w:p`, and several IR nodes hold inline children directly: a `figure` holds an
+ * `image`, a `descriptionTerm` holds text. Sending those to `renderBlock` finds no
+ * case for them, so before this existed a description list's terms were **not
+ * written at all** and an image inside a figure vanished — while the block switch
+ * reported them as constructs with "no children to fall back on", which was true
+ * and beside the point.
+ *
+ * Consecutive inline siblings share one paragraph, because that is what they were:
+ * splitting `text, strong, text` into three paragraphs would break one sentence into
+ * three.
+ */
 function renderBlocks(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument): string {
   const children = Array.isArray(node.children) ? (node.children as AnyNode[]) : [];
-  return children.map((c) => renderBlock(c, ctx, doc)).join("");
+  let out = "";
+  let pending: AnyNode[] = [];
+
+  const flush = (): void => {
+    if (pending.length === 0) return;
+    out += paragraph(
+      inlineRuns({ type: "root", children: pending } as AnyNode, ctx),
+      styleFor("paragraph", ctx),
+    );
+    pending = [];
+  };
+
+  for (const c of children) {
+    if (BLOCK_TYPES.has(c.type)) {
+      flush();
+      out += renderBlock(c, ctx, doc);
+    } else {
+      pending.push(c);
+    }
+  }
+  flush();
+  return out;
 }
 
 function renderBlock(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, listContext?: { numId: number; level: number }): string {
@@ -289,7 +325,31 @@ function renderBlock(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, 
       return "";
 
     default: {
-      if (Array.isArray(node.children)) return renderBlocks(node, ctx, doc);
+      // Unwrapping keeps the text, but the node type itself is gone — a description
+      // list becomes loose paragraphs, a figure loses the binding between image and
+      // caption. That is a real loss and it must be reported: this branch was silent,
+      // so `html -> docx -> html` dropped nine node types while emitting exactly one
+      // diagnostic, and it was the node-type census rather than any test that noticed.
+      //
+      // Reported here in the `default` branch rather than case by case, so a node type
+      // added to the IR later cannot slip through unreported by being forgotten.
+      if (Array.isArray(node.children)) {
+        ctx.diagnostics.degraded(
+          DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+          node.type,
+          `"${node.type}" has no DOCX representation: its children are written, so no ` +
+            `text is lost, but the construct itself is. Render to HTML to keep it.`,
+          ...(typeof node.id === "string" ? [{ nodeId: node.id }] : []),
+        );
+        return renderBlocks(node, ctx, doc);
+      }
+      ctx.diagnostics.degraded(
+        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+        node.type,
+        `"${node.type}" has no DOCX representation and no children to fall back on, so ` +
+          `it is not written at all.`,
+        ...(typeof node.id === "string" ? [{ nodeId: node.id }] : []),
+      );
       return "";
     }
   }

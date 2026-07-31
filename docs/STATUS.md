@@ -65,8 +65,9 @@ badly: Pandoc's span F1 went from 90.5% to 100% without Pandoc changing at all.
 
 The lesson is about the measurement, not the code. An aggregate fidelity score cannot say
 *which* node types differ, so four format-destroying defects hid behind a number in the
-nineties. The census diff found all four in under an hour. `run-fidelity.mjs` still reports
-aggregates; a per-node-type census belongs in it.
+nineties. The census diff found all four in under an hour. **That census now lives in
+`@markforge/fidelity` and is reported in `docs/FIDELITY.md`** under *Where the losses are*,
+and it found four more defects on its first run — see *What to fix first*.
 
 ## Phase 2 — breadth
 
@@ -111,14 +112,26 @@ than pretending, which is the right behaviour but is not delivery.
 
 ## Renderer gaps that lose content today
 
-Each emits a diagnostic, so nothing is silent — but a diagnostic is not a feature.
+Each emits a diagnostic — but that was **not true when this section was first written**, and
+the claim is worth correcting rather than quietly fixing. Through `html -> docx -> html` the
+DOCX writer dropped nine node types while emitting exactly one diagnostic, and the Markdown
+writer degraded figures, captions, and description lists in silence. Both now report. Neither
+was found by a test; the node-type census found them.
 
-| Gap | Effect |
-| --- | --- |
-| Images are not embedded in DOCX output | an image becomes `[alt text]` |
-| Footnotes are not written to `footnotes.xml` | footnote bodies become body paragraphs |
-| Cross-references are not resolved on write | become plain links |
-| Tracked changes are read but not written | `revisionMode` affects reading only |
+A diagnostic is still not a feature.
+
+| Gap | Effect | Reported |
+| --- | --- | --- |
+| Images are not embedded in DOCX output | an image becomes `[alt text]` | yes |
+| Footnotes are not written to `footnotes.xml` | footnote bodies become body paragraphs | yes |
+| Cross-references are not resolved on write | become plain links | yes |
+| Tracked changes are read but not written | `revisionMode` affects reading only | yes |
+| DOCX has no figure, caption, or description list | text survives, the construct does not | yes, since this session |
+| Markdown has no figure, caption, or description list | same, and it is a format limit rather than a gap | yes, since this session |
+| `code` and `thematicBreak` are written to DOCX but not read back | a code block returns as prose, a rule as an empty paragraph | **no — the writer is correct and the reader has no case for them** |
+
+The last row is the tractable one: both are written correctly and recoverable by inference
+from the style name and the paragraph border, exactly as blockquotes already are.
 
 ## Corpus coverage
 
@@ -150,11 +163,14 @@ They remain a claim about *authored* input: nothing in the corpus was found in t
 
 In the order that removes the most risk:
 
-1. **Per-node-type census in `run-fidelity.mjs`.** Now the top item. Five
-   format-destroying bugs have hidden behind an aggregate score, most recently merged
-   table cells: the harness reported 42.9% table F1 and could not say *which* cells
-   disagreed, so the cause took a throwaway script to find. An aggregate cannot name a
-   node type, and that is precisely what is needed. The diff belongs in the harness.
+1. **Figures, description lists, and captions in the DOCX writer.** Now the top item,
+   and the largest remaining measured loss. `docs/FIDELITY.md` **Where the losses are**
+   names it exactly: through `html -> docx -> html`, `figure`, `caption`, `image`,
+   `code`, `thematicBreak`, and all three `description*` node types go to zero. DOCX
+   has no description list, so this needs a style convention plus inference the way
+   blockquotes got one. Markdown genuinely cannot express a figure or a description
+   list, so those rows are a format limit — but they are now *reported* rather than
+   silent, which they were not until the census found them.
 2. **`word-to-markdown-js` in the scoreboard.** It is the project's stated baseline and is
    absent from the comparison.
 3. **Images and footnotes in the DOCX writer.** Both currently degrade real content.
@@ -163,5 +179,27 @@ In the order that removes the most risk:
 5. **`CORPUS.md` §2.12 (tracked changes) and §2.2 (scanned documents).** The two remaining
    categories that block a stated done-criterion rather than a nice-to-have.
 
-Completed since this document was first written: `CORPUS.md` §2.3 and §2.15, which were
-items 1 and the reason the Phase 2 criterion could not be evaluated.
+Completed since this document was first written: `CORPUS.md` §2.3 and §2.15, and the
+per-node-type census, which were items 1 and 2.
+
+The census earned its place immediately. Added to `@markforge/fidelity` and reported in
+`docs/FIDELITY.md`, it found four things the aggregate scores had hidden behind means of
+99% and above:
+
+- **The harness measured a pipeline we do not ship.** It ran `inferHeadings` where
+  `@markforge/core` runs `inferAll`, so blockquote recovery was missing from every
+  measurement and every blockquote through DOCX looked like a permanent loss.
+- **`docx -> md -> docx` compared unlike trees.** Inference ran on one side only, so all
+  five headings in `clean-report` counted as lost and five paragraphs as gained. The loop
+  was reporting 96.8% against itself when it was clean.
+- **A whole table vanished** from `spans-ground-truth` through Markdown, because a GFM
+  pipe cell cannot hold block content any more than it can hold a merge. Table F1 read
+  88.9% while the metric never saw the table that disappeared.
+- **`html -> html` lost an image** — a loop through a single format. A `figure` holds its
+  `image` as a direct child, the block renderer had no case for an inline node, and it
+  produced nothing. `renderRow` already carried a comment about the same mistake costing
+  table F1 0.0%, which is twice.
+
+Mean structural fidelity went 98.9% to 99.7% and mean table F1 96.5% to 100.0% as a
+result — none of which was new capability, all of which was measurement finding real
+defects. That is the argument for keeping the census.

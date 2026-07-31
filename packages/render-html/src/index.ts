@@ -110,9 +110,32 @@ interface Ctx {
   usedIds: Set<string>;
 }
 
+/**
+ * Node types `renderInline` handles. Anything here reaching `renderNode` instead
+ * produces nothing, because the block switch has no case for it.
+ *
+ * That is not hypothetical: a `figure` holds an `image` and a `caption` as direct
+ * children, so the image went through the block path and vanished — `html -> html`,
+ * a loop through one format, silently lost it. `renderRow` already carries a comment
+ * about the same mistake costing table F1 0.0%, which is twice now, so the routing is
+ * explicit rather than left to whichever switch happens to be called.
+ */
+const INLINE_TYPES = new Set([
+  "text", "strong", "emphasis", "delete", "underline", "insertion", "deletion",
+  "highlight", "subscript", "superscript", "smallCaps", "inlineCode", "inlineMath",
+  "break", "link", "crossReference", "image", "footnoteReference", "comment", "html",
+]);
+
 function renderNodes(nodes: AnyNode[] | undefined, ctx: Ctx, depth: number): string {
   if (!nodes) return "";
-  return nodes.map((n) => renderNode(n, ctx, depth)).filter((s) => s !== "").join("\n");
+  return nodes
+    .map((n) =>
+      INLINE_TYPES.has(n.type)
+        ? `${"  ".repeat(depth)}${renderInline([n], ctx)}`
+        : renderNode(n, ctx, depth),
+    )
+    .filter((s) => s.trim() !== "")
+    .join("\n");
 }
 
 function renderNode(node: AnyNode, ctx: Ctx, depth: number): string {

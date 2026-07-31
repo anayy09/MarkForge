@@ -21,6 +21,15 @@ export interface FidelityScore {
   text: TextScore;
   table: TableScore;
   spans: { precision: number; recall: number; f1: number };
+  /** Node types whose counts differ, worst first. Empty when the trees agree. */
+  census: CensusDelta[];
+}
+
+/** One node type that appears a different number of times on each side. */
+export interface CensusDelta {
+  nodeType: string;
+  expected: number;
+  actual: number;
 }
 
 export function compare(expected: MarkForgeDocument, actual: MarkForgeDocument): FidelityScore {
@@ -31,7 +40,48 @@ export function compare(expected: MarkForgeDocument, actual: MarkForgeDocument):
     text: textSimilarity(textContent(a), textContent(b)),
     table: tableSimilarity(a, b),
     spans: spanSimilarity(a, b),
+    census: censusDelta(a, b),
   };
+}
+
+/** Counts nodes by type. */
+export function nodeCensus(root: AnyNode): Map<string, number> {
+  const counts = new Map<string, number>();
+  const walk = (n: AnyNode): void => {
+    counts.set(n.type, (counts.get(n.type) ?? 0) + 1);
+    if (Array.isArray(n.children)) for (const c of n.children) walk(c as AnyNode);
+  };
+  walk(root);
+  return counts;
+}
+
+/**
+ * Names the node types two trees disagree about.
+ *
+ * This exists because an aggregate score cannot say *what* changed, and five
+ * format-destroying bugs have hidden behind one. A structural score of 92.8% is a
+ * number to argue about; "list: 4 expected, 9 actual" is a bug report. Every one of
+ * those five was found by dumping exactly this diff by hand, so the harness should
+ * produce it rather than waiting for someone to suspect something.
+ *
+ * Sorted by the size of the disagreement, because the largest delta is usually the
+ * cause and the rest are its consequences.
+ */
+export function censusDelta(expected: AnyNode, actual: AnyNode): CensusDelta[] {
+  const a = nodeCensus(expected);
+  const b = nodeCensus(actual);
+  const deltas: CensusDelta[] = [];
+  for (const type of new Set([...a.keys(), ...b.keys()])) {
+    const x = a.get(type) ?? 0;
+    const y = b.get(type) ?? 0;
+    if (x !== y) deltas.push({ nodeType: type, expected: x, actual: y });
+  }
+  // Ties broken by name so the output is deterministic (ADR-0010 needs comparable runs).
+  return deltas.sort(
+    (p, q) =>
+      Math.abs(q.expected - q.actual) - Math.abs(p.expected - p.actual) ||
+      p.nodeType.localeCompare(q.nodeType),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -41,6 +91,14 @@ export function compare(expected: MarkForgeDocument, actual: MarkForgeDocument):
 export interface BaselineEntry {
   fixture: string;
   loop: string;
+  /**
+   * Node types whose counts differ across the loop, worst first.
+   *
+   * Carried in the baseline rather than computed for display only: this is the field
+   * that turns "structural dropped to 92.8%" into "list: 4 expected, 9 actual", and a
+   * reviewer reading the diff of a committed baseline should see which node type moved.
+   */
+  census?: CensusDelta[];
   structural: number;
   textSensitive: number;
   textInsensitive: number;
@@ -164,6 +222,32 @@ export function renderFidelityMarkdown(
         `${pct(mean((e) => e.textInsensitive))} | ${pct(mean((e) => e.tableF1))} | ` +
         `${pct(mean((e) => e.tableContentF1))} | ${pct(mean((e) => e.spanF1))} |`,
     );
+  }
+
+  const lossy = sorted.filter((e) => (e.census ?? []).length > 0);
+  lines.push("", "## Where the losses are", "");
+  if (lossy.length === 0) {
+    lines.push(
+      "No loop changes any node-type count: every tree that goes out comes back with the",
+      "same census. This section is generated, so it says this only when it is true.",
+    );
+  } else {
+    lines.push(
+      "Node types whose counts differ, worst first. A score says something regressed; this",
+      "says which construct did, which is the difference between a number to argue about and",
+      "a bug report. Every entry here is a real loss with a named cause or a known format",
+      "limit — nothing is rounded away.",
+      "",
+      "| Fixture | Loop | Node type | Expected | Actual |",
+      "| --- | --- | --- | --: | --: |",
+    );
+    for (const e of lossy) {
+      for (const d of e.census ?? []) {
+        lines.push(
+          `| ${e.fixture} | ${e.loop} | \`${d.nodeType}\` | ${d.expected} | ${d.actual} |`,
+        );
+      }
+    }
   }
 
   lines.push(
