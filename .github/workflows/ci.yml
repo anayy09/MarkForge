@@ -102,6 +102,32 @@ jobs:
           git diff --exit-code -- docs/FIDELITY.md \
             || (echo "::error::docs/FIDELITY.md is stale. Run 'pnpm fidelity --update' and commit." && exit 1)
 
+  scoreboard:
+    name: Scoreboard against Pandoc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      # Guards the metrics where the two tools tie today. Does not assert a win on
+      # structural, because there is not one — see docs/SCOREBOARD.md.
+      - name: Compare against Pandoc
+        run: node scripts/run-scoreboard.mjs --check
+
+      - name: docs/SCOREBOARD.md is current
+        run: |
+          git diff --exit-code -- docs/SCOREBOARD.md             || (echo "::error::docs/SCOREBOARD.md is stale. Run the scoreboard and commit." && exit 1)
+
   determinism:
     name: Byte-identical output
     runs-on: ubuntu-latest
