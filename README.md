@@ -65,6 +65,7 @@ silently does nothing is worse than one that says it does not exist yet.
 | [docs/OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md) | Everything unresolved, and every decision made without asking |
 | [docs/FIDELITY.md](docs/FIDELITY.md) | Measured conversion fidelity. Generated; every fixture appears |
 | [docs/SCOREBOARD.md](docs/SCOREBOARD.md) | MarkForge against Pandoc on the same corpus, with the bias disclosed |
+| [docs/STATUS.md](docs/STATUS.md) | Delivered against promised, per phase. Names what is missing |
 
 Machine-readable contracts live beside the docs, not inside them:
 

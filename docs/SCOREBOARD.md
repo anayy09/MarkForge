@@ -26,22 +26,22 @@ low is being penalised by the shared parser.
 
 | Fixture | Metric | MarkForge | Pandoc | Winner |
 | --- | --- | --: | --: | :-: |
-| clean-report | Structural | 90.6% | 100.0% | Pandoc |
+| clean-report | Structural | 100.0% | 100.0% | tie |
 | clean-report | Text | 100.0% | 100.0% | tie |
 | clean-report | Table F1 | 100.0% | 100.0% | tie |
 | clean-report | Span F1 | 100.0% | 100.0% | tie |
-| inline-marks | Structural | 98.5% | 91.4% | MarkForge |
-| inline-marks | Text | 93.2% | 93.2% | tie |
+| inline-marks | Structural | 100.0% | 97.0% | MarkForge |
+| inline-marks | Text | 100.0% | 100.0% | tie |
 | inline-marks | Table F1 | 100.0% | 100.0% | tie |
-| inline-marks | Span F1 | 85.7% | 85.7% | tie |
-| nested-restarting-lists | Structural | 89.8% | 100.0% | Pandoc |
+| inline-marks | Span F1 | 100.0% | 100.0% | tie |
+| nested-restarting-lists | Structural | 100.0% | 100.0% | tie |
 | nested-restarting-lists | Text | 100.0% | 100.0% | tie |
 | nested-restarting-lists | Table F1 | 100.0% | 100.0% | tie |
 | nested-restarting-lists | Span F1 | 100.0% | 100.0% | tie |
-| tables | Structural | 85.0% | 96.2% | Pandoc |
-| tables | Text | 88.2% | 88.2% | tie |
-| tables | Table F1 | 95.0% | 95.0% | tie |
-| tables | Span F1 | 66.7% | 66.7% | tie |
+| tables | Structural | 100.0% | 100.0% | tie |
+| tables | Text | 100.0% | 100.0% | tie |
+| tables | Table F1 | 100.0% | 100.0% | tie |
+| tables | Span F1 | 100.0% | 100.0% | tie |
 | unicode-edge-cases | Structural | 100.0% | 100.0% | tie |
 | unicode-edge-cases | Text | 100.0% | 100.0% | tie |
 | unicode-edge-cases | Table F1 | 100.0% | 100.0% | tie |
@@ -51,42 +51,51 @@ low is being penalised by the shared parser.
 
 | Metric | MarkForge | Pandoc |
 | --- | --: | --: |
-| Structural | 92.8% | 97.5% |
-| Text | 96.3% | 96.3% |
-| Table F1 | 99.0% | 99.0% |
-| Span F1 | 90.5% | 90.5% |
+| Structural | 100.0% | 99.4% |
+| Text | 100.0% | 100.0% |
+| Table F1 | 100.0% | 100.0% |
+| Span F1 | 100.0% | 100.0% |
 | *md -> md self-consistency* | 100.0% | 100.0% |
 
-Metric-fixture pairs: **1 to MarkForge, 3 to Pandoc, 16 tied**
+Metric-fixture pairs: **1 to MarkForge, 0 to Pandoc, 19 tied**
 (within half a percentage point).
 
 ## What this shows
 
-**Text, table, and span fidelity tie.** Both tools recover the words, the cells, and the
-inline marks equally well on this corpus. That is the part a user notices.
+On this corpus MarkForge and Pandoc both recover text, tables, and inline marks exactly,
+and MarkForge is marginally ahead on structure.
 
-**Pandoc scores higher on the structural metric, so the brief's Phase 1 criterion —
-"beats the reference project and Pandoc" — is not met on that metric.* Saying so is more
-useful than adjusting the metric until it is.
+**This was not true a day ago, and the reason is worth recording.** The first run of this
+scoreboard had Pandoc ahead on structure, 97.5% against 92.8%. I attributed the gap to
+MarkForge keeping a richer representation than the Markdown-shaped reference — plausible,
+and wrong. Diffing the node-type census against ground truth found three defects in our
+own DOCX *writer*:
 
-The mechanism is worth understanding before treating the gap as a defect. Ground truth is
-Markdown-shaped, and Pandoc's route passes through Markdown, so its output matches the
-target's shape by construction. MarkForge reads DOCX into the IR directly, and the IR keeps
-structure Markdown cannot express: a list item wrapping a paragraph, a cell holding block
-content, evidence in the sidecar. Tree-edit distance counts those nodes as differences from
-a flatter reference.
+1. **Nested lists were flattened.** The writer allocated a numbering id per nesting level,
+   so a reader grouping paragraphs by numbering id saw a separate list at each depth. Three
+   nested bullet lists round-tripped into five flat one-item lists.
+2. **Links lost their URL.** The writer emitted the label underlined followed by the URL in
+   parentheses, rather than writing a hyperlink relationship. The link type was destroyed
+   and the address became prose.
+3. **Every table cell gained a paragraph.** Markdown cells hold phrasing content; ours
+   wrapped each in a paragraph, so one fixture came back with sixteen extra nodes.
 
-So part of the gap is real and part is an artefact of measuring a richer representation
-against a flatter one. **Which part is which is not yet separated**, and until it is, this
-table should not be quoted as either a win or a loss.
+Fixing those raised **both** tools' scores, because both were reading a DOCX we had
+written badly — Pandoc's span F1 went from 90.5% to 100% without Pandoc changing at all.
+That is the useful lesson: a comparison that looked like a reader deficiency was a writer
+defect, and the *shape* of the loss (which node types differed, and by how many) is what
+pointed at it. The aggregate score never would have.
 
-## What would make this fair
+## What this still does not show
 
-1. **Pandoc-authored DOCX files as input**, so the writer is not ours.
-2. **Ground truth that is not Markdown-shaped** — a hand-authored IR per fixture, which is
-   what the construct inventories in `fixtures/expected/` are for.
-3. **A corpus of real documents.** Seven authored fixtures is not a sample. Categories §2.3
-   and §2.15 of `docs/CORPUS.md` exist for this and are not built yet.
+1. **Pandoc-authored DOCX files are not tested.** The input is always written by us, so
+   this measures our writer and both readers, not Pandoc's writer.
+2. **Ground truth is Markdown-shaped**, so a construct Markdown cannot express is invisible
+   to the comparison rather than scored. Hand-authored IR per fixture would fix that; it is
+   what `fixtures/expected/` construct inventories are for.
+3. **Seven authored fixtures is not a sample.** Categories §2.3 (badly formatted real-world
+   documents) and §2.15 (library-generated) of `docs/CORPUS.md` are not built, and they are
+   where a converter actually earns its score.
 
-Until those exist, this measures one narrow thing honestly rather than a broad thing
-loosely.
+Scoring 100% here means the round trip is clean on documents we designed. It does not mean
+the converter is finished.

@@ -7,33 +7,33 @@ Corpus: 7 fixture(s). Source: fixtures/md and fixtures/html via scripts/run-fide
 
 | Fixture | Loop | Structural | Text (ws-sensitive) | Text (ws-insensitive) | Table F1 | Table content F1 | Span F1 |
 | --- | --- | --: | --: | --: | --: | --: | --: |
-| clean-report | docx->md->docx | 97.3% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| clean-report | md->docx->md | 90.6% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| clean-report | md->html->md | 90.6% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| clean-report | docx->md->docx | 96.8% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| clean-report | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| clean-report | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | clean-report | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| inline-marks | docx->md->docx | 98.5% | 100.0% | 100.0% | 100.0% | 100.0% | 85.7% |
-| inline-marks | md->docx->md | 98.5% | 93.2% | 93.2% | 100.0% | 100.0% | 85.7% |
+| inline-marks | docx->md->docx | 98.5% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| inline-marks | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | inline-marks | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | inline-marks | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| nested-restarting-lists | docx->md->docx | 95.2% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| nested-restarting-lists | md->docx->md | 89.8% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| nested-restarting-lists | docx->md->docx | 99.3% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| nested-restarting-lists | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | nested-restarting-lists | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | nested-restarting-lists | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| semantic-structure | html->docx->html | 87.2% | 74.6% | 74.6% | 100.0% | 100.0% | 75.0% |
+| semantic-structure | html->docx->html | 91.7% | 82.4% | 82.4% | 100.0% | 100.0% | 100.0% |
 | semantic-structure | html->html | 99.1% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | semantic-structure | html->md->html | 94.8% | 100.0% | 100.0% | 100.0% | 100.0% | 88.9% |
-| spans-ground-truth | html->docx->html | 96.2% | 100.0% | 100.0% | 70.0% | 80.0% | 100.0% |
+| spans-ground-truth | html->docx->html | 92.4% | 100.0% | 100.0% | 70.0% | 80.0% | 100.0% |
 | spans-ground-truth | html->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| spans-ground-truth | html->md->html | 73.0% | 77.8% | 77.8% | 27.3% | 54.5% | 100.0% |
-| tables | docx->md->docx | 98.8% | 100.0% | 100.0% | 100.0% | 100.0% | 66.7% |
-| tables | md->docx->md | 85.0% | 88.2% | 88.2% | 95.0% | 95.0% | 66.7% |
-| tables | md->html->md | 86.3% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| spans-ground-truth | html->md->html | 80.3% | 77.8% | 77.8% | 27.3% | 54.5% | 100.0% |
+| tables | docx->md->docx | 99.2% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| tables | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| tables | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | tables | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | docx->md->docx | 96.7% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| **mean** | | 95.3% | 97.4% | 97.4% | 95.9% | 97.3% | 94.9% |
+| **mean** | | 98.0% | 98.5% | 98.5% | 96.0% | 97.5% | 99.6% |
 
 ## How to read these
 

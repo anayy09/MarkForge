@@ -353,6 +353,30 @@ if (existsSync(join(REPO, "docs/FIDELITY.md"))) {
   fail("docs/FIDELITY.md is missing — run `pnpm fidelity --update`");
 }
 
+// A competitor comparison that hides its methodology is an advertisement, so the
+// disclosure is asserted rather than trusted.
+//
+// The requirement is a section bounding the claim, not a specific verdict string. An
+// earlier draft of this check asserted the literal phrase "is not met on that metric",
+// which held while MarkForge was losing to Pandoc and would have had to be deleted the
+// moment that changed — a check that only passes when the news is bad is not a check.
+if (existsSync(join(REPO, "docs/SCOREBOARD.md"))) {
+  const board = read("docs/SCOREBOARD.md");
+  if (!/## Disclosed bias/.test(board)) fail("docs/SCOREBOARD.md does not disclose its bias");
+  if (!/favours us/.test(board) || !/favours\s+Pandoc/.test(board)) {
+    fail("docs/SCOREBOARD.md must name the bias in both directions, not only the flattering one");
+  }
+  if (!/## What this still does not show|## What would make this fair/.test(board)) {
+    fail("docs/SCOREBOARD.md must state what the comparison does not show");
+  }
+  if (!/self-consistency/.test(board)) {
+    fail("docs/SCOREBOARD.md is missing the shared-parser control CORPUS.md §3 requires");
+  }
+  ok("docs/SCOREBOARD.md discloses bias in both directions and bounds its own claim");
+} else {
+  fail("docs/SCOREBOARD.md is missing — run `node scripts/run-scoreboard.mjs`");
+}
+
 // --- 14. Phase 1 architecture invariants.
 //
 // The Phase 0 version of this check asserted the repository contained *no* code.
