@@ -196,7 +196,7 @@
       }
     },
     "Locator": {
-      "oneOf": [
+      "anyOf": [
         {
           "type": "object",
           "required": [
@@ -331,7 +331,7 @@
       ]
     },
     "Producer": {
-      "oneOf": [
+      "anyOf": [
         {
           "type": "object",
           "required": [
@@ -629,6 +629,10 @@
             },
             "pageBreakBefore": {
               "type": "boolean"
+            },
+            "borderBottom": {
+              "type": "boolean",
+              "description": "A bottom border on the paragraph. Recorded because it is how Word draws a horizontal rule: an empty paragraph carrying one is a thematicBreak, and without this the construct round-tripped to an empty paragraph (docs/STATUS.md). Evidence, not a decision — @markforge/infer decides."
             }
           }
         },
@@ -1030,7 +1034,7 @@
       }
     },
     "BlockContent": {
-      "oneOf": [
+      "anyOf": [
         {
           "$ref": "#/$defs/Paragraph"
         },
@@ -1109,7 +1113,7 @@
       ]
     },
     "PhrasingContent": {
-      "oneOf": [
+      "anyOf": [
         {
           "$ref": "#/$defs/Text"
         },
@@ -1985,7 +1989,7 @@
         "children": {
           "type": "array",
           "items": {
-            "oneOf": [
+            "anyOf": [
               {
                 "$ref": "#/$defs/DescriptionTerm"
               },

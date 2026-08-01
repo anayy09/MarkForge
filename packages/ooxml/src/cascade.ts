@@ -183,6 +183,17 @@ export function readProperties(
     if (boolVal(childNamed(pPr, "keepLines")) !== undefined) paragraph.keepLines = true;
     if (boolVal(childNamed(pPr, "pageBreakBefore")) !== undefined) paragraph.pageBreakBefore = true;
 
+    // A bottom border. Recorded because it is the only thing distinguishing a horizontal
+    // rule from an empty paragraph in OOXML — Word has no thematic-break element, so the
+    // writer draws one this way and, until this line, the reader had nothing to read it
+    // back from. Evidence only: `@markforge/infer` decides whether it is a rule (A5).
+    const pBdr = childNamed(pPr, "pBdr");
+    if (pBdr) {
+      const bottom = childNamed(pBdr, "bottom");
+      const style = bottom ? val(bottom) : undefined;
+      if (bottom && style !== "none" && style !== "nil") paragraph.borderBottom = true;
+    }
+
     const outline = intVal(childNamed(pPr, "outlineLvl"));
     if (outline !== undefined) outlineLevel = outline;
 

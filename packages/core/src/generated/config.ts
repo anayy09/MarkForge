@@ -10,6 +10,14 @@
  */
 
 /**
+ * The closed set of roles. Adding one is deliberately a code change: a role is a capability distinction the code must know how to use, unlike a task binding, which is only a preference.
+ *
+ * This interface was referenced by `MarkForgeConfig`'s JSON-Schema
+ * via the `definition` "llmRole".
+ */
+export type LlmRole = "fast" | "strong" | "vision" | "embed";
+
+/**
  * Style profile and run configuration (brief section 5.5, docs/SPEC.md section 7). Generated from the Zod schema in @markforge/core so the two cannot drift. Precedence: CLI flags > MARKFORGE_* env > this file > named profile > built-in defaults.
  */
 export interface MarkForgeConfig {

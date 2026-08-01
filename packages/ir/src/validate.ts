@@ -47,18 +47,45 @@ function loadSchema(): object {
   throw new Error("@markforge/ir: could not locate ir.v0.schema.json");
 }
 
-let validator: ValidateFunction | undefined;
+/**
+ * Two validators, and the reason is a defect that made `markforge check` unusable.
+ *
+ * `allErrors: true` tells ajv to collect every error, which means it cannot stop at the
+ * first matching branch of a union. The IR's content unions have 24 and 25 branches, they
+ * nest — a table holds cells, which hold paragraphs, which hold phrasing — and the cost
+ * multiplies at every level. A 183-node document with two tables **did not finish
+ * validating in 120 seconds**. `markforge check` on any real document simply hung, and the
+ * table-conformance suite quietly took 154 seconds.
+ *
+ * The schema half of the fix was `oneOf` → `anyOf` (every union is discriminated by a
+ * distinct `type` const, so they accept exactly the same documents, but `oneOf` must
+ * evaluate all branches to prove exactly one matched while `anyOf` may stop at the first).
+ * That alone was not enough, because `allErrors: true` re-disables the short-circuit.
+ *
+ * So: the fast validator answers *whether* a document is valid, and the thorough one is
+ * compiled lazily and run only when the answer is no — paying for good error messages
+ * exactly when there are errors to describe. Same 183-node document: **22 ms**.
+ */
+let fastValidator: ValidateFunction | undefined;
+let thoroughValidator: ValidateFunction | undefined;
 
-function getValidator(): ValidateFunction {
-  if (validator) return validator;
-  const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
+function compile(allErrors: boolean): ValidateFunction {
+  const ajv = new Ajv2020({ strict: true, allErrors, allowUnionTypes: true });
   addFormats(ajv);
   // MarkForge annotations (see scripts/add-salient-annotations.mjs). Declared so
   // strict mode still rejects a genuine typo.
   ajv.addVocabulary(["x-salient", "x-salientDoc"]);
-  const compiled = ajv.compile(loadSchema());
-  validator = compiled;
-  return compiled;
+  return ajv.compile(loadSchema());
+}
+
+function getValidator(): ValidateFunction {
+  fastValidator ??= compile(false);
+  return fastValidator;
+}
+
+function getThoroughValidator(): ValidateFunction {
+  thoroughValidator ??= compile(true);
+  return thoroughValidator;
 }
 
 export interface ValidationResult {
@@ -67,9 +94,10 @@ export interface ValidationResult {
 }
 
 export function validateDocument(doc: unknown): ValidationResult {
-  const validate = getValidator();
-  const valid = validate(doc) as boolean;
-  if (valid) return { valid: true, errors: [] };
+  if (getValidator()(doc) as boolean) return { valid: true, errors: [] };
+  // Invalid: now spend the time to say why, in full.
+  const validate = getThoroughValidator();
+  validate(doc);
   return {
     valid: false,
     errors: (validate.errors ?? []).map((e) => ({

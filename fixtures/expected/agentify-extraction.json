@@ -68,6 +68,10 @@
       "dedupAuthoredRecall": "0/2",
       "dedupMergesPerformed": 1,
       "dedupFalseMerges": 0
+    },
+    {
+      "staleProfiles": 0,
+      "oldestVerificationDays": 1
     }
   ]
 }

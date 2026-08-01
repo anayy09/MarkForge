@@ -50,7 +50,7 @@ Corpus: 18 fixture(s). Source: fixtures/md, fixtures/html, and fixtures/docx via
 | scanned-source | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-source | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-source | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| semantic-structure | html->docx->html | 91.2% | 89.7% | 89.7% | 100.0% | 100.0% | 100.0% |
+| semantic-structure | html->docx->html | 93.8% | 96.2% | 96.2% | 100.0% | 100.0% | 100.0% |
 | semantic-structure | html->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | semantic-structure | html->md->html | 94.8% | 100.0% | 100.0% | 100.0% | 100.0% | 88.9% |
 | spans-ground-truth | html->docx->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
@@ -64,7 +64,7 @@ Corpus: 18 fixture(s). Source: fixtures/md, fixtures/html, and fixtures/docx via
 | unicode-edge-cases | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| **mean** | | 96.4% | 98.0% | 98.0% | 98.2% | 98.2% | 96.3% |
+| **mean** | | 96.5% | 98.1% | 98.1% | 98.2% | 98.2% | 96.3% |
 
 ## Where the losses are
 
@@ -83,16 +83,13 @@ limit — nothing is rounded away.
 | scanned-150dpi-tesseract | scan->md | `heading` | 6 | 0 |
 | scanned-150dpi-tesseract | scan->md | `listItem` | 5 | 0 |
 | scanned-150dpi-tesseract | scan->md | `list` | 2 | 0 |
-| semantic-structure | html->docx->html | `paragraph` | 10 | 14 |
-| semantic-structure | html->docx->html | `text` | 22 | 24 |
+| semantic-structure | html->docx->html | `paragraph` | 10 | 12 |
 | semantic-structure | html->docx->html | `caption` | 1 | 0 |
-| semantic-structure | html->docx->html | `code` | 1 | 0 |
 | semantic-structure | html->docx->html | `descriptionDetails` | 1 | 0 |
 | semantic-structure | html->docx->html | `descriptionList` | 1 | 0 |
 | semantic-structure | html->docx->html | `descriptionTerm` | 1 | 0 |
 | semantic-structure | html->docx->html | `figure` | 1 | 0 |
 | semantic-structure | html->docx->html | `image` | 1 | 0 |
-| semantic-structure | html->docx->html | `thematicBreak` | 1 | 0 |
 | semantic-structure | html->md->html | `paragraph` | 10 | 12 |
 | semantic-structure | html->md->html | `blockquote` | 1 | 2 |
 | semantic-structure | html->md->html | `caption` | 1 | 0 |

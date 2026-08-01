@@ -192,7 +192,14 @@ function absorbEmptyParagraphs(
     let pendingSpacing = 0;
     let pendingFrom: string[] = [];
     for (const child of kids) {
-      if (isEmptyParagraph(child)) {
+      // An empty paragraph carrying a bottom border is not whitespace — it is how Word
+      // draws a horizontal rule, and it is the *only* trace a thematic break leaves.
+      // Collapsing it into spacing destroyed the construct before `@markforge/infer` could
+      // read it back, so `---` round-tripped to nothing at all. Whitespace used as spacing
+      // becomes spacing; whitespace that is actually a rule stays a rule.
+      const bordered =
+        typeof child.id === "string" && sidecar[child.id]?.paragraph?.borderBottom === true;
+      if (isEmptyParagraph(child) && !bordered) {
         // Approximation, and a deliberate one: an empty paragraph's height depends
         // on its font size and line spacing, which we do not always know. 12pt is
         // recorded as evidence, not as truth, and the diagnostic says so.

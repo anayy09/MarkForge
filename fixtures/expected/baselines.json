@@ -522,9 +522,9 @@
     {
       "fixture": "semantic-structure",
       "loop": "html->docx->html",
-      "structural": 0.9123,
-      "textSensitive": 0.8971,
-      "textInsensitive": 0.8971,
+      "structural": 0.9375,
+      "textSensitive": 0.9621,
+      "textInsensitive": 0.9621,
       "tableF1": 1,
       "tableContentF1": 1,
       "spanF1": 1,
@@ -532,20 +532,10 @@
         {
           "nodeType": "paragraph",
           "expected": 10,
-          "actual": 14
-        },
-        {
-          "nodeType": "text",
-          "expected": 22,
-          "actual": 24
+          "actual": 12
         },
         {
           "nodeType": "caption",
-          "expected": 1,
-          "actual": 0
-        },
-        {
-          "nodeType": "code",
           "expected": 1,
           "actual": 0
         },
@@ -571,11 +561,6 @@
         },
         {
           "nodeType": "image",
-          "expected": 1,
-          "actual": 0
-        },
-        {
-          "nodeType": "thematicBreak",
           "expected": 1,
           "actual": 0
         }

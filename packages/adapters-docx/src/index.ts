@@ -69,6 +69,10 @@ const ADAPTER = { kind: "adapter" as const, name: "@markforge/adapters-docx", ve
 const asBody = (children: AnyNode[]): MarkForgeDocument["body"] =>
   ({ type: "root", children }) as unknown as MarkForgeDocument["body"];
 
+/** The same wrapper for furniture, whose `content` the schema also declares as a `Root`. */
+const rootOf = (children: AnyNode[]): Furniture["content"] =>
+  ({ type: "root", children }) as unknown as Furniture["content"];
+
 export interface DocxParseOptions {
   /** Path recorded in provenance. Relative paths keep output machine-independent. */
   path?: string;
@@ -181,7 +185,9 @@ export function parseDocx(bytes: Uint8Array, options: DocxParseOptions = {}): Do
   doc.resources = state.resources;
 
   assignIds(doc.body as unknown as AnyNode);
-  for (const f of doc.furniture) for (const child of f.content as unknown as AnyNode[]) assignIds(child);
+  // Furniture content is a `root` node, so its whole subtree is assigned in one call —
+  // and the root itself gets an id, which the bare-array form could never give it.
+  for (const f of doc.furniture) assignIds(f.content as unknown as AnyNode);
 
   // The document id is the root node's id. Content-addressing the document for free
   // is the point: two parses of the same bytes produce the same document id, and a
@@ -676,7 +682,16 @@ function parseFurniture(state: ParseState, rels: Map<string, { type: string; tar
       // Phase 2 work and recorded as such rather than guessed.
       scope: "default",
       sectionIndex: 0,
-      content: parseBlockContainer(xml, state, `/${partPath}`) as unknown as Furniture["content"],
+      // A `root` node, not the bare children array.
+      //
+      // This was `parseBlockContainer(...) as unknown as Furniture["content"]` — a double
+      // cast forcing an array into a field the schema declares as a `Root`, which is exactly
+      // what a double cast is for and exactly why it was wrong. Every furniture-bearing
+      // document failed `validateDocument` at `/furniture/0/content`, and nothing caught it
+      // because no committed fixture had a header or a footer until the reference templates
+      // of TEMPLATES.md §2.1 were built. ADR-0002 routes furniture rather than stripping it;
+      // routing it into a shape the schema rejects is not much better than stripping it.
+      content: rootOf(parseBlockContainer(xml, state, `/${partPath}`)),
     });
   }
   // Sorted so furniture order does not depend on relationship-map iteration order,
@@ -743,7 +758,7 @@ function materializeSideTables(doc: MarkForgeDocument, state: ParseState): void 
     walk(root);
   };
   attach(doc.body as unknown as AnyNode);
-  for (const f of doc.furniture) for (const c of f.content as unknown as AnyNode[]) attach(c);
+  for (const f of doc.furniture) attach(f.content as unknown as AnyNode);
 }
 
 /**
@@ -774,7 +789,7 @@ function reattachProvenance(doc: MarkForgeDocument, state: ParseState): void {
     }
   };
   walk(doc.body as unknown as AnyNode);
-  for (const f of doc.furniture) for (const c of f.content as unknown as AnyNode[]) walk(c);
+  for (const f of doc.furniture) walk(f.content as unknown as AnyNode);
   doc.provenance = next;
   doc.sidecar = nextSidecar;
 }

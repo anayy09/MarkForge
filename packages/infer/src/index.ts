@@ -18,6 +18,7 @@
 import {
   DiagnosticBag,
   DiagnosticCode,
+  textContent,
   visit,
   type AnyNode,
   type MarkForgeDocument,
@@ -638,6 +639,115 @@ export function inferBlockquotes(doc: MarkForgeDocument): InferResult {
 }
 
 /**
+ * Rebuilds code blocks and thematic breaks from what a DOCX actually carries.
+ *
+ * Both are written correctly by `@markforge/render-docx` and, until now, neither was read
+ * back: a code block returned as a run of ordinary paragraphs and a horizontal rule as an
+ * empty one. `docs/STATUS.md` listed them together as the tractable gap, because the
+ * evidence needed is already in the document — a style name and a border — exactly as it is
+ * for blockquotes.
+ *
+ * **Code**: consecutive paragraphs in a code style become one `code` node, joined by
+ * newlines. Consecutive, because the writer splits a block into one paragraph per line
+ * (OOXML has no multi-line paragraph), so rejoining them is undoing a known transformation
+ * rather than guessing. A single isolated code-styled paragraph is still a code block of
+ * one line, which is what it was.
+ *
+ * **Thematic break**: an empty paragraph carrying a bottom border. Both halves are
+ * required. A bordered paragraph *with* text is a styled paragraph and stays one; an empty
+ * paragraph without a border is whitespace and normalisation has already dealt with it.
+ */
+const NEWLINE = String.fromCharCode(10);
+
+export function inferCodeAndBreaks(doc: MarkForgeDocument): InferResult {
+  const diagnostics = new DiagnosticBag(INFERRER);
+  const decisions: Decision[] = [];
+  let changed = 0;
+
+  const isCodeStyle = (name: string | undefined): boolean => {
+    if (!name) return false;
+    const n = name.toLowerCase().replace(/\s+/g, "");
+    return n === "sourcecode" || n === "code" || n === "codeblock" || n === "preformatted" || n === "html-pre";
+  };
+
+  const rebuild = (node: AnyNode): void => {
+    const kids = node.children;
+    if (!Array.isArray(kids)) return;
+    for (const child of kids) rebuild(child as AnyNode);
+
+    const out: AnyNode[] = [];
+    let run: AnyNode[] = [];
+    const flush = (): void => {
+      if (run.length === 0) return;
+      const value = run.map((n) => textContent(n)).join(NEWLINE);
+      out.push({ type: "code", value });
+      changed += run.length;
+      run = [];
+    };
+
+    for (const child of kids as AnyNode[]) {
+      const id = typeof child.id === "string" ? child.id : undefined;
+      const evidence = id !== undefined ? doc.sidecar[id] : undefined;
+
+      if (child.type === "paragraph" && isCodeStyle(evidence?.sourceStyleName)) {
+        run.push(child);
+        if (id !== undefined) {
+          decisions.push({
+            nodeId: id,
+            question: "Is this paragraph part of a code block?",
+            candidates: [
+              {
+                interpretation: "code",
+                score: 1,
+                reasons: [`style name "${evidence?.sourceStyleName}" declares preformatted text`],
+              },
+            ],
+            chosen: "code",
+            decidedBy: "named code style",
+            ambiguous: false,
+          });
+        }
+        continue;
+      }
+      flush();
+
+      if (
+        child.type === "paragraph" &&
+        evidence?.paragraph?.borderBottom === true &&
+        textContent(child).trim() === ""
+      ) {
+        out.push({ type: "thematicBreak" });
+        changed++;
+        if (id !== undefined) {
+          decisions.push({
+            nodeId: id,
+            question: "Is this empty bordered paragraph a horizontal rule?",
+            candidates: [
+              {
+                interpretation: "thematicBreak",
+                score: 1,
+                reasons: ["empty paragraph carrying a bottom border, which is how Word draws a rule"],
+              },
+            ],
+            chosen: "thematicBreak",
+            decidedBy: "empty paragraph with a bottom border",
+            ambiguous: false,
+          });
+        }
+        continue;
+      }
+
+      out.push(child);
+    }
+    flush();
+    node.children = out;
+  };
+
+  rebuild(doc.body as unknown as AnyNode);
+  return { decisions, diagnostics, changed, ambiguous: [] };
+}
+
+/**
  * Every inference pass, in the order they must run.
  *
  * Headings first: blockquote reconstruction wraps paragraphs, and a heading inside a
@@ -647,13 +757,17 @@ export function inferBlockquotes(doc: MarkForgeDocument): InferResult {
 export function inferAll(doc: MarkForgeDocument, options: InferOptions = {}): InferResult {
   const headings = inferHeadings(doc, options);
   const quotes = inferBlockquotes(doc);
+  // After blockquotes: a code-styled paragraph is never inside a quotation, and running
+  // this first would leave a `code` node where blockquote recovery expects a paragraph.
+  const code = inferCodeAndBreaks(doc);
   const diagnostics = new DiagnosticBag(INFERRER);
   diagnostics.merge(headings.diagnostics);
   diagnostics.merge(quotes.diagnostics);
+  diagnostics.merge(code.diagnostics);
   return {
-    decisions: [...headings.decisions, ...quotes.decisions],
+    decisions: [...headings.decisions, ...quotes.decisions, ...code.decisions],
     diagnostics,
-    changed: headings.changed + quotes.changed,
+    changed: headings.changed + quotes.changed + code.changed,
     // Only heading inference produces ambiguity: blockquote recovery reads a style name,
     // which is a fact rather than a judgement (see inferBlockquotes).
     ambiguous: headings.ambiguous,
