@@ -165,6 +165,31 @@ jobs:
           git diff --exit-code -- docs/AGENTIFY.md \
             || (echo "::error::docs/AGENTIFY.md is stale. Run 'node scripts/check-agentify.mjs --update' and commit." && exit 1)
 
+      # ADR-0015, built rather than asserted. The decision sat at `Proposed` for four
+      # phases and was wrong for all ten packages it named; this is what keeps it true.
+      # A `node:` import added to any package in the eager set fails here, which is the
+      # only moment that regression is cheap to fix.
+      - name: The browser build has no Node dependency (ADR-0015)
+        run: node scripts/check-browser-bundle.mjs
+
+      # Brief §8's "stateless, no document retention" is a privacy claim, so it is
+      # measured here rather than asserted in a README — filesystem delta, retrieval
+      # routes, minted ids, and cross-request contamination, each against a deliberately
+      # retaining control that all four probes must catch.
+      - name: The HTTP API retains no document (brief §8)
+        run: node scripts/check-http-retention.mjs
+
+      # Phase 5's done-criterion. The same input through the CLI, the HTTP API, the MCP
+      # server, and the browser build must produce identical bytes — this is what makes
+      # four surfaces one engine rather than four converters, and a wrapper that trimmed a
+      # newline would pass every unit test in its own package and fail only here.
+      # MODEL_API_KEY is unset, so a surface reaching the network fails rather than
+      # quietly succeeding.
+      - name: Four surfaces, same input, same bytes (Phase 5 done-criterion)
+        run: node scripts/check-surface-parity.mjs
+        env:
+          MODEL_API_KEY: ""
+
       - name: Test
         run: pnpm run test
 
@@ -450,6 +475,36 @@ jobs:
             || (echo "::error::fmt changed the corpus; commit the formatted files" && exit 1)
           node packages/cli/dist/index.js fmt fixtures/md/*.md --check --quiet
           echo "fmt reaches a fixed point on every corpus fixture."
+
+      # The GitHub Action, consumed by the repository that ships it.
+      #
+      # Its gate is not that `action.yml` exists — that would be a file, not a check.
+      # Dogfooding is the measurement: if the action's inputs, its exit-code mapping, or
+      # the path it builds the CLI at ever break, this step goes red in the same run that
+      # broke them, rather than in some other repository weeks later.
+      #
+      # `uses: ./` runs the action from this checkout, so it exercises the working tree
+      # rather than a tagged ref.
+      - name: The shipped GitHub Action gates this repository (dogfood)
+        uses: ./
+        with:
+          command: fmt
+          paths: fixtures/md/clean-report.md fixtures/md/tables.md fixtures/md/inline-marks.md
+
+      # And the other half: the action must be able to *fail*. A dogfood step that only
+      # ever passes proves the action runs, not that it gates. This points it at a file
+      # deliberately left unformatted and asserts exit 3, the SPEC §8 code for
+      # "fmt --check found files needing changes".
+      - name: The Action reports a file that needs formatting (negative control)
+        run: |
+          set +e
+          mkdir -p /tmp/action-control
+          printf '#  Badly   spaced\n\n\n\ntext\n' > /tmp/action-control/bad.md
+          MODEL_API_KEY="" node packages/cli/dist/index.js fmt /tmp/action-control/bad.md --check --quiet
+          code=$?
+          set -e
+          test "$code" -eq 3 || (echo "::error::expected exit 3 for a file needing formatting, got $code" && exit 1)
+          echo "The Action's failure path returns exit 3 as SPEC §8 specifies."
 
   # Brief §10: "A separate, non-blocking live job detects model drift." Non-blocking is the
   # whole design — it calls a real gateway, so it can fail for reasons that have nothing to do

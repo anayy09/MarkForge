@@ -24,7 +24,7 @@ import {
   type Assist,
   type Format,
 } from "@markforge/core";
-import { countNodes, validateDocument, type Diagnostic } from "@markforge/ir";
+import { countNodes, validateDocument, DiagnosticCode, type Diagnostic } from "@markforge/ir";
 import { readAvailableStyles, reportCoverage } from "@markforge/render-docx";
 import { createTesseractRecognizer } from "@markforge/adapters-ocr";
 import {
@@ -269,15 +269,61 @@ convertCommand
 
       for (const failure of assistFailures) log(`  ${failure}`, flags);
 
+      /*
+       * A failed assist call becomes a real diagnostic, not just a line of prose.
+       *
+       * `resolveAmbiguities` in `@markforge/infer` swallows the exception with the comment
+       * "the caller diagnoses the failure with its own vocabulary (it knows whether this was
+       * a budget, transport, or schema problem)". That division of labour is right and the
+       * caller only did half of it: these failures went into `llmFailures` and onto stderr,
+       * but never into `result.diagnostics` — so `--strict` could not see them,
+       * `reportDiagnostics` did not print them, and `MF-LLM-0001` was a code with an
+       * emission site for one case and none for this one.
+       *
+       * Found by `scripts/check-surface-parity.mjs`: pointed at an unreachable endpoint with
+       * the ambiguous fixture, `--llm` made four calls, all four failed, and the run exited 0
+       * with `ok: true`. Brief §3.3 requires every degradation to carry a diagnostic, and
+       * ADR-0009 says in as many words that a failed call falls back "with a diagnostic".
+       *
+       * Not `lossy`: nothing was lost. The deterministic answer is the correct answer and it
+       * is what `--no-llm` would have produced. What changed is that a capability the user
+       * explicitly asked for did not happen, which is a warning.
+       */
+      for (const failure of assistFailures) {
+        result.diagnostics.push({
+          code: DiagnosticCode.LLM_CALL_FAILED,
+          severity: "warning",
+          lossy: false,
+          message:
+            `${failure} The deterministic result stands, which is what --no-llm would have ` +
+            `produced. Nothing was lost; a requested model opinion was not obtained.`,
+          producedBy: { kind: "rule", name: "markforge-cli", version: "0.1.0" },
+        });
+      }
+
       await writeFile(resolve(output), result.bytes);
 
       const lossy = result.diagnostics.filter((d) => d.lossy);
+
+      /*
+       * Asked for the model, got none of it.
+       *
+       * A single failed call is a degradation the deterministic path absorbs — that is
+       * ADR-0009's position and it is unchanged. But when `--llm` was explicitly requested
+       * and *every* call failed, the run did not do the thing it was asked to do, and
+       * reporting `ok: true` with exit 0 makes that indistinguishable from success in a
+       * pipeline. `liveCalls === 0` alongside `failures === calls` is the endpoint being
+       * unreachable rather than a model being unhelpful.
+       */
+      const llmReport = assist.report?.();
+      const llmTotallyFailed =
+        llmReport !== undefined && llmReport.calls > 0 && llmReport.failures === llmReport.calls;
 
       if (flags.json) {
         process.stdout.write(
           JSON.stringify(
             {
-              ok: true,
+              ok: !llmTotallyFailed,
               input, output, from, to,
               bytesWritten: result.bytes.byteLength,
               documentId: result.document.id,
@@ -286,7 +332,7 @@ convertCommand
               decisions: result.decisions,
               // Present and null when the LLM was off, so a consumer can tell "no model
               // was consulted" from "this build does not report it".
-              llm: assist.report ? assist.report() : null,
+              llm: llmReport ?? null,
               llmFailures: assistFailures,
             },
             null,
@@ -297,6 +343,17 @@ convertCommand
         log(`${input} -> ${output}  (${result.bytes.byteLength} bytes)`, flags);
         if (result.explanation) process.stderr.write("\n" + result.explanation);
         reportDiagnostics(result.diagnostics, flags);
+      }
+
+      if (llmTotallyFailed) {
+        fail(
+          `--llm was requested and every one of the ${llmReport.calls} model call(s) failed ` +
+            `(${llmReport.mode} mode, endpoint unreachable or refusing). The deterministic ` +
+            `output was written and is the same result --no-llm would produce, so nothing is ` +
+            `wrong with ${output} — but the model was not consulted, and exiting 0 here would ` +
+            `make that indistinguishable from success.`,
+        );
+        process.exit(ExitCode.ERROR);
       }
 
       // Exit 2 only under --strict: losing something is worth knowing about always,
@@ -584,11 +641,81 @@ agentifyCommand.action(async (sources: string[], opts: Record<string, unknown>) 
   }
 });
 
+/**
+ * `serve` — the stateless HTTP API of brief §8 and SPEC §8.
+ *
+ * Binds to loopback unless told otherwise. A converter that accepts a document over the
+ * network is exactly the shape brief §3.6 is cautious about, so reaching it from another
+ * machine is a thing the operator asks for by typing `--host`, not a default they would
+ * have to discover and turn off.
+ */
+program
+  .command("serve")
+  .description("Local HTTP API (stateless, no document retention)")
+  .option("--port <n>", "port to listen on; 0 picks a free one", "3000")
+  .option("--host <addr>", "address to bind; defaults to loopback only", "127.0.0.1")
+  .option("--max-body <bytes>", "reject request bodies larger than this", String(32 * 1024 * 1024))
+  .option("--allow-origin <origin...>", "CORS origins to permit; none by default")
+  .option("--json", "emit the listening address as JSON on stdout")
+  .action(async (opts: { port: string; host: string; maxBody: string; allowOrigin?: string[]; json?: boolean }) => {
+    const { createServer, ROUTES } = await import("@markforge/http");
+    const server = createServer({
+      maxBodyBytes: Number(opts.maxBody),
+      ...(opts.allowOrigin ? { allowedOrigins: opts.allowOrigin } : {}),
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(Number(opts.port), opts.host, resolve);
+    });
+
+    const address = server.address();
+    const bound = typeof address === "object" && address ? `${opts.host}:${address.port}` : opts.host;
+
+    if (opts.json) {
+      // stdout stays machine-readable (SPEC §8): exactly one JSON object, human text
+      // to stderr. A supervisor reading `.url` to know where we landed on port 0 is
+      // the reason this exists.
+      process.stdout.write(JSON.stringify({ url: `http://${bound}`, routes: ROUTES }) + "\n");
+    } else {
+      process.stderr.write(
+        `markforge serve: listening on http://${bound}\n` +
+          ROUTES.map((r) => `  ${r.method} ${r.path}  — ${r.description}\n`).join("") +
+          `Stateless: nothing is written to disk and no document is retained.\n` +
+          `No LLM on this surface: @markforge/http does not depend on @markforge/llm.\n`,
+      );
+    }
+  });
+
+/**
+ * `mcp` — the MCP server of brief §8, over stdio.
+ *
+ * A separate subcommand from `serve` because they are different protocols on different
+ * transports: `serve` is HTTP for a client with a socket, `mcp` is JSON-RPC on stdin and
+ * stdout for a coding agent that spawned us. `targets/mcp-manifest.json` used to scaffold
+ * `npx -y @markforge/mcp`, which named a package nothing publishes (OPEN_QUESTIONS §5);
+ * it now names this command, which exists.
+ *
+ * Nothing may reach stdout except protocol messages, so this command sets no `--json`
+ * flag and prints no banner.
+ */
+program
+  .command("mcp")
+  .description("MCP server over stdio, for a coding agent to call at runtime")
+  .option("--root <dir>", "the only directory the server may read or write", process.cwd())
+  .option("--targets <dir>", "target profile directory; defaults to <root>/targets")
+  .action(async (opts: { root: string; targets?: string }) => {
+    const { serve } = await import("@markforge/mcp");
+    await serve({
+      root: resolve(opts.root),
+      ...(opts.targets ? { targetsDir: resolve(opts.targets) } : {}),
+    });
+  });
+
 // The remaining SPEC §8 subcommands. Declared so `--help` tells the truth about the
 // intended surface, and each one refuses rather than silently doing nothing.
 for (const [name, description, phase] of [
   ["diff", "Semantic IR diff between two documents", "Phase 2"],
-  ["serve", "Local HTTP API", "Phase 5"],
   ["init", "Scaffold config and reference documents", "Phase 2"],
 ] as const) {
   program

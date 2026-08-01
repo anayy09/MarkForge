@@ -1,6 +1,6 @@
 # Status — delivered against promised
 
-An honest audit of what Phases 0–2 said they would produce against what exists. Written
+An honest audit of what Phases 0–5 said they would produce against what exists. Written
 because the fidelity numbers looked healthy while several named deliverables were simply
 absent, and a green test suite is not the same as a finished phase.
 
@@ -428,6 +428,132 @@ Five of the ten bound LLM tasks still have no prompt file. Phase 4 wrote one —
 path, which needs none. `document-role-classification` and `context-unit-extraction` remain
 unwired for the reason in OPEN_QUESTIONS §7o: this corpus cannot grade them.
 
+## Phase 5 — distribution
+
+**Done when** the same input produces byte-identical output through the CLI, the HTTP API,
+the MCP server, and the browser build with `MODEL_API_KEY` unset, and the browser bundle's
+freedom from `node:` builtins and the HTTP API's no-retention claim are each measured by a
+check that has been seen to fail.
+
+Phase 5 was the only phase in `INIT.md` §11 with no done-criterion. The sentence above was
+proposed and agreed before any code was written, and §11 is amended to carry it (§7r).
+
+**The done-criterion is met, and all three clauses are CI jobs with negative controls.**
+
+| Half | Measured | Where |
+| --- | --- | --- |
+| Four surfaces, byte-identical | **30 conversions × 4 surfaces, all identical** | `check-surface-parity.mjs`, CI job `determinism` |
+| No `node:` builtin in the browser bundle | 9 eager packages clean; `core`'s entry chunk clean across 6 chunks | `check-browser-bundle.mjs`, CI job `build` |
+| No document retention | 4 probes, all 4 catch a deliberately retaining control | `check-http-retention.mjs`, CI job `build` |
+
+| Deliverable | State |
+| --- | --- |
+| `@markforge/http` and `markforge serve` | done — `node:http` only, no framework |
+| `@markforge/mcp` and `markforge mcp` | done — hand-written JSON-RPC over stdio, `convert`/`fmt`/`agentify` |
+| `@markforge/browser` | done — bytes in, bytes out, no filesystem; md/docx/html only |
+| GitHub Action | done — `action.yml`, and **this repository's own CI consumes it** |
+| Documentation site | **descoped** (§7s) — replaced by quickstarts whose commands run in CI |
+| Published packages | **struck** (§7r) — contradicts `OPEN_QUESTIONS` §5; nothing un-privated |
+| ADR-0015 ratified | done — moved off `Proposed`, **amended in three places** |
+| Playwright against the same fixtures | **not done** — ADR-0015's *Consequences* still promise it |
+
+### ADR-0015 was wrong about every package it named
+
+It listed ten packages that "run fully in-browser" and sat at `Status: Proposed` for four
+phases because nothing built it. The first run of `scripts/check-browser-bundle.mjs` failed
+**all ten**.
+
+Nine failed for one shared reason — they all depend on `@markforge/ir`, which reached Node in
+three files: `node:crypto` in `node-id.ts`, and a runtime `readFileSync` of
+`ir.v0.schema.json` in both `salient.ts` and `validate.ts`, plus `createRequire` for ajv's CJS
+interop. `@markforge/ooxml` was the only package in the repository that bundled for a browser.
+
+The fix was small and local, which is the ADR's own argument for not deferring the browser
+build arriving early in miniature. Node ids are unchanged, measured on both sides rather than
+reasoned: all seven Markdown fixtures produce byte-identical id lists, and `@noble/hashes`
+matches `node:crypto` over 306 inputs.
+
+Three claims are amended rather than quietly narrowed:
+
+- **`render-pdf` is named in the lazy tier and does not exist** (ADR-0003, Typst WASM), so
+  that tier is ratified for two of its three members. The gate says so on every run.
+- **"Lazy" and "browser-capable" are different properties.** The deferred `adapters-pdf`
+  chunk still imports `node:module`, `node:path`, and `node:zlib`. Deferring it means a user
+  converting DOCX to Markdown does not download it — that argument holds. It does not mean
+  PDF works in a browser.
+- **The lazy tier is drawn around packages, and the package is the wrong unit.** The ADR's
+  stated reason is weight, but `@markforge/adapters-ocr` bundles at **397 KB with no
+  Tesseract in it at all** — the recogniser is injected (ADR-0017), so the heavy artifact
+  sits behind the injection point rather than behind the import. The gate asserts on
+  `tesseract.js`, `pdfjs-dist`, and `typst` instead.
+
+### What building it found
+
+**The browser build had a determinism hazard nobody would have looked for.**
+`platform: "browser"` makes esbuild prefer the `browser` export condition, and
+`decode-named-character-reference` uses that to swap in `index.dom.js`, which decodes HTML
+entities by **writing them into a detached `<i>` element and reading `textContent` back**.
+Sensible in a page. Here it routes entity decoding through the host's HTML parser, so browser
+output would depend on the browser — against a criterion of byte equality with the CLI, in
+the one direction nobody would think to test. The `worker` condition selects the same
+table-based module Node loads: measured, it changes exactly one package's resolution and
+costs 47 KB.
+
+**`--llm` against an unreachable endpoint exited 0 with `ok: true`,** and it took two
+corrections to state that accurately. The check first used `clean-report.md`, which produces
+**zero** ambiguous heading decisions — so `--llm` had nothing to ask and exiting 0 was
+correct. A check that cannot provoke a model call cannot detect a broken one. Then, with the
+ambiguous fixture, it reported the finding as a *silent* fallback, which was **wrong**:
+`llmFailures` carried all four failures in the `--json` envelope and the run report showed
+`failures: 4, liveCalls: 0`.
+
+What was true is narrower and still a defect. No `Diagnostic` was emitted, so `--strict` could
+not see it and `reportDiagnostics` did not print it — `MF-LLM-0001` existed with an emission
+site for one case and none for this one. `resolveAmbiguities` swallows the exception with the
+comment "the caller diagnoses the failure with its own vocabulary"; the caller did half of
+that. Now each failure carries an `MF-LLM-0001` warning, and a run where `--llm` was requested
+and *every* call failed exits 1 with `ok: false`.
+
+**`targets/mcp-manifest.json` was wrong in three ways at once, and its own `honestyNote` was
+wrong about the profile it was attached to.** The note said the manifest named
+`markforge serve`; the scaffold said `npx -y @markforge/mcp`. `markforge serve` is the HTTP
+API and would hang if an MCP client spawned it on stdio. And `npx @markforge/mcp` names a
+package nothing publishes and nothing may publish (§5), so it could not have worked from any
+checkout. **`STATUS.md` and `docs/TARGETS.md` both repeated the `markforge serve` claim**,
+inheriting the error from a field whose name is `honestyNote`.
+
+**Two of the browser gate's own checks were wrong first**, both caught by reading output
+against what is on disk rather than by reasoning about it. It reported the absent
+`render-pdf` as **present**, because it inferred existence from an esbuild error whose
+wording for a missing entry point matches its wording for a builtin. And its negative control
+for Node globals read `process.env.NODE_ENV` — the one key esbuild constant-folds — so the
+control bundled to `var mode = "development"` with no `process` in it and proved the predicate
+silent rather than working.
+
+**A predicate that flagged nine clean packages.** The Node-global check first searched for the
+substring `require(`, which matched ajv's *standalone code generation* templates — string
+literals never executed here — and esbuild's `__commonJS` wrapper. Narrowed to
+`Dynamic require of`, esbuild's own marker for a require it could not resolve. Narrowing a
+predicate is how a check stops catching anything, so the negative control was added in the
+same change.
+
+### The §7q ruling resolved the contradiction and did not produce the merge
+
+`OPEN_QUESTIONS` §7q was open: `CORPUS.md` §2.14 calls two units the same fact, `SPEC.md`
+§10.4 blocks cross-category merges, and both could not be right. Ruled: an ADR statement that
+**asserts a rule** is filed as a `constraint` rather than a `decision`, leaving §10.4's block
+intact.
+
+Applied and measured, ADR-2's statement is now a `constraint`, both sides sit in one category,
+and the pair **reaches the adjudicator for the first time**. The adjudicator judged them
+different facts. Recall still reads **0 of 2**.
+
+The category block was *masking* a disagreement about meaning rather than causing it — and
+those two states are indistinguishable from the number alone, which is how §7q stayed open for
+a phase. `check-agentify.mjs` now separates "never compared" from "compared and rejected";
+under the old reporting both read `0/2`. Whether `CORPUS.md` §2.14 is right that these are one
+fact is now a question about the fixture, and it is the reviewer's.
+
 ## Unbuilt CLI surface
 
 `SPEC.md` §8 specifies seven subcommands. Three work. The other four refuse by name rather
@@ -438,7 +564,9 @@ than pretending, which is the right behaviour but is not delivery.
 | `convert`, `fmt` | done |
 | `check` | **partial, and no longer a lie** — validates documents against the IR schema, reports reference-document style coverage (`--reference-doc`), and probes the LLM endpoint (`--llm`). Corpus fidelity baselines stay in `scripts/run-fidelity.mjs`, and `check --help` says so rather than implying otherwise |
 | `agentify` | **done** — `--targets`, `--budget`, `--dry-run`, `--explain-drops`, `--strict`, `--json`. Exit 5 is the traceability gate and has no bypass flag (SPEC §10.6) |
-| `diff`, `init`, `serve` | not done, by phase |
+| `serve` | **done** (Phase 5) — stateless HTTP API, loopback by default, no document retention, measured |
+| `mcp` | **done** (Phase 5) — not in SPEC §8's seven; `serve` is HTTP and an MCP client on stdio needs its own command (§7u) |
+| `diff`, `init` | not done. `init` is cheap now that `templates/` exists |
 
 ## Renderer gaps that lose content today
 

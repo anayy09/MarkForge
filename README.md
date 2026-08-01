@@ -13,7 +13,7 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 
 ---
 
-## Status: Phase 3 — six formats read, three written, and an LLM layer that stays optional
+## Status: Phase 5 — six formats read, three written, on four surfaces that agree byte for byte
 
 `markforge convert`, `markforge fmt`, and `markforge check` are real, and every number in
 [docs/FIDELITY.md](docs/FIDELITY.md) is measured rather than claimed.
@@ -73,12 +73,49 @@ provenance, so "did a model touch this document?" is a question the document ans
 failed call is never a failed conversion: the deterministic result stands and a diagnostic says
 what did not happen.
 
-Not yet built: PDF *output* (Phase 3's neighbour, still needing Typst WASM), the visual
-regression suite, and `agentify` (Phase 4). `diff`, `serve`, and `init` exist in `--help` and
-**refuse rather than pretend** — a command that silently does nothing is worse than one that
-says it does not exist yet. `check` is partial and says so: it validates documents, reports a
-reference document's style coverage, and probes the LLM endpoint, while corpus fidelity
-baselines stay in `scripts/run-fidelity.mjs`.
+## Four surfaces, and they produce the same bytes
+
+The CLI is one of four ways in. The other three exist so that privacy, automation, and agent
+use do not each get their own slightly different converter — and *that* is checked rather than
+intended: `scripts/check-surface-parity.mjs` runs every corpus fixture through all four and
+compares the output **byte for byte**, with `MODEL_API_KEY` unset. Thirty conversions, four
+surfaces each, identical.
+
+```sh
+# HTTP — stateless, no document retention, loopback unless you say otherwise.
+node packages/cli/dist/index.js serve --port 3000
+curl -X POST --data-binary @report.md 'http://127.0.0.1:3000/convert?from=md&to=docx' -o report.docx
+curl http://127.0.0.1:3000/health
+
+# MCP over stdio — convert, fmt, and agentify, for an agent that spawned you.
+node packages/cli/dist/index.js mcp --root .
+
+# GitHub Action — this repository's own CI runs it, which is how we know it works.
+#   - uses: anayy09/MarkForge@main
+#     with: { command: fmt, paths: "docs/**/*.md" }
+```
+
+The browser build (`@markforge/browser`) takes bytes and an explicit config object: no
+filesystem, no ambient config, no `node:` builtin anywhere in the bundle
+([ADR-0015](docs/adr/0015-browser-build-boundaries.md)). It reads and writes Markdown, DOCX,
+and HTML; PDF, PPTX, and XLSX refuse by name there rather than failing somewhere internal.
+
+**No surface but the CLI can reach a model.** `@markforge/http`, `@markforge/mcp`, and
+`@markforge/browser` do not depend on `@markforge/llm` at all, so `--no-llm` holds on them by
+construction rather than by discipline — and the parity gate asserts that too.
+
+Not yet built: PDF *output* (still needing Typst WASM), the visual regression suite, and
+Playwright running the browser build against the same fixtures — ADR-0015 promises that and it
+remains unbuilt; today the bundle is exercised in a `vm` context holding only web-platform
+globals, which is a weaker check and is labelled as one. `diff` and `init` exist in `--help`
+and **refuse rather than pretend** — a command that silently does nothing is worse than one
+that says it does not exist yet. `check` is partial and says so: it validates documents,
+reports a reference document's style coverage, and probes the LLM endpoint, while corpus
+fidelity baselines stay in `scripts/run-fidelity.mjs`.
+
+Nothing is published to npm. Every package is `"private": true`
+([OPEN_QUESTIONS §5](docs/OPEN_QUESTIONS.md)), which is why the Action builds the CLI from
+source rather than installing it.
 
 ## What to read, in order
 

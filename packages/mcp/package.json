@@ -1,8 +1,8 @@
 {
-  "name": "@markforge/ir",
+  "name": "@markforge/mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "Intermediate representation: types, node ids, canonical JSON, traversal",
+  "description": "MCP server over stdio, so a coding agent can call the converter at runtime (brief §8)",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -14,11 +14,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist",
-    "schema"
+    "dist"
   ],
   "dependencies": {
-    "@noble/hashes": "^2.2.0",
-    "ajv": "^8.20.0"
+    "@markforge/agentify": "workspace:*",
+    "@markforge/core": "workspace:*",
+    "@markforge/ir": "workspace:*"
   }
 }

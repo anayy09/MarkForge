@@ -16,28 +16,7 @@
       "path": "../core"
     },
     {
-      "path": "../llm"
-    },
-    {
-      "path": "../fidelity"
-    },
-    {
-      "path": "../ooxml"
-    },
-    {
-      "path": "../render-docx"
-    },
-    {
-      "path": "../adapters-ocr"
-    },
-    {
       "path": "../agentify"
-    },
-    {
-      "path": "../http"
-    },
-    {
-      "path": "../mcp"
     }
   ]
 }

@@ -51,6 +51,15 @@
     },
     {
       "path": "packages/agentify"
+    },
+    {
+      "path": "packages/http"
+    },
+    {
+      "path": "packages/mcp"
+    },
+    {
+      "path": "packages/browser"
     }
   ]
 }

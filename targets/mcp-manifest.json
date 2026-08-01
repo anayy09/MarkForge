@@ -43,10 +43,10 @@
   "vendorFields": {
     "serverName": "project-context",
     "serverScaffold": {
-      "command": "npx",
-      "args": ["-y", "@markforge/mcp", "--context", ".markforge/provenance.json"]
+      "command": "markforge",
+      "args": ["mcp"]
     },
     "contentModel": "One server entry. Its command and args are template scaffolding, declared here and therefore exempt from the traceability gate exactly as a Markdown heading is. Its `env` block is the only unit-derived part: one key per environmentVariable unit, each traceable to the unit and through it to a source locator. Nothing in this file is prose, so the gate runs over derived key/value pairs rather than over segmented sentences.",
-    "honestyNote": "The server this manifest points at is `markforge serve`, which is Phase 5 and does not exist yet. The manifest is still correct about the environment the documents declare, and a manifest naming an unbuilt server is a promise this repository has made elsewhere too — but it is a promise, and docs/TARGETS.md says so rather than letting the file imply otherwise."
+    "honestyNote": "The server this manifest points at now exists: `markforge mcp`, an stdio MCP server exposing convert, fmt, and agentify. Corrected on 2026-08-01, and the correction is worth recording because this field was wrong about its own profile in three ways at once. It said the manifest named `markforge serve` — the scaffold above actually said `npx -y @markforge/mcp`, which is not the same command; `markforge serve` is the HTTP API and would hang if an MCP client spawned it on stdio; and `npx @markforge/mcp` names a package nothing publishes and nothing may publish (OPEN_QUESTIONS section 5), so the scaffold could not have worked from any checkout. The dropped `--context .markforge/provenance.json` argument was a flag no server ever accepted. STATUS.md and docs/TARGETS.md both repeated the `markforge serve` claim, inheriting the error from here."
   }
 }

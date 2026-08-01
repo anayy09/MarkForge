@@ -24,7 +24,9 @@
     "@markforge/llm": "workspace:*",
     "@markforge/render-docx": "workspace:*",
     "@markforge/adapters-ocr": "workspace:*",
-    "@markforge/agentify": "workspace:*"
+    "@markforge/agentify": "workspace:*",
+    "@markforge/http": "workspace:*",
+    "@markforge/mcp": "workspace:*"
   },
   "bin": {
     "markforge": "./dist/index.js"

@@ -63,6 +63,44 @@ const ADR_HEADING = /^ADR[-\s]?(\d+)\s*[::]\s*(.+)$/i;
 const RULE_HEADING = /^Rule\s+(\d+)\s*[::]\s*(.+)$/i;
 const RATIONALE_LEAD = /^\s*(?:\*\*|__)?\s*Rationale\s*(?:\*\*|__)?\s*[::]\s*/i;
 
+/**
+ * Deontic modals — the unambiguous marker of an obligation rather than a report.
+ * `should` is deliberately absent: it states a preference, and a preference recorded in
+ * an ADR is the decision, not a rule the system has to satisfy.
+ */
+const DEONTIC = /\b(?:must|shall|may not|cannot|is required to|are required to|is forbidden|are forbidden)\b/i;
+
+/**
+ * Absolute constructions: a statement that closes off the alternative is asserting a rule
+ * even without a modal. "A submission is committed in one transaction **or not at all**"
+ * is the corpus case, and it has no modal verb at all — which is why a modal-only
+ * predicate was not enough.
+ */
+const ABSOLUTE = /\b(?:or not at all|never|always|under no circumstances|in all cases|without exception)\b/i;
+
+/**
+ * Does an ADR statement assert a rule, as opposed to recording a choice?
+ *
+ * OPEN_QUESTIONS §7q. Deliberately narrow, and its limits are worth stating because it is
+ * the kind of predicate that invites over-fitting: it recognises obligation expressed
+ * *grammatically*, and it will not recognise obligation expressed only semantically. On
+ * the authored corpus it separates the three ADR statements the way a reader would —
+ * ADR-2's "or not at all" is a rule, ADR-1's "we accept batches into a durable queue" and
+ * ADR-3's "customers register a schema" are choices — but three statements is a sample, not
+ * evidence, and it was written after reading them. The measured effect is in
+ * `docs/AGENTIFY.md`; a holdout would be the way to learn whether it generalises, and one
+ * does not exist.
+ *
+ * Getting this wrong is not silent. A false positive files a decision as a constraint,
+ * which changes which section it lands in and makes it eligible for a merge the
+ * adjudicator still has to approve; a false negative leaves today's behaviour unchanged.
+ * Neither deletes anything, which is why this is the option §7q could take unilaterally
+ * and loosening §10.4's category block was not.
+ */
+function assertsARule(text: string): boolean {
+  return DEONTIC.test(text) || ABSOLUTE.test(text);
+}
+
 /** A prohibition aimed at the reader. */
 const PROHIBITION = /^(do not|don't|never|avoid|do not ever)\b/i;
 /** A sentence carrying an obligation or permission worth recording. */
@@ -296,10 +334,27 @@ function extractStructuredSections(ctx: ExtractContext, blocks: Block[]): Contex
         );
         continue;
       }
+      /*
+       * OPEN_QUESTIONS §7q, ruled on 2026-08-01: an ADR statement that **asserts a rule**
+       * is filed as a `constraint`, carrying its rationale, rather than as a `decision`.
+       *
+       * The contradiction being resolved: `CORPUS.md` §2.14 declares a product-spec
+       * constraint and ADR-2's statement to be the same fact, while `SPEC.md` §10.4 blocks
+       * cross-category merges — so the pair could never be compared and dedup measured
+       * 0 of 2 authored pairs merged. Of the three ways out, this is the one that leaves
+       * §10.4's block intact: loosening the block is what risks silently deleting a real
+       * fact, and it was not taken unilaterally.
+       *
+       * `decision` stays reachable. An ADR that records a *choice* ("we accept batches into
+       * a durable queue") is still a decision; one that states a *rule* the system or its
+       * users must satisfy is a constraint that happens to have been written down in an
+       * ADR. The rationale rides along either way, so nothing is lost in the reclassification.
+       */
+      const normative = assertsARule(firstSentence(statement.text));
       ctx.claimed.add(claimKey(firstSentence(statement.text)));
       units.push(
         makeUnit({
-          category: "decision",
+          category: normative ? "constraint" : "decision",
           text: firstSentence(statement.text),
           rationale,
           source: sourceFor(ctx, statement.node, statement.text),
@@ -308,7 +363,7 @@ function extractStructuredSections(ctx: ExtractContext, blocks: Block[]): Contex
           // High: the document labelled this a decision and supplied the rationale. Nothing
           // was inferred, so the confidence reflects reading rather than guessing.
           confidence: 0.95,
-          producedBy: producer("adr-section"),
+          producedBy: producer(normative ? "adr-section-rule" : "adr-section"),
         }),
       );
     } else {

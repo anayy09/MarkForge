@@ -23,6 +23,10 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `check-markdown-lint.mjs` | `markdownlint`, built packages | Lints the Markdown our renderer produces. A gate, not a repair pass (ADR-0006) |
 | `diff-mammoth.mjs` | `mammoth`, built packages | Differential test of our OOXML reader against Mammoth; every divergence triaged in `docs/MAMMOTH-DIFF.md` (ADR-0005) |
 | `fetch-ocr-assets.mjs` | network, once | Downloads tesseract language data and the found scan into gitignored `fixtures/local/` (`docs/CORPUS.md` §2.7) |
+| `check-browser-bundle.mjs` | `esbuild`, built packages | Builds every package ADR-0015 claims runs in-browser at `platform=browser` and fails on any `node:` builtin or polyfill. The Phase 5 gate that took ADR-0015 off `Proposed` |
+| `check-http-retention.mjs` | built packages | Measures brief §8's "stateless, no document retention" — filesystem delta, retrieval routes, minted ids, cross-request contamination — against a deliberately retaining control |
+| `check-surface-parity.mjs` | `esbuild`, built packages | **Phase 5's done-criterion.** Every corpus fixture through the CLI, the HTTP API, the MCP server, and the browser build, compared byte for byte, with `MODEL_API_KEY` unset |
+| `lib/browser-bundle.mjs` | `esbuild` | Not a check — the shared browser build and its web-platform-only sandbox, so the two gates above are talking about the same artifact |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
@@ -113,6 +117,117 @@ The script also refuses rather than degrades: a source construct it cannot draw,
 wrapped across two lines, throws with the reason. A rasteriser that quietly skipped a table
 would produce a fixture whose committed ground truth claims content the image does not contain,
 which would make every OCR number measured against it meaningless.
+
+## `check-browser-bundle.mjs`
+
+ADR-0015 named ten packages that "run fully in-browser" and three deferred behind a lazy
+load. It carried `Status: Proposed` through four phases because nothing ever built it. This
+script builds it.
+
+Four sections, and the last one is why the first three mean anything:
+
+1. Every eager package bundles at `platform=browser` with no `node:` builtin reachable.
+   Measured from esbuild's resolution errors, so a builtin arriving through a transitive
+   dependency counts the same as an import.
+2. No Node global stands in for a builtin that is absent — `Dynamic require of`,
+   `process.env`, `__dirname`, `__filename`, `globalThis.process`.
+3. `core` is split into chunks, and its **entry** chunk must contain no builtin and none of
+   `tesseract.js`, `pdfjs-dist`, or `typst`. Builtins are marked external only here, and
+   only so the build gets far enough to answer *which chunk* rather than *whether*.
+4. Negative controls: a direct `node:fs` import, a builtin two hops away behind a clean
+   entry point, and a `process.env` read that bundles successfully and must still be caught.
+
+**The first run failed all ten.** Every one failed through `@markforge/ir` — `node:crypto`
+in `node-id.ts`, and a runtime `readFileSync` of `ir.v0.schema.json` in both `salient.ts`
+and `validate.ts`, plus `createRequire` for ajv's CJS interop. `@markforge/ooxml` was the
+only package in the repository that bundled. The ADR's central claim was not partly wrong;
+it was wrong for every package it named, for one shared reason nobody had run.
+
+Three of the notes it prints are findings rather than progress reports, and they are the
+reason ADR-0015 is amended rather than simply ratified: `render-pdf` does not exist, so a
+third of the lazy tier is untestable; the deferred `adapters-pdf` chunk still needs
+`node:module`, `node:path`, and `node:zlib`, so "lazy" and "browser-capable" are not the
+same property; and `adapters-ocr` bundles clean at 397 KB with no Tesseract in it at all,
+because the recogniser is injected — so the ADR's lazy tier is drawn around packages when
+the thing worth deferring is the WASM artifact.
+
+Two of its own checks were wrong first, both caught by reading output against what is on
+disk rather than by reasoning:
+
+- **Check 3 reported the absent `render-pdf` as present.** It inferred existence from the
+  shape of an esbuild error, and esbuild reports a missing entry point with the same
+  `Could not resolve "…"` wording it uses for a builtin. It now uses `existsSync`.
+- **Check 2's negative control tested nothing.** It read `process.env.NODE_ENV`, the one
+  key esbuild constant-folds by default, so the control bundled to `var mode = "development"`
+  with no `process` in it. Any other variable name survives.
+
+## `check-http-retention.mjs`
+
+Brief §8 says the HTTP API is "stateless, no document retention". That is a privacy claim,
+and ADR-0015 rejected a server-side fallback for the browser's heavy paths on the same
+grounds — so the surface only earns its exception if the claim can be checked.
+
+Four probes, run against the shipped server and against a deliberately retaining control:
+a filesystem hash delta over the working directory, a request for every URL a retaining
+server would have to expose, an inspection of headers and the JSON envelope for a minted
+handle, and a marker document followed by a second request that must contain no trace of
+it. The fourth is the one that reaches an **in-memory** cache, which the first three
+cannot see.
+
+The control is a real retaining server rather than a simulated one: it writes each body to
+disk, mints an id and returns it in a header, serves documents back by that id, and leaks
+the last request through `/health`. All four probes must catch it. A retention check that
+only found the file on disk would pass a server that kept everything in RAM, and that is
+the failure this control is shaped to provoke.
+
+**What it does not measure, stated rather than implied:** memory the process holds and
+never exposes. Probe 4 catches retention that any observable behaviour depends on, which
+is the part that can leak. A buffer nobody reads is not distinguishable from one the
+allocator has not yet reclaimed, and claiming otherwise would be exactly the kind of
+assertion this file exists to replace.
+
+## `check-surface-parity.mjs`
+
+Phase 5's done-criterion, and the reason it is byte equality rather than "all four work":
+a surface that transformed anything on the way in or out — trimmed a trailing newline,
+re-encoded a string, normalised a line ending — would pass every unit test in its own
+package and show up nowhere except here.
+
+Thirty conversions: ten fixtures across Markdown, HTML, and DOCX inputs, times three
+output formats, each produced four ways. The CLI is spawned and writes real files; the
+HTTP API is a listening server; the MCP server is spawned and driven over real stdio
+JSON-RPC; the browser build is the bundle from `lib/browser-bundle.mjs` evaluated in a
+`vm` context holding **only web-platform globals** — no `process`, no `Buffer`, no
+`require`. `MODEL_API_KEY` is deleted from every child environment, so a surface that
+reached the network fails here rather than quietly succeeding.
+
+The negative control runs **per comparison rather than once**: a flipped byte in a copy of
+the CLI output must be detected every time, so a comparator that stopped comparing partway
+through the matrix is caught too.
+
+**Two things it found.**
+
+The browser build resolved `decode-named-character-reference` to `index.dom.js`, which
+decodes HTML entities by writing them into a detached `<i>` element and reading
+`textContent` back. Sensible in a page; a determinism hazard here, because it routes
+entity decoding through the host's HTML parser and the criterion is byte equality with the
+CLI. The `worker` export condition selects the same table-based module Node loads —
+measured, that changes exactly one package's resolution and costs 47 KB.
+
+And `--llm` against an unreachable endpoint exited **0** with `ok: true`. The first version
+of this check missed it by using `clean-report.md`, which produces zero ambiguous heading
+decisions, so `--llm` had nothing to ask; `messy-ambiguous-headings.docx` was authored in
+Phase 3 to produce them and yields four. The check then reported the finding **wrongly**,
+calling it a silent fallback — it was not silent, `llmFailures` carried all four and the
+run report showed `failures: 4, liveCalls: 0`. What was true is narrower and still a
+defect: no `Diagnostic` was emitted, so `--strict` could not see it and `MF-LLM-0001` had
+an emission site for one case and none for this one, while `ok: true` made "the model was
+never reached" indistinguishable from success.
+
+**What it does not do:** run a real browser. ADR-0015's *Consequences* promise Playwright
+against the same fixtures, and that remains unbuilt. The `vm` sandbox shares V8 with the
+host, so it would not catch a genuine engine difference; what it does catch is the failure
+that actually occurs — code reaching for a Node global — without a browser binary.
 
 ## `check-markdown-lint.mjs`
 
@@ -223,6 +338,14 @@ document, so `markforge check` hung on anything with tables in it.
 The Phase 4 gate harness. Runs both halves of the done-criterion (`docs/INIT.md` §11) plus five
 supporting checks, and regenerates `docs/AGENTIFY.md`. `--update` rewrites the document and the
 extraction baseline; CI runs it bare and fails on a regression or a stale document.
+
+`--refresh-cache` is a **separate flag from `--update`, deliberately**, because they cost
+different things: `--update` rewrites a document from numbers already in hand, while this one
+switches the LLM session to `readWrite` and spends real calls against a real endpoint. It is
+needed when a change alters *which pairs get compared* rather than what the model is asked —
+the §7q reclassification did exactly that, and a pair that was previously blocked has no
+recorded answer to read. CI never passes it, so a missing cache entry stays a hard failure
+there rather than becoming a silent network call.
 
 Seven checks: traceability on the clean set for all five first-class targets; the **negative
 control**; the one-region diff after a one-sentence source edit; conflict recall and false
