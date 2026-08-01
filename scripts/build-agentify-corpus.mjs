@@ -1,4 +1,4 @@
-// Builds the CORPUS.md §2.14 agentify source sets: the Phase 4 done-criterion's corpus.
+// Builds the CORPUS.md §2.14 agentify source sets: the corpus the agentify gate runs on.
 //
 //   node scripts/build-agentify-corpus.mjs           write every fixture
 //   node scripts/build-agentify-corpus.mjs --check   fail if a committed one drifted
@@ -11,11 +11,11 @@
 // correct extractor *should* find, written by hand before the extractor exists. A file
 // captured from a run would be a regression snapshot — it would tell you the output
 // changed, never that it was wrong, and it would bless whatever the first implementation
-// happened to do. Phase 3 learned this the expensive way: its "ambiguous subset" did not
-// exist until it was built to arithmetic, and until then the criterion that named it was
-// unmeasurable rather than unmet.
+// happened to do. The heading work learned this the expensive way: its "ambiguous
+// subset" did not exist until it was built to arithmetic, and until then the criterion
+// that named it was unmeasurable rather than unmet.
 //
-// Formats are mixed on purpose — Markdown, HTML, and DOCX — because the done-criterion says
+// Formats are mixed on purpose — Markdown, HTML, and DOCX — because the criterion says
 // "a folder of mixed source documents" and a corpus of one format would not test §10.1's
 // claim that ingest is just the adapters.
 //
@@ -605,7 +605,7 @@ const EXPECTED = {
         "Thirty conventions and eight glossary terms. With any target budget below roughly " +
         "half the total, the primary file must carry the highest-value units and link the " +
         "rest — and every unit must still appear somewhere, because dropping one silently " +
-        "would violate brief §3.3 as surely as losing a paragraph does.",
+        "would violate SPEC §1.3 as surely as losing a paragraph does.",
     },
   },
 };
@@ -667,7 +667,7 @@ for (const file of files) {
 
 // The corpus has to *earn* the claim it is built on. §2.14's near-duplicate pairs only
 // justify the `embed` role if they are genuinely beyond lexical reach, so that is asserted
-// here rather than assumed — the same discipline that caught Phase 3's ambiguous subset
+// here rather than assumed — the same discipline that caught the ambiguous subset
 // being unambiguous.
 console.log("\nNear-duplicate lexical similarity (must stay below a lexical threshold):");
 let lexicalFailures = 0;

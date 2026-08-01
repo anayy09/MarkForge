@@ -203,7 +203,7 @@ describe("documentFromPages", () => {
 describe("the tesseract recogniser", () => {
   /**
    * The offline promise, enforced rather than documented. tesseract.js downloads its
-   * language model from a CDN by default; brief §3.6 says a network call is never a
+   * language model from a CDN by default; ADR-0009 says a network call is never a
    * default, so this refuses to be constructed without either a local path or explicit
    * consent.
    */
@@ -230,7 +230,7 @@ describe("the tesseract recogniser", () => {
  * by accident — the skip message says how to turn them on.
  *
  * Worth having despite that cost. `docs/STATUS.md` carried "tesseract implemented but never
- * measured" for the whole of Phase 3, and the first time it was actually run it failed
+ * measured" for a long time, and the first time it was actually run it failed
  * immediately: tesseract.js looks for `<lang>.traineddata.gz` while every tessdata
  * repository — including the one our own error message points at — publishes the file
  * uncompressed. A wrapper whose documentation contradicted its behaviour, found in the one

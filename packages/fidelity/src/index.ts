@@ -1,9 +1,9 @@
 /**
  * @markforge/fidelity — measurement, and the baseline gate.
  *
- * A package rather than test code because brief §3.4 makes fidelity a product
+ * A package rather than test code because SPEC §9 makes fidelity a product
  * capability: `check` and `diff` reach it, not just CI. Recorded as a deviation
- * from the brief's §9 package layout in docs/OPEN_QUESTIONS.md §7a.
+ * from the package layout in SPEC §11, in docs/OPEN_QUESTIONS.md §7a.
  */
 import { textContent, type AnyNode, type MarkForgeDocument } from "@markforge/ir";
 import {

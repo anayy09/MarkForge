@@ -1,7 +1,7 @@
 /**
  * Diagnostics, per docs/SPEC.md §2.6.
  *
- * The load-bearing rule of the whole project (brief §3.3): anything an adapter
+ * The load-bearing rule of the whole project (SPEC §1.3): anything an adapter
  * cannot represent emits a diagnostic. "Nothing is lost silently" is only a real
  * guarantee if losing something is *expensive* — so the loss invariant is testable
  * by comparing a fixture's construct inventory against the diagnostics, and any

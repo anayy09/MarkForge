@@ -98,7 +98,7 @@ describe.skipIf(!has("messy-direct-formatting.docx"))("§2.3 direct formatting i
 
   // The bold that justified the promotion must not also survive as emphasis. Counted
   // twice it renders `# **Title**`, and on the way back to DOCX becomes direct run
-  // formatting inside a heading style — the defect brief §5.1 exists to remove.
+  // formatting inside a heading style — the defect SPEC §4.2 exists to remove.
   it("does not leave the evidence formatting inside the heading", () => {
     const { markdown } = load("messy-direct-formatting.docx");
     expect(markdown).toMatch(/^# Quarterly Review$/m);

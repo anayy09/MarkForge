@@ -1,5 +1,5 @@
 /**
- * @markforge/mcp — the MCP server of brief §8.
+ * @markforge/mcp — the MCP server of SPEC §8.
  *
  * "So coding agents can call the converter at runtime. This closes the loop: the agent
  * that consumes `CLAUDE.md` can also generate it." The `agentify` tool is that sentence;

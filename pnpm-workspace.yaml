@@ -17,13 +17,12 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - word-to-markdown@0.3.0
 
-# Phase 3 adds `llm` and `adapters-ocr`, and Phase 4 adds `agentify` (docs/INIT.md §11,
-# docs/SPEC.md §11). `agentify` held only `schema/target.v0.schema.json` until it had code
+# The package list follows docs/SPEC.md §11. A package is added when there is code to put
+# in it, not before: `agentify` held only `schema/target.v0.schema.json` until it had code
 # to put beside it, which is the rule this comment records rather than an accident of
 # ordering.
 #
-# Phase 5 adds `http`, `mcp`, and `browser`, each when there was code to put in it rather
-# than when the phase started. `render-pdf` is still deliberately not scaffolded: it needs
-# the Typst WASM bundle (ADR-0003), and an empty package is a promise brief §13 forbids
-# making without need. ADR-0015's lazy tier is therefore ratified for two of its three
+# `render-pdf` is still deliberately not scaffolded: it needs
+# the Typst WASM bundle (ADR-0003), and an empty package is a promise made
+# without need. ADR-0015's lazy tier is therefore ratified for two of its three
 # members, which the browser-bundle gate reports on every run rather than glossing.

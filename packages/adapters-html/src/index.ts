@@ -275,7 +275,7 @@ const BLOCK = new Set([
  * are already blocks, and leaves the bare text as a direct child of the list item —
  * where every block renderer then ignores it, because a renderer walking blocks has
  * no reason to expect a text node. The text disappears with no diagnostic, which is
- * precisely the silent loss brief §3.3 forbids.
+ * precisely the silent loss SPEC §1.3 forbids.
  */
 function ensureBlocks(children: AnyNode[]): AnyNode[] {
   if (children.length === 0) return [];

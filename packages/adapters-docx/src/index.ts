@@ -1,10 +1,10 @@
 /**
  * @markforge/adapters-docx — DOCX to IR.
  *
- * Built on our own OOXML reader (ADR-0005), which is a deliberate deviation from
- * brief §5.2's "build on Mammoth's style-map extension point". Mammoth emits HTML
+ * Built on our own OOXML reader (ADR-0005), which is a deliberate deviation from the
+ * obvious route of extending Mammoth's style map. Mammoth emits HTML
  * and documents discarding fonts, sizes, and colours; routing through it would
- * leave the style sidecar — the thing §4.2 calls the differentiator — empty.
+ * leave the style sidecar (SPEC §2.4) empty, and that sidecar is the differentiator.
  *
  * Adapter contract (docs/SPEC.md §3):
  *   A1  parse(bytes, opts) -> { ir, diagnostics }
@@ -176,9 +176,9 @@ export function parseDocx(bytes: Uint8Array, options: DocxParseOptions = {}): Do
   const blocks = parseBlockContainer(body, state, "/w:document/w:body");
   doc.body = asBody(blocks);
 
-  // A7: headers and footers become furniture. Brief §5.2 says "stripping", but
-  // stripping would violate §3.3's no-silent-loss rule, so they are routed instead
-  // (ADR-0002, flagged in OPEN_QUESTIONS §7b).
+  // A7: headers and footers become furniture. The obvious reading is "strip them", but
+  // stripping would violate the no-silent-loss rule (SPEC §1.3), so they are routed
+  // instead (ADR-0002, SPEC §2.2, flagged in OPEN_QUESTIONS §7b).
   doc.furniture = parseFurniture(state, rels);
 
   doc.metadata = parseMetadata(pkg);
@@ -677,9 +677,9 @@ function parseFurniture(state: ParseState, rels: Map<string, { type: string; tar
     if (!xml) continue;
     out.push({
       kind: isHeader ? "header" : "footer",
-      // OOXML distinguishes default/first/even headers via sectPr references. Phase 1
-      // reads the parts themselves, so scope defaults to "default"; wiring sectPr is
-      // Phase 2 work and recorded as such rather than guessed.
+      // OOXML distinguishes default/first/even headers via sectPr references. This reads
+      // the parts themselves, so scope defaults to "default"; wiring sectPr up is not
+      // implemented, and is recorded as such rather than guessed at.
       scope: "default",
       sectionIndex: 0,
       // A `root` node, not the bare children array.

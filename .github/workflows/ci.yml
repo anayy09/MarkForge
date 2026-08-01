@@ -113,7 +113,7 @@ jobs:
       - name: OOXML reader differential against Mammoth
         run: node scripts/diff-mammoth.mjs --check
 
-      # The Phase 4 source sets, and the gate on their own premise: the near-duplicate
+      # The agentify source sets, and the gate on their own premise: the near-duplicate
       # pairs must stay lexically dissimilar, or they stop justifying SPEC §10.4's use of
       # embeddings over a text threshold.
       - name: Agentify corpus fixtures are current
@@ -155,7 +155,7 @@ jobs:
           test "$elapsed" -lt 30             || (echo "::error::validating three templates took ${elapsed}s; IR validation has regressed" && exit 1)
           echo "Three reference templates parsed and validated in ${elapsed}s."
 
-      # Phase 4's measurements, and the negative control that makes them mean something.
+      # The agentify measurements, and the negative control that makes them mean something.
       # Runs after the build because it imports the built packages.
       - name: Agentify gates and answer-key measurements
         run: node scripts/check-agentify.mjs
@@ -172,17 +172,17 @@ jobs:
       - name: The browser build has no Node dependency (ADR-0015)
         run: node scripts/check-browser-bundle.mjs
 
-      # Brief §8's "stateless, no document retention" is a privacy claim, so it is
+      # SPEC §8's "stateless, no document retention" is a privacy claim, so it is
       # measured here rather than asserted in a README — filesystem delta, retrieval
       # routes, minted ids, and cross-request contamination, each against a deliberately
       # retaining control that all four probes must catch.
-      - name: The HTTP API retains no document (brief §8)
+      - name: The HTTP API retains no document (SPEC §8)
         run: node scripts/check-http-retention.mjs
 
-      # Brief §3.3: every degradation carries a diagnostic. That was an invariant nobody
+      # SPEC §1.3: every degradation carries a diagnostic. That was an invariant nobody
       # could check, and one instance means it was never held. Every catch block now
       # declares what it does with the failure, and an unannotated one fails here.
-      - name: Every degrading path is classified at its site (brief §3.3)
+      - name: Every degrading path is classified at its site (SPEC §1.3)
         run: node scripts/check-degradation.mjs
 
       # CORPUS §2.14.1's merge predicate, applied to every pair a corpus key claims
@@ -205,13 +205,13 @@ jobs:
       - name: docs/TARGETS.md is derived from targets/*.json
         run: node scripts/check-target-docs.mjs
 
-      # Phase 5's done-criterion. The same input through the CLI, the HTTP API, the MCP
+      # Surface parity. The same input through the CLI, the HTTP API, the MCP
       # server, and the browser build must produce identical bytes — this is what makes
       # four surfaces one engine rather than four converters, and a wrapper that trimmed a
       # newline would pass every unit test in its own package and fail only here.
       # MODEL_API_KEY is unset, so a surface reaching the network fails rather than
       # quietly succeeding.
-      - name: Four surfaces, same input, same bytes (Phase 5 done-criterion)
+      - name: Four surfaces, same input, same bytes
         run: node scripts/check-surface-parity.mjs
         env:
           MODEL_API_KEY: ""
@@ -353,7 +353,7 @@ jobs:
           test "$code" -eq 1 || (echo "::error::--to pdf exited $code, expected 1" && exit 1)
           echo "Input-only formats refuse with exit 1 and a named reason."
 
-      # Phase 3's done-criterion, half of it: `--no-llm` and a cached-LLM run must both be
+      # Reproducibility, both halves: `--no-llm` and a cached-LLM run must both be
       # byte-reproducible. The LLM half runs with **no API key in the environment at all** and
       # `--llm-cache-mode readOnly`, which is what makes it a real check rather than a rehearsal
       # — if anything on this path reached the network it would fail here, not silently succeed.
@@ -406,7 +406,7 @@ jobs:
           test "$code" -eq 1 || (echo "::error::a scan exited $code, expected 1" && exit 1)
           echo "A scan with no recogniser refuses with exit 1 and names both routes."
 
-      # Phase 4's done-criterion, both halves, through the shipped CLI rather than the
+      # The agentify criterion, both halves, through the shipped CLI rather than the
       # library — so a broken command-line surface fails here rather than passing a unit
       # test. No API key is set: agentify's default is --no-llm and the gate must clear
       # without a model, or the deterministic path is not really the default.
@@ -456,7 +456,7 @@ jobs:
 
       # Two runs, byte-identical. Determinism is a product guarantee (SPEC §1) and Surface A
       # is not exempt: an agent file that churns on every run is unusable in a repository,
-      # which is the whole point of brief §6.2.
+      # which is the whole point of SPEC §10.8.
       - name: Agentify output is byte-identical across runs
         run: |
           set -e
@@ -470,7 +470,7 @@ jobs:
             || (echo "::error::two agentify runs of the same input differ" && exit 1)
           echo "Agentify output and its provenance manifest are byte-identical across runs."
 
-      # Phase 4's LLM half, with the same two properties Phase 3 required of its own:
+      # The agentify LLM half, with the same two properties required of the conversion path:
       # reproducible offline, and *different* from the deterministic path. The second matters
       # more — a cached run that matched --no-llm exactly would mean the model changed nothing
       # and the measurement was vacuous. Here the difference is one merged near-duplicate.
@@ -544,7 +544,7 @@ jobs:
           test "$code" -eq 3 || (echo "::error::expected exit 3 for a file needing formatting, got $code" && exit 1)
           echo "The Action's failure path returns exit 3 as SPEC §8 specifies."
 
-  # Brief §10: "A separate, non-blocking live job detects model drift." Non-blocking is the
+  # SPEC §9: "A separate, non-blocking live job detects model drift." Non-blocking is the
   # whole design — it calls a real gateway, so it can fail for reasons that have nothing to do
   # with this repository, and a required check that goes red when someone else's server is busy
   # trains people to ignore red.

@@ -4,8 +4,8 @@
  * The invariants here are the ones that make the LLM layer *optional* rather than
  * load-bearing, so they are worth more than the LLM layer's own tests:
  *
- *   - Without assistance, output is exactly what Phase 2 produced.
- *   - With assistance that fails, output is exactly what Phase 2 produced.
+ *   - Without assistance, output is exactly what the deterministic pipeline produced.
+ *   - With assistance that fails, output is exactly what the deterministic pipeline produced.
  *   - A tie-breaker cannot introduce a structure that was not among the candidates.
  *   - A scan without a recogniser refuses rather than returning an empty document.
  */
@@ -57,7 +57,7 @@ describeIfFixture("heading tie-breaking", () => {
   it("has something to decide: the fixture is genuinely ambiguous", () => {
     const doc = parseDocx(bytes()).document;
     const result = inferAll(doc);
-    // If this ever reaches zero, the Phase 3 ambiguous subset is measuring nothing and
+    // If this ever reaches zero, the ambiguous subset is measuring nothing and
     // every tie-break test below passes vacuously.
     expect(result.ambiguous.length).toBeGreaterThan(0);
     for (const decision of result.ambiguous) {

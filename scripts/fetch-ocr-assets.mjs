@@ -1,8 +1,8 @@
 // Fetches the tesseract language data the OCR path needs to run offline.
 //
 // `createTesseractRecognizer` refuses to start unless `langPath` names a directory holding
-// `<lang>.traineddata`, or `allowDownload: true` is passed deliberately (ADR-0017, brief
-// §3.6: every network call is opt-in and explicit). That rule is what makes "MarkForge ran
+// `<lang>.traineddata`, or `allowDownload: true` is passed deliberately (ADR-0017:
+// every network call is opt-in and explicit). That rule is what makes "MarkForge ran
 // offline" a promise rather than a hope — but it also means the data has to arrive somehow,
 // and this is the somehow.
 //

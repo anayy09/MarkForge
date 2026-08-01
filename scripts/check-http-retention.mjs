@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * "Stateless, no document retention" (brief §8), measured.
+ * "Stateless, no document retention" (SPEC §8), measured.
  *
  * That sentence is a privacy claim. ADR-0015 rejected a server-side fallback for the
  * browser's heavy paths on the same grounds — silently transmitting a user's document
- * inverts brief §3.6 — so the HTTP surface only earns the exception if the claim is
+ * inverts ADR-0009 — so the HTTP surface only earns the exception if the claim is
  * checkable. Prose in a README is not checkable. This is.
  *
  * Four probes, then the control that makes them mean something:
@@ -238,7 +238,7 @@ try {
 
 console.log(
   failures.length === 0
-    ? "\nHTTP retention checks passed: the claim in brief §8 is measured, not asserted."
+    ? "\nHTTP retention checks passed: the claim in SPEC §8 is measured, not asserted."
     : `\n${failures.length} HTTP retention check(s) FAILED:\n${failures.map((f) => `  - ${f}`).join("\n")}`
 );
 process.exit(failures.length === 0 ? 0 : 1);

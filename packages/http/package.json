@@ -2,7 +2,7 @@
   "name": "@markforge/http",
   "version": "0.1.0",
   "private": true,
-  "description": "Stateless HTTP API over the conversion pipeline (brief §8)",
+  "description": "Stateless HTTP API over the conversion pipeline (SPEC §8)",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {

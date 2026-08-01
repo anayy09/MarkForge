@@ -5,7 +5,7 @@
  * separate package at all:
  *
  *   1. **Nothing here runs unless it is switched on.** `llm.enabled` defaults to false
- *      and `--no-llm` is the default mode (brief §3.6). No import of this package
+ *      and `--no-llm` is the default mode (ADR-0009). No import of this package
  *      causes a network call.
  *   2. **No adapter and no renderer may depend on it**, enforced by
  *      `scripts/check-docs.mjs` rather than by policy (ADR-0009). Structure inference
@@ -94,7 +94,7 @@ export const DEFAULT_MODELS = {
   fast: "gpt-oss-120b",
   strong: "nemotron-3-super-120b-a12b",
   vision: "gemma-4-31b-it",
-  // Phase 4 §10.4 merges near-duplicate context units. Lexical similarity cannot do
+  // SPEC §10.4 merges near-duplicate context units. Lexical similarity cannot do
   // that job: the same constraint stated in a PRD and in an ADR shares almost no
   // tokens, and only an embedding puts them near each other. 8K context is ample —
   // context units are short by construction — which makes this the cheaper of the two

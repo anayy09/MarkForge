@@ -8,6 +8,6 @@
   "expected": {
     "conventionUnits": 30,
     "glossaryTermUnits": 8,
-    "note": "Thirty conventions and eight glossary terms. With any target budget below roughly half the total, the primary file must carry the highest-value units and link the rest — and every unit must still appear somewhere, because dropping one silently would violate brief §3.3 as surely as losing a paragraph does."
+    "note": "Thirty conventions and eight glossary terms. With any target budget below roughly half the total, the primary file must carry the highest-value units and link the rest — and every unit must still appear somewhere, because dropping one silently would violate SPEC §1.3 as surely as losing a paragraph does."
   }
 }

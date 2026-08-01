@@ -37,8 +37,8 @@ const REPO = fileURLToPath(new URL("../../", import.meta.url));
  *
  * That is a sensible optimisation for a page and a determinism hazard for this project.
  * It routes entity decoding through the host's HTML parser, so the browser build's output
- * would depend on the browser — and Phase 5's done-criterion is that the browser and the
- * CLI produce **byte-identical** output for the same input. A construct where a parser
+ * would depend on the browser — and the surface-parity gate requires the browser and the
+ * CLI to produce **byte-identical** output for the same input. A construct where a parser
  * disagrees at all with the `character-entities` table would diverge silently, in the one
  * direction nobody would think to test.
  *

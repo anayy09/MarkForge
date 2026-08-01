@@ -133,12 +133,11 @@ describe.skipIf(!built)("unimplemented subcommands", () => {
   const dir = tmpdir();
 
   // Declared so --help tells the truth about the intended surface, but refusing
-  // rather than silently succeeding. `agentify` left this list in Phase 4, `serve` in
-  // Phase 5.
+  // rather than silently succeeding.
   it.each(["diff", "init"])("%s refuses instead of doing nothing", (name) => {
     const r = run([name], dir);
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/not implemented yet \(Phase/);
+    expect(r.stderr).toMatch(/not implemented yet/);
   });
 
   // The other half, and the reason this file is worth keeping honest: a command that has

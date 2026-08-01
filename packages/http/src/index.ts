@@ -1,11 +1,11 @@
 /**
- * @markforge/http — the stateless HTTP API of brief §8.
+ * @markforge/http — the stateless HTTP API of SPEC §8.
  *
  * ## Statelessness is the product, not a detail
  *
- * Brief §8 says "stateless, no document retention", and ADR-0015 rejected a server-side
+ * SPEC §8 says "stateless, no document retention", and ADR-0015 rejected a server-side
  * fallback for the browser's heavy paths on the grounds that silently transmitting a
- * user's document inverts brief §3.6. Both are privacy claims, and a privacy claim that
+ * user's document inverts ADR-0009. Both are privacy claims, and a privacy claim that
  * is merely asserted is worth nothing — so this module is written to make the claim
  * *checkable* rather than to make it true by intention:
  *
@@ -23,7 +23,7 @@
  *
  * `--no-llm` is the default on every surface. Here it is stronger than a default: this
  * package does not depend on `@markforge/llm` and has no code path that reaches a model.
- * A hosted converter that could phone a model on a user's document is the thing brief §3.6
+ * A hosted converter that could phone a model on a user's document is the thing ADR-0009
  * exists to prevent, and the dependency rule in SPEC §11 is what stops this surface
  * becoming the loophole. `convert()` from `@markforge/core` takes an optional `assist`,
  * and this module never populates it.
@@ -31,7 +31,7 @@
  * ## No framework
  *
  * `node:http` only. A router for two routes would be a dependency bought with a one-line
- * justification nobody could write (brief §13).
+ * justification nobody could write.
  */
 import { createServer as createNodeServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Server } from "node:http";

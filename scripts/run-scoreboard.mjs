@@ -1,6 +1,6 @@
 // Scores MarkForge against Pandoc on the same corpus, and writes docs/SCOREBOARD.md.
 //
-// docs/CORPUS.md §3 requires this, and the Phase 1 done-criterion is stated in terms
+// docs/CORPUS.md §3 requires this, and the headline claim is stated in terms
 // of it: "docx -> md -> docx beats the reference project and Pandoc on our corpus".
 // Until Pandoc was installed the claim was unverifiable, so it went unmade.
 //
@@ -61,8 +61,8 @@ console.log(`Competitor: ${pandoc.version}`);
  * The reference project, `benbalter/word-to-markdown-js`, published on npm as
  * `word-to-markdown`.
  *
- * It is a Phase 1 done-criterion ("beats the reference project") and was absent from this
- * comparison for two phases, which made the criterion unfalsifiable. It is a devDependency
+ * The headline claim is that MarkForge "beats the reference project", and this comparison
+ * was absent for a long time, which made that claim unfalsifiable. It is a devDependency
  * pinned to an exact version rather than a caret range: the numbers below depend on the
  * competitor's version, so a floating range would make our own scores appear to change when
  * someone else shipped a release. The version is recorded in docs/SCOREBOARD.md and
@@ -159,7 +159,7 @@ try {
     const theirs = parseMarkdown(readFileSync(pandocMdPath, "utf8")).document;
 
     // The reference project reads DOCX only and writes Markdown to stdout — one direction,
-    // one input format, which is the limit brief §2 names and the reason this project exists.
+    // one input format, which is the limit docs/PRIOR_ART.md names and the reason this project exists.
     // The same DOCX, parsed by the same adapter, so the comparison is like for like.
     let w2m;
     if (reference) {
@@ -224,7 +224,7 @@ for (const row of rows) {
     const c = getReference(row);
 
     // The headline verdict stays MarkForge against Pandoc, because that is the harder
-    // comparison and the one the Phase 1 gate is measured on. The reference project is
+    // comparison and the one the headline claim is measured on. The reference project is
     // reported in its own column rather than folded into the same win count: it converts one
     // direction of one format, so a "win" against it is a different claim.
     const winner = Math.abs(a - b) <= TIE_BAND ? "tie" : a > b ? "MarkForge" : "Pandoc";
@@ -287,10 +287,10 @@ const lines = [
   `word-to-markdown leads on **${referenceWins}** of the ${rows.length * METRICS.length} pairs.`,
   "",
   "**Why the reference project is a separate column rather than a third contender in the win",
-  "count.** It converts one direction of one format, which is the limitation brief §2 names and",
+  "count.** It converts one direction of one format, which is the limitation docs/PRIOR_ART.md names and",
   "the gap this project exists to fill. Folding it into the same tally would make a win against",
   "it look like the same kind of claim as a win against Pandoc, and it is not: Pandoc round-trips",
-  "twenty-odd formats. Beating the reference project is the Phase 1 gate; beating Pandoc is the",
+  "twenty-odd formats. Beating the reference project is the baseline; beating Pandoc is the",
   "harder measurement.",
   "",
   "## What this shows",

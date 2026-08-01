@@ -381,7 +381,7 @@
             "promptVersion"
           ],
           "additionalProperties": false,
-          "description": "Required shape for LLM-derived nodes; brief section 7.3.",
+          "description": "Required shape for LLM-derived nodes; docs/SPEC.md section 6.3.",
           "properties": {
             "kind": {
               "const": "model"
@@ -2226,7 +2226,7 @@
         "construct",
         "raw"
       ],
-      "description": "A construct the IR cannot express. MUST be accompanied by a lossy diagnostic (brief section 3.3).",
+      "description": "A construct the IR cannot express. MUST be accompanied by a lossy diagnostic (docs/SPEC.md section 1.3).",
       "properties": {
         "type": {
           "const": "unknown"

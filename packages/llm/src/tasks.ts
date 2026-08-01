@@ -1,9 +1,8 @@
 /**
  * The model-backed tasks, one function each.
  *
- * SPEC §6.2 maps nine permitted tasks to three roles. Three are built: heading tie-breaking
- * (Phase 3), scanned-page transcription (Phase 3), and near-duplicate adjudication (Phase 4,
- * ADR-0020).
+ * SPEC §6.2 maps nine permitted tasks to three roles. Three are built: heading
+ * tie-breaking, scanned-page transcription, and near-duplicate adjudication (ADR-0020).
  *
  * ## Two tasks are deliberately unbuilt, and the blocker is evidence, not effort
  *
@@ -103,7 +102,7 @@ export async function breakHeadingTie(
     additionalProperties: false,
     required: ["chosen", "rationale"],
     properties: {
-      // The candidate set, as an enum. This is the sentence in brief §5.3 — "it must
+      // The candidate set, as an enum. This is the sentence in SPEC §5.1 — "it must
       // choose among the candidate set, never invent structure" — expressed as a
       // constraint rather than as an instruction.
       chosen: { type: "string", enum: interpretations },
@@ -191,7 +190,7 @@ const EQUIVALENCE_VERSION = "v2";
  * Decides whether two context units state one fact — SPEC §10.4's merge, after measurement
  * showed a cosine threshold could not make the call.
  *
- * Permitted by brief §7.1 as "context-unit … summarization": the question being answered is
+ * Permitted by SPEC §6.2 as "context-unit … summarization": the question being answered is
  * which single unit two units collapse into. It is the *second* stage; the embedding pass
  * still runs first and decides which pairs are worth asking about, so this is bounded by a
  * shortlist rather than quadratic in the corpus.
@@ -257,7 +256,7 @@ export async function judgeUnitEquivalence(
     // adjudications on the clean corpus came back `finish_reason: "length"` with a wall of
     // newlines. They failed safe — an unanswered pair stays unmerged — but they were 50
     // wasted calls that looked like model incompetence rather than a ceiling. STATUS.md
-    // records the identical mistake from Phase 3's capability probe, which is why this
+    // records the identical mistake from the capability probe, which is why this
     // comment names the number.
     maxTokens: 3000,
   });

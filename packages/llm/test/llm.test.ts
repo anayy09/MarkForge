@@ -341,7 +341,7 @@ describe("the heading tie-break task", () => {
     expect(result.chosen).toBe("paragraph");
     expect(result.producedBy).toEqual({ kind: "model", model: "fast-model", promptVersion: "v2" });
 
-    // The enum *is* the guarantee in brief §5.3, so it must actually be sent.
+    // The enum *is* the guarantee in SPEC §5.1, so it must actually be sent.
     const format = requests[0]?.["response_format"] as {
       json_schema: { schema: { properties: { chosen: { enum: string[] } } } };
     };
@@ -551,7 +551,7 @@ describe("task to role bindings", () => {
     expect(() => s.roleFor("heading-tiebrake")).toThrow(/heading-tiebreak/);
   });
 
-  it("carries embed in the model set, for Phase 4 near-duplicate merging", () => {
+  it("carries embed in the model set, for near-duplicate merging", () => {
     const s = session(fakeTransport(() => ({ content: "{}" })).transport);
     expect(s.models.embed).toBe("embed-model");
   });

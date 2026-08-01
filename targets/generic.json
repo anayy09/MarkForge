@@ -9,7 +9,7 @@
   "verifiedAgainst": {
     "url": "https://agents.md/",
     "date": "2026-07-31",
-    "note": "THIS PROFILE HAS NO VENDOR AND THEREFORE NOTHING TO VERIFY AGAINST — the field is filled because the schema requires it, and filling it honestly means saying so here. AGENT_CONTEXT.md is our filename, not anyone's convention. The profile exists because brief section 6.3 asks for a generic fallback, and it is a copy of the AGENTS.md base with a neutral name for a tool that reads no published convention and must be pointed at a file explicitly. If you are choosing between this and agents-md, choose agents-md: it is the same content under a name something will actually find."
+    "note": "THIS PROFILE HAS NO VENDOR AND THEREFORE NOTHING TO VERIFY AGAINST — the field is filled because the schema requires it, and filling it honestly means saying so here. AGENT_CONTEXT.md is our filename, not anyone's convention. The profile exists because docs/SPEC.md section 10.9 asks for a generic fallback, and it is a copy of the AGENTS.md base with a neutral name for a tool that reads no published convention and must be pointed at a file explicitly. If you are choosing between this and agents-md, choose agents-md: it is the same content under a name something will actually find."
   },
   "outputs": [
     { "path": "AGENT_CONTEXT.md", "role": "primary" },

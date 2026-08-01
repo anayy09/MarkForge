@@ -4,7 +4,7 @@
  * The adapter for the one input that has no structure to read: a picture of a document.
  * Everything else in the project reads a format that states what it is; here there is a
  * raster and a recogniser's opinion about it, so **confidence is a first-class output**
- * and every node this package produces carries one in its provenance (brief §5.2).
+ * and every node this package produces carries one in its provenance (SPEC §3).
  *
  * **Why a recogniser is injected rather than imported.** ADR-0009 forbids any
  * `adapters-*` package from depending on `@markforge/llm`, and SPEC §11 forbids adapters
@@ -248,7 +248,7 @@ function toNodes(blocks: RecognizedBlock[], onUnboundCaption?: (text: string) =>
       // it. So the text survives as a paragraph and the *construct* is reported lost. The
       // alternatives were both worse — emitting a bare caption produces a document that
       // fails schema validation, and synthesising an empty figure to hang it on would be
-      // inventing structure the source does not evidence, which brief §7.1 forbids.
+      // inventing structure the source does not evidence, which SPEC §6.2 forbids.
       onUnboundCaption?.(text);
       out.push({ type: "paragraph", children: [{ type: "text", value: text }] });
       continue;

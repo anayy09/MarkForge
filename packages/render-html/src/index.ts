@@ -3,7 +3,7 @@
  *
  * Semantic, not styled. The IR knows a node is a heading; it does not know it
  * should be 24px. Emitting `<h2>` and letting a stylesheet decide is the same
- * argument as brief §5.1's named-styles rule, applied to a different format —
+ * argument as SPEC §4.2's named-styles rule, applied to a different format —
  * inline styles here would be the exact analogue of direct run formatting in DOCX.
  */
 import {

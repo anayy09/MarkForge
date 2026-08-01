@@ -94,7 +94,7 @@ export function formatFromPath(path: string): Format | undefined {
  * against. So the CLI composes: it builds these two functions from a session and hands them
  * in. `@markforge/llm` exports `headingTiebreaker` and `visionRecognizer` for exactly this.
  *
- * Absent assistance is `--no-llm`, which is the default (brief §3.6).
+ * Absent assistance is `--no-llm`, which is the default (ADR-0009).
  */
 export interface Assist {
   /** Resolves an ambiguous heading level from its own candidate set (SPEC §5.1). */
@@ -307,7 +307,7 @@ export async function convert(
     all.merge(inferred.diagnostics);
     decisions = inferred.decisions;
 
-    // The one place a model may influence a conversion (brief §5.3, §7.1): decisions the
+    // The one place a model may influence a conversion (SPEC §5.1, §6.2): decisions the
     // deterministic scorer already declared too close to call, resolved from their own
     // candidate set. With no tie-breaker the rule's choice stands and the ambiguity is
     // already reported as a warning by `inferAll`, so the two paths differ only here.

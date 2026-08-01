@@ -3,34 +3,33 @@
 Repository-level verification: the checks that guard the documents and the package
 architecture, as distinct from the unit tests that live beside each package's source.
 
-`check-docs.mjs` began as a Phase 0 check asserting the repository contained *no* code. That
-assertion was correct then and wrong the moment Phase 1 started, so it was replaced rather
-than deleted — the underlying question, "is the package boundary still real?", outlives the
-phase. It now asserts that every package is private and Apache-2.0, that no adapter or
+`check-docs.mjs` began as a check asserting the repository contained *no* code, back when
+that was true. It was replaced rather than deleted, because the underlying question — "is
+the package boundary still real?" — outlived the answer. It now asserts that every package is private and Apache-2.0, that no adapter or
 renderer reaches the LLM layer (ADR-0009), that `@markforge/ir` depends on neither, that
 generated files keep their do-not-edit banner, and that no build output is committed.
 
 | Script | Dependencies | What it does |
 | --- | --- | --- |
-| `check-docs.mjs` | none | Deliverables agree with each other and with the brief; Phase 1 architecture invariants |
+| `check-docs.mjs` | none | Deliverables agree with each other and with the spec; architecture invariants |
 | `check-schemas.mjs` | `ajv`, `ajv-formats` | The three JSON Schemas compile in strict mode; the worked examples validate |
 | `codegen-types.mjs` | `json-schema-to-typescript` | Generates TypeScript types from the schemas (`pnpm codegen`) |
 | `add-salient-annotations.mjs` | none | One-shot migration that added `x-salient` to the IR schema |
 | `check-fixtures.mjs` | none | Every fixture has a licence line, and every licence line has a fixture |
 | `build-messy-fixtures.mjs` | none | Generates the deliberately defective DOCX corpus (`docs/CORPUS.md` §2.3, §2.15) |
 | `build-scanned-fixtures.mjs` | none | Rasterises `fixtures/md/scanned-source.md` into scanned PDFs with no text layer (`docs/CORPUS.md` §2.7) |
-| `build-agentify-corpus.mjs` | built packages | Authors the three Phase 4 source sets and their answer keys, and gates the near-duplicate pairs (`docs/CORPUS.md` §2.14) |
+| `build-agentify-corpus.mjs` | built packages | Authors the three agentify source sets and their answer keys, and gates the near-duplicate pairs (`docs/CORPUS.md` §2.14) |
 | `check-markdown-lint.mjs` | `markdownlint`, built packages | Lints the Markdown our renderer produces. A gate, not a repair pass (ADR-0006) |
 | `diff-mammoth.mjs` | `mammoth`, built packages | Differential test of our OOXML reader against Mammoth; every divergence triaged in `docs/MAMMOTH-DIFF.md` (ADR-0005) |
 | `fetch-ocr-assets.mjs` | network, once | Downloads tesseract language data and the found scan into gitignored `fixtures/local/` (`docs/CORPUS.md` §2.7) |
-| `check-browser-bundle.mjs` | `esbuild`, built packages | Builds every package ADR-0015 claims runs in-browser at `platform=browser` and fails on any `node:` builtin or polyfill. The Phase 5 gate that took ADR-0015 off `Proposed` |
-| `check-http-retention.mjs` | built packages | Measures brief §8's "stateless, no document retention" — filesystem delta, retrieval routes, minted ids, cross-request contamination — against a deliberately retaining control |
+| `check-browser-bundle.mjs` | `esbuild`, built packages | Builds every package ADR-0015 claims runs in-browser at `platform=browser` and fails on any `node:` builtin or polyfill. The gate that took ADR-0015 off `Proposed` |
+| `check-http-retention.mjs` | built packages | Measures SPEC §8's "stateless, no document retention" — filesystem delta, retrieval routes, minted ids, cross-request contamination — against a deliberately retaining control |
 | `check-adr-enforcement.mjs` | none | Every ADR names the check that enforces it, and that check exists and runs. An ADR with no enforcing check is a comment |
 | `check-status-claims.mjs` | none | Every state cell in `docs/STATUS.md` is produced by a named check or explicitly marked unverified |
 | `check-target-docs.mjs` | none | `docs/TARGETS.md`'s tables are generated from `targets/*.json`, and each `honestyNote` is validated against the profile it describes |
 | `check-degradation.mjs` | none | Every `catch` block in every package declares what it does with the failure. An unannotated one fails |
 | `check-merge-predicate.mjs` | built packages | CORPUS §2.14.1's merge predicate, applied to every pair a corpus key makes a claim about |
-| `check-surface-parity.mjs` | `esbuild`, built packages | **Phase 5's done-criterion.** Every corpus fixture through the CLI, the HTTP API, the MCP server, and the browser build, compared byte for byte, with `MODEL_API_KEY` unset |
+| `check-surface-parity.mjs` | `esbuild`, built packages | **The surface-parity gate.** Every corpus fixture through the CLI, the HTTP API, the MCP server, and the browser build, compared byte for byte, with `MODEL_API_KEY` unset |
 | `lib/browser-bundle.mjs` | `esbuild` | Not a check — the shared browser build and its web-platform-only sandbox, so the two gates above are talking about the same artifact |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
@@ -168,7 +167,7 @@ disk rather than by reasoning:
 
 ## `check-http-retention.mjs`
 
-Brief §8 says the HTTP API is "stateless, no document retention". That is a privacy claim,
+SPEC §8 says the HTTP API is "stateless, no document retention". That is a privacy claim,
 and ADR-0015 rejected a server-side fallback for the browser's heavy paths on the same
 grounds — so the surface only earns its exception if the claim can be checked.
 
@@ -193,7 +192,7 @@ assertion this file exists to replace.
 
 ## `check-surface-parity.mjs`
 
-Phase 5's done-criterion, and the reason it is byte equality rather than "all four work":
+The surface-parity gate, and the reason it is byte equality rather than "all four work":
 a surface that transformed anything on the way in or out — trimmed a trailing newline,
 re-encoded a string, normalised a line ending — would pass every unit test in its own
 package and show up nowhere except here.
@@ -221,8 +220,8 @@ measured, that changes exactly one package's resolution and costs 47 KB.
 
 And `--llm` against an unreachable endpoint exited **0** with `ok: true`. The first version
 of this check missed it by using `clean-report.md`, which produces zero ambiguous heading
-decisions, so `--llm` had nothing to ask; `messy-ambiguous-headings.docx` was authored in
-Phase 3 to produce them and yields four. The check then reported the finding **wrongly**,
+decisions, so `--llm` had nothing to ask; `messy-ambiguous-headings.docx` was authored
+precisely to produce them and yields four. The check then reported the finding **wrongly**,
 calling it a silent fallback — it was not silent, `llmFailures` carried all four and the
 run report showed `failures: 4, liveCalls: 0`. What was true is narrower and still a
 defect: no `Diagnostic` was emitted, so `--strict` could not see it and `MF-LLM-0001` had
@@ -288,7 +287,7 @@ skip. Run this once to turn them on.
 
 The reason the data is not simply downloaded on demand is ADR-0017: `createTesseractRecognizer`
 refuses to start unless `langPath` names a local directory or `allowDownload` is passed
-explicitly, because brief §3.6 makes every network call opt-in. "OCR quietly worked because a
+explicitly, because ADR-0009 makes every network call opt-in. "OCR quietly worked because a
 CDN was up" is not an offline guarantee, so the fetch is a separate, deliberate step.
 
 ## `build-agentify-corpus.mjs`
@@ -308,7 +307,7 @@ shares almost no tokens. The script computes content-word Jaccard for each near-
 and **fails at or above 0.2** — at which point a text threshold would already merge the pair
 and it would prove nothing. Both pairs currently score 0.000.
 
-That gate exists because Phase 3's "ambiguous subset" did not exist: every fixture scored zero
+That gate exists because the "ambiguous subset" did not exist: every fixture scored zero
 ambiguous decisions, so the criterion naming it was unmeasurable rather than unmet. A corpus
 that looks like it exercises something is not evidence that it does.
 
@@ -325,7 +324,7 @@ and **zero direct formatting in the body**.
 
 That last one is the reason the templates exist. They are our own demonstration that named
 styles suffice, so a shipped template containing direct formatting would undercut the argument
-in brief §5.1. The check allowlists exactly two elements inside a body `w:rPr` — `w:rStyle` and
+in SPEC §4.2. The check allowlists exactly two elements inside a body `w:rPr` — `w:rStyle` and
 `w:i` — and fails on anything else.
 
 **Written as raw OOXML rather than through `@markforge/render-docx`, deliberately.** The
@@ -340,7 +339,7 @@ document, so `markforge check` hung on anything with tables in it.
 
 ## `check-agentify.mjs`
 
-The Phase 4 gate harness. Runs both halves of the done-criterion (`docs/INIT.md` §11) plus five
+The agentify gate harness. Runs both halves of the acceptance criterion plus five
 supporting checks, and regenerates `docs/AGENTIFY.md`. `--update` rewrites the document and the
 extraction baseline; CI runs it bare and fails on a regression or a stale document.
 
@@ -394,7 +393,7 @@ It imports from `dist/`, not `src/`, so it measures what ships.
 ## `run-scoreboard.mjs`
 
 Scores MarkForge against Pandoc on the same corpus and writes `docs/SCOREBOARD.md`.
-`docs/CORPUS.md` §3 requires the comparison, and the Phase 1 done-criterion is phrased in terms
+`docs/CORPUS.md` §3 requires the comparison, and the headline claim is phrased in terms
 of it.
 
 **Skips with exit 0 when pandoc is absent**, because a comparison with a missing competitor is
@@ -454,4 +453,4 @@ The style-name-versus-`styleId` distinction it surfaces is the one that matters 
 They do not test MarkForge, because MarkForge does not exist yet. They test the *specification*
 for internal consistency — that every node type in the schema is documented and reachable, every
 ADR is cited, every link resolves, every config field in prose exists in the schema, and no
-unlicensed binary is committable. Phase 1 adds real tests against real fixtures.
+unlicensed binary is committable. The per-package suites test behaviour against real fixtures.

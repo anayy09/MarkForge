@@ -332,7 +332,7 @@ export type Deletion = NodeBase & {
   children: PhrasingContent[];
 };
 /**
- * A construct the IR cannot express. MUST be accompanied by a lossy diagnostic (brief section 3.3).
+ * A construct the IR cannot express. MUST be accompanied by a lossy diagnostic (docs/SPEC.md section 1.3).
  *
  * This interface was referenced by `MarkForgeDocument`'s JSON-Schema
  * via the `definition` "Unknown".

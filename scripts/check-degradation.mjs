@@ -2,7 +2,7 @@
 /**
  * Every path that can swallow a failure is classified, at the site, in the source.
  *
- * Brief §3.3: no silent loss — every degradation carries a diagnostic. That was an
+ * SPEC §1.3: no silent loss — every degradation carries a diagnostic. That was an
  * invariant nobody could check, and one instance means it was never held: `--llm` against
  * an unreachable endpoint produced four failed model calls, no `Diagnostic`, and exit 0.
  * `MF-LLM-0001` existed with an emission site for one case and none for that one.

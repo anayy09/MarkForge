@@ -67,7 +67,7 @@ export interface ContextUnit {
   category: UnitCategory;
   /** Atomic, self-contained, imperative where applicable. */
   text: string;
-  /** Required when `category === "decision"` (brief §6.1), enforced by `makeUnit`. */
+  /** Required when `category === "decision"` (SPEC §10), enforced by `makeUnit`. */
   rationale?: string;
   sources: UnitSource[];
   documentRole: DocumentRole;
@@ -165,12 +165,12 @@ export interface MakeUnitInput {
 export function makeUnit(input: MakeUnitInput): ContextUnit {
   const text = input.text.replace(/\s+/gu, " ").trim();
   if (text === "") throw new Error("agentify: a context unit cannot have empty text");
-  // brief §6.1 names the rationale as part of what a decision unit *is*. Enforced here
+  // SPEC §10 names the rationale as part of what a decision unit *is*. Enforced here
   // rather than checked later, because a decision that reached an output file without one
   // has already cost the reader the only thing that made it a decision.
   if (input.category === "decision" && (input.rationale ?? "").trim() === "") {
     throw new Error(
-      `agentify: a decision unit requires a rationale (brief §6.1) — "${text.slice(0, 60)}"`,
+      `agentify: a decision unit requires a rationale (SPEC §10) — "${text.slice(0, 60)}"`,
     );
   }
   const contentHash = unitContentHash({

@@ -9,12 +9,11 @@
  *
  *   - **Overflow is not loss.** A unit pushed to a secondary file is still emitted, still
  *     traceable, still in the provenance manifest. Only `truncateLowestValue` actually
- *     drops a unit, and it says so with a lossy diagnostic, because brief §3.3 does not
+ *     drops a unit, and it says so with a lossy diagnostic, because SPEC §1.3 does not
  *     stop applying because the thing being lost is a sentence rather than a table.
  *   - **A category the target routes nowhere is a loss and must be reported.** A profile
  *     whose sections omit `dependency` silently discards every dependency unit otherwise.
- *     That is the exact shape of the defect the node-type census found in Phase 1, one
- *     layer up.
+ *     That is the exact shape of the defect the node-type census found one layer up.
  */
 import { DiagnosticCode, type DiagnosticBag } from "@markforge/ir";
 import { compareUnits, type ContextUnit } from "./units.js";

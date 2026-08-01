@@ -1,6 +1,6 @@
 // Builds the DOCX fixtures for docs/CORPUS.md §2.3 and §2.15.
 //
-// These are the categories the Phase 2 done-criterion depends on — "a real-world messy
+// These are the categories the zero-cleanup claim depends on — "a real-world messy
 // PDF and a real-world messy DOCX both convert with zero manual cleanup" — and every
 // other fixture in the corpus is clean and authored, so every published number was
 // measured on easy input.
@@ -285,7 +285,7 @@ fixtures["messy-inconsistent-cascade.docx"] = docx({
 });
 
 // --- 5. Mixed theme and explicit fonts, inconsistent sizes ----------------
-// "Uneven fonts", the complaint brief §5.1 names. Theme tokens, explicit families, and
+// "Uneven fonts", the complaint SPEC §4.2 names. Theme tokens, explicit families, and
 // three sizes for what is logically one heading level.
 fixtures["messy-mixed-fonts.docx"] = docx({
   styles: stylesXml(
@@ -321,8 +321,8 @@ fixtures["messy-mixed-fonts.docx"] = docx({
 });
 
 // --- 5b. Genuinely ambiguous headings --------------------------------------
-// Built for Phase 3, and built because the corpus turned out not to contain the thing
-// Phase 3's done-criterion is measured on: running every existing fixture through
+// Built because the corpus turned out not to contain the thing the LLM path's criterion
+// is measured on: running every existing fixture through
 // `convert --json` produced **zero** `MF-INFER-0001` diagnostics, so "the LLM path
 // improves fidelity on the ambiguous subset" had no subset to improve. The existing
 // §2.3 fixtures are *badly* formatted, which turns out to be a different thing from
@@ -341,7 +341,7 @@ fixtures["messy-mixed-fonts.docx"] = docx({
 // section labels, while "Note that the following applies to all three sites" is a bold
 // lead-in sentence that is body text. No font-size rule can separate them, and the
 // deterministic path is wrong about one of them by construction. That is precisely the
-// case brief §5.3 reserves for the LLM.
+// case SPEC §5.1 reserves for the LLM.
 const AMBIGUOUS_SIZE = `<w:b/><w:sz w:val="24"/>`; // 12pt bold against an 11pt default
 fixtures["messy-ambiguous-headings.docx"] = docx({
   styles: stylesXml(NORMAL),

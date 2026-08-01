@@ -6,7 +6,7 @@
  *
  *   1. **It fetches a language model at runtime.** `eng.traineddata` is about 15 MB and
  *      tesseract.js downloads it from a CDN by default. That is a network call, and
- *      brief §3.6 says a network call is opt-in and explicit — *never* a default. So
+ *      ADR-0009 says a network call is opt-in and explicit — *never* a default. So
  *      `langPath` is **required** here, or `allowDownload: true` must be passed
  *      deliberately. An offline promise that quietly depends on a CDN is not a promise.
  *   2. **It is a WASM bundle.** Loading it for a Markdown conversion would be absurd, so
@@ -69,7 +69,7 @@ export function createTesseractRecognizer(options: TesseractOptions = {}) {
       `adapters-ocr: tesseract needs its language data. Pass langPath pointing at a ` +
         `directory containing ${lang}.traineddata (from ` +
         `https://github.com/tesseract-ocr/tessdata_fast), or pass allowDownload: true to ` +
-        `let tesseract.js fetch it. It is not downloaded by default because brief §3.6 ` +
+        `let tesseract.js fetch it. It is not downloaded by default because ADR-0009 ` +
         `makes every network call opt-in and explicit, and "OCR quietly worked because a ` +
         `CDN was up" is not an offline guarantee.`,
     );

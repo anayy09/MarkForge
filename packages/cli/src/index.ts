@@ -2,9 +2,9 @@
 /**
  * The `markforge` command line interface.
  *
- * Phase 1 ships `convert` and `fmt` (brief §11). The other five subcommands in
- * SPEC §8 are declared but refuse rather than pretend: a command that silently does
- * nothing is worse than one that says it does not exist yet.
+ * `diff` and `init` are declared but refuse rather than pretend: a command that silently
+ * does nothing is worse than one that says it does not exist yet. SPEC §8 has the full
+ * intended surface.
  *
  * `--json` emits exactly one object on stdout and sends human output to stderr, so
  * piping is safe.
@@ -85,7 +85,7 @@ function fail(message: string): void {
  * Assembles the optional assistance from the flags as typed.
  *
  * Returns nothing at all unless `--llm` or `--ocr` was given, which is what makes
- * `--no-llm` the default rather than a mode (brief §3.6). The two are independent: `--ocr`
+ * `--no-llm` the default rather than a mode (ADR-0009). The two are independent: `--ocr`
  * is local tesseract and needs no network, `--llm` is the gateway and covers both the
  * vision transcription and heading tie-breaks. Given both, tesseract wins for
  * transcription, because a local recogniser that is already installed should not be
@@ -219,7 +219,7 @@ const convertCommand = program
   .option(
     "--llm",
     "allow the optional LLM layer: ambiguous heading tie-breaks, and vision transcription " +
-      "of a scan. Off unless given (brief §3.6)",
+      "of a scan. Off unless given",
   )
   .option("--ocr", "transcribe a scanned PDF locally with tesseract (needs --tessdata)")
   .option("--tessdata <dir>", "directory holding <lang>.traineddata for --ocr")
@@ -309,7 +309,7 @@ convertCommand
        *
        * Found by `scripts/check-surface-parity.mjs`: pointed at an unreachable endpoint with
        * the ambiguous fixture, `--llm` made four calls, all four failed, and the run exited 0
-       * with `ok: true`. Brief §3.3 requires every degradation to carry a diagnostic, and
+       * with `ok: true`. SPEC §1.3 requires every degradation to carry a diagnostic, and
        * ADR-0009 says in as many words that a failed call falls back "with a diagnostic".
        *
        * Not `lossy`: nothing was lost. The deterministic answer is the correct answer and it
@@ -681,10 +681,10 @@ agentifyCommand.action(async (sources: string[], opts: Record<string, unknown>) 
 });
 
 /**
- * `serve` — the stateless HTTP API of brief §8 and SPEC §8.
+ * `serve` — the stateless HTTP API of SPEC §8.
  *
  * Binds to loopback unless told otherwise. A converter that accepts a document over the
- * network is exactly the shape brief §3.6 is cautious about, so reaching it from another
+ * network is exactly the shape ADR-0009 is cautious about, so reaching it from another
  * machine is a thing the operator asks for by typing `--host`, not a default they would
  * have to discover and turn off.
  */
@@ -727,7 +727,7 @@ program
   });
 
 /**
- * `mcp` — the MCP server of brief §8, over stdio.
+ * `mcp` — the MCP server of SPEC §8, over stdio.
  *
  * A separate subcommand from `serve` because they are different protocols on different
  * transports: `serve` is HTTP for a client with a socket, `mcp` is JSON-RPC on stdin and
@@ -753,18 +753,18 @@ program
 
 // The remaining SPEC §8 subcommands. Declared so `--help` tells the truth about the
 // intended surface, and each one refuses rather than silently doing nothing.
-for (const [name, description, phase] of [
-  ["diff", "Semantic IR diff between two documents", "Phase 2"],
-  ["init", "Scaffold config and reference documents", "Phase 2"],
+for (const [name, description] of [
+  ["diff", "Semantic IR diff between two documents"],
+  ["init", "Scaffold config and reference documents"],
 ] as const) {
   program
     .command(name)
-    .description(`${description} (not yet implemented — ${phase})`)
+    .description(`${description} (not yet implemented)`)
     .allowUnknownOption()
     .action(() => {
       process.stderr.write(
-        `markforge ${name}: not implemented yet (${phase}).\n` +
-          `Phase 1 ships \`convert\` and \`fmt\`. See docs/SPEC.md §8 for the full surface.\n`,
+        `markforge ${name}: not implemented yet.\n` +
+          `See docs/SPEC.md §8 for the full intended command surface.\n`,
       );
       process.exit(ExitCode.ERROR);
     });

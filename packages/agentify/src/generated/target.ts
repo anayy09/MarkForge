@@ -10,7 +10,7 @@
  */
 
 /**
- * An agent-context output target, expressed as data (brief section 6.3, ADR-0013). AGENTS.md is the base profile; other flat-Markdown targets declare `extends: "agents-md"` and override only what differs. Every path and filename MUST be re-verified against current vendor documentation at implementation time; see docs/TARGETS.md.
+ * An agent-context output target, expressed as data (docs/SPEC.md section 10.9, ADR-0013). AGENTS.md is the base profile; other flat-Markdown targets declare `extends: "agents-md"` and override only what differs. Every path and filename MUST be re-verified against current vendor documentation at implementation time; see docs/TARGETS.md.
  */
 export interface AgentTargetProfile {
   /**
@@ -34,7 +34,7 @@ export interface AgentTargetProfile {
   vendor?: string;
   docsUrl?: string;
   /**
-   * Provenance for the filenames and conventions in this profile. Brief section 6.3 forbids trusting training data here.
+   * Provenance for the filenames and conventions in this profile. docs/SPEC.md section 10.9 forbids trusting training data here.
    */
   verifiedAgainst: {
     url: string;

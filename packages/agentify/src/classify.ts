@@ -2,7 +2,7 @@
  * Document role classification — SPEC §10.2.
  *
  * Rule-based priors produce a scored distribution; an LLM classifier may adjust it but
- * never replace it (brief §6.2: never LLM-only). The final role is the prior's winner
+ * never replace it — never LLM-only. The final role is the prior's winner
  * unless the model's choice beats it by a configured margin, and the disagreement is
  * logged either way.
  *

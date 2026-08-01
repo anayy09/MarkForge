@@ -3,7 +3,7 @@
  *
  * §10.3 divides the work: "Deterministic extractors handle the mechanical categories …
  * The LLM handles the prose categories." That division is real but it is not a licence to
- * leave the prose categories empty offline, because `--no-llm` is the default (brief §3.6)
+ * leave the prose categories empty offline, because `--no-llm` is the default (ADR-0009)
  * and §10.6's traceability gate has no bypass. A pipeline whose deterministic half produced
  * only commands and environment variables would emit an agent file with no constraints in
  * it and still pass every gate, which is the kind of green that means nothing.
@@ -123,7 +123,7 @@ export function splitSentences(text: string): string[] {
 
 /**
  * Source authority, 0..1 — one input to conflict *ordering*, never to conflict suppression
- * (brief §6.1 requires both sides reported regardless).
+ * (SPEC §10 requires both sides reported regardless).
  *
  * Derived from a `Last reviewed YYYY-MM-DD` line when the document states one, because
  * that is the only recency signal a committed fixture can carry honestly: a filesystem
@@ -286,7 +286,7 @@ function sourceFor(ctx: ExtractContext, node: Record<string, unknown>, nodeText:
  *
  * These are the cases where the document's own markup declares the category, which is why
  * they are worth a structural pass rather than being left to the prose rules. The ADR case
- * is also where the rationale requirement of brief §6.1 is actually satisfiable offline:
+ * is also where the rationale requirement of SPEC §10 is actually satisfiable offline:
  * the paragraph is labelled `**Rationale:**`, so there is nothing to infer.
  */
 function extractStructuredSections(ctx: ExtractContext, blocks: Block[]): ContextUnit[] {
@@ -310,14 +310,14 @@ function extractStructuredSections(ctx: ExtractContext, blocks: Block[]): Contex
       const rationaleBlock = body.find((b) => RATIONALE_LEAD.test(b.text));
       const rationale = rationaleBlock ? rationaleBlock.text.replace(RATIONALE_LEAD, "").trim() : "";
       if (rationale === "") {
-        // brief §6.1 makes the rationale part of what a decision is. Without one this is
+        // SPEC §10 makes the rationale part of what a decision is. Without one this is
         // not a decision unit, and inventing a rationale is the one thing a deterministic
         // extractor must never do — so it degrades to a constraint and says so.
         ctx.diagnostics.degraded(
           DiagnosticCode.AGENTIFY_UNIT_DROPPED,
           "decision",
           `agentify: "${block.text}" in ${ctx.source.path} is shaped like a decision record but ` +
-            `states no rationale, and brief §6.1 requires one. Recorded as a constraint instead, ` +
+            `states no rationale, and SPEC §10 requires one. Recorded as a constraint instead, ` +
             `so the statement survives without claiming to be a decision.`,
         );
         ctx.claimed.add(claimKey(firstSentence(statement.text)));

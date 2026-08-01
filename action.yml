@@ -50,8 +50,8 @@ outputs:
 # already builds, which means the action and `pnpm verify` exercise the same binary rather
 # than two artifacts that could drift.
 #
-# It builds from source because **nothing is published** (OPEN_QUESTIONS §5, reaffirmed for
-# Phase 5). When that question is answered this step becomes an install; until then,
+# It builds from source because **nothing is published** (OPEN_QUESTIONS §5). When that
+# question is answered this step becomes an install; until then,
 # building is the only honest way for a consuming repository to get a working CLI, and
 # saying so here is better than an `npx @markforge/cli` line that cannot resolve.
 runs:

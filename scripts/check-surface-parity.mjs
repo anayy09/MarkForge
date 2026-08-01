@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Phase 5's done-criterion: the same input produces byte-identical output through the CLI,
+ * The surface-parity gate: the same input produces byte-identical output through the CLI,
  * the HTTP API, the MCP server, and the browser build, with `MODEL_API_KEY` unset.
  *
  * This is the check that makes four surfaces one engine rather than four converters. It is
@@ -29,7 +29,7 @@
  *
  * `MODEL_API_KEY` is deleted from every child environment. If any surface reached the
  * network this job fails rather than quietly succeeding — the same reasoning as the
- * Phase 3 cached-LLM job in `ci.yml`.
+ * cached-LLM job in `ci.yml`.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
@@ -225,10 +225,10 @@ if (controlChecks === compared && compared > 0) {
    * Port 1 on loopback: reserved and never listening.
    *
    * The fixture matters as much as the endpoint. The first version of this check used
-   * `clean-report.md`, which produces **zero ambiguous heading decisions** (STATUS.md,
-   * Phase 3) — so `--llm` had nothing to ask and exiting 0 was correct. A check that
+   * `clean-report.md`, which produces **zero ambiguous heading decisions** (STATUS.md)
+   * — so `--llm` had nothing to ask and exiting 0 was correct. A check that
    * cannot provoke a model call cannot detect a broken one.
-   * `messy-ambiguous-headings.docx` was authored in Phase 3 precisely to produce them,
+   * `messy-ambiguous-headings.docx` was authored precisely to produce them,
    * and it yields four.
    *
    * This check also reported its first real finding wrongly, which is worth recording:
@@ -254,7 +254,7 @@ if (controlChecks === compared && compared > 0) {
     ok(`CLI --llm against an unreachable endpoint exits ${r.status} rather than reporting success`);
   }
 
-  // Exiting non-zero is not enough on its own: brief §3.3 wants the degradation carried
+  // Exiting non-zero is not enough on its own: SPEC §1.3 wants the degradation carried
   // by a diagnostic, so a `--json` consumer sees it in the same place as every other one.
   let envelope;
   try {
@@ -267,7 +267,7 @@ if (controlChecks === compared && compared > 0) {
   } else {
     const llmDiagnostics = (envelope.diagnostics ?? []).filter((d) => d.code === "MF-LLM-0001");
     if (llmDiagnostics.length === 0) {
-      fail("no MF-LLM-0001 diagnostic for a failed model call (brief §3.3, ADR-0009)");
+      fail("no MF-LLM-0001 diagnostic for a failed model call (SPEC §1.3, ADR-0009)");
     } else {
       ok(`each failed model call carries a diagnostic (${llmDiagnostics.length} × MF-LLM-0001)`);
     }

@@ -62,7 +62,7 @@ for (const file of mdFixtures) {
   const reparsed = parseMarkdown(formatted).document;
   measured.push(entry(name, "md->md", compare(original, reparsed)));
 
-  // --- Loop 2: md -> docx -> md. The Phase 1 gate.
+  // --- Loop 2: md -> docx -> md.
   const docxBytes = renderDocx(original, { onMissingStyle: "synthesize" }).bytes;
   const fromDocx = parseDocx(docxBytes).document;
   inferAll(fromDocx);
@@ -82,7 +82,7 @@ for (const file of mdFixtures) {
   inferAll(secondParsed);
   measured.push(entry(name, "docx->md->docx", compare(fromDocx, secondParsed)));
 
-  // --- Loop 4: md -> html -> md. Phase 2.
+  // --- Loop 4: md -> html -> md.
   const html = renderHtml(original, { fullDocument: false }).html;
   const fromHtml = parseHtmlDocument(html).document;
   measured.push(entry(name, "md->html->md", compare(original, fromHtml)));
@@ -102,7 +102,7 @@ for (const file of docxFixtures) {
   const original = parseDocx(bytes, { path: `fixtures/docx/${file}` }).document;
   inferAll(original);
 
-  // docx -> md -> docx, the Phase 1 gate loop, on documents that fight back.
+  // docx -> md -> docx, the headline round-trip loop, on documents that fight back.
   const md = renderMarkdown(original).markdown;
   const reDocx = renderDocx(parseMarkdown(md).document, { onMissingStyle: "synthesize" }).bytes;
   const back = parseDocx(reDocx).document;
@@ -134,10 +134,11 @@ for (const file of htmlFixtures) {
   measured.push(entry(name, "html->md->html", compare(original, parseMarkdown(md).document)));
 }
 
-// --- The Phase 3 subsets: the same document down the deterministic path and down the
+// --- The LLM subsets: the same document down the deterministic path and down the
 // LLM-assisted one, each against an answer key.
 //
-// This is the measurement the Phase 3 done-criterion names, and it is run **from the
+// This is the measurement that decides whether the LLM path earns its place, and it is
+// run **from the
 // committed cache in readOnly mode**, so it needs no API key and makes no network call.
 // That is the point of a content-addressed cache: the LLM rows are as reproducible as
 // every other row here, and CI measures them without talking to a gateway.
@@ -237,7 +238,7 @@ if (existsSync(AMBIGUOUS) && existsSync(AMBIGUOUS_TRUTH)) {
   if (plainInfer.ambiguous.length === 0) {
     throw new Error(
       "messy-ambiguous-headings.docx no longer produces any ambiguous decision, so the " +
-        "Phase 3 ambiguous subset is measuring nothing. Check inferHeadings' scoring.",
+        "ambiguous subset is measuring nothing. Check inferHeadings' scoring.",
     );
   }
   measured.push(entry("ambiguous-headings-nollm", "docx->truth", compare(truth, plain)));

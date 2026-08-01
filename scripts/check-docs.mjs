@@ -1,9 +1,9 @@
-// Phase 0 documentation cross-check. Asserts that the deliverables agree with each other and
-// with the brief: no undocumented node type, no uncited ADR, no dangling link, no unlicensed
-// binary, no code where there should be none.
+// Documentation cross-check. Asserts that the deliverables agree with each other and with
+// the specification: no undocumented node type, no uncited ADR, no dangling link, no
+// unlicensed binary.
 //
 // Zero dependencies by design — runs with bare `node scripts/check-docs.mjs` on a fresh clone,
-// before any install exists. Intended to become a CI job in Phase 1.
+// before any install exists, which is why it is the first job in CI.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -29,16 +29,18 @@ const gitignore = read(".gitignore");
 const adrIndex = read("docs/adr/README.md");
 const allDocs = { "SPEC.md": spec, "PRIOR_ART.md": priorArt, "CORPUS.md": corpus, "OPEN_QUESTIONS.md": openQ, "TEMPLATES.md": templates, "adr/README.md": adrIndex };
 
-// --- 1. Prior art: every project named in brief section 2 must be surveyed.
-const briefProjects = [
+// --- 1. Prior art: every project on this list must be surveyed in docs/PRIOR_ART.md.
+// The list is maintained here rather than derived from the document, so that dropping a
+// survey fails the check instead of quietly shrinking what "covered" means.
+const requiredProjects = [
   "word-to-markdown-js", "markitdown", "docling", "marker", "unstructured",
   "mdast", "hast", "mammoth", "turndown", "docx", "Pandoc", "Typst",
   "Paged.js", "Tectonic", "pdfjs-dist", "tesseract.js", "markdownlint",
   "prettier", "remark-stringify", "unified", "remark",
 ];
-const missingPA = briefProjects.filter((p) => !priorArt.includes(p));
+const missingPA = requiredProjects.filter((p) => !priorArt.includes(p));
 if (missingPA.length) fail(`PRIOR_ART.md missing: ${missingPA.join(", ")}`);
-else ok(`PRIOR_ART.md covers all ${briefProjects.length} projects from brief section 2`);
+else ok(`PRIOR_ART.md surveys all ${requiredProjects.length} required projects`);
 
 // Every project must carry a verdict.
 for (const v of ["STEAL", "BENCHMARK", "AVOID"]) {
@@ -46,14 +48,14 @@ for (const v of ["STEAL", "BENCHMARK", "AVOID"]) {
 }
 ok("PRIOR_ART.md uses all three verdict classes");
 
-// --- 2. CLI: all seven subcommands from brief section 8.
+// --- 2. CLI: all seven subcommands from docs/SPEC.md section 8.
 const cli = ["convert", "fmt", "agentify", "check", "diff", "serve", "init"];
 const cliSection = spec.slice(spec.indexOf("## 8. CLI surface"), spec.indexOf("## 9. Fidelity"));
 const missingCli = cli.filter((c) => !cliSection.includes("`" + c));
 if (missingCli.length) fail(`SPEC.md section 8 missing subcommands: ${missingCli.join(", ")}`);
 else ok(`SPEC.md section 8 documents all 7 CLI subcommands`);
 
-// --- 3. Fidelity metrics from brief section 10.
+// --- 3. Fidelity metrics: docs/SPEC.md section 9 must define every metric family below.
 const metrics = [
   "tree edit distance", "whitespace-insensitive", "whitespace-sensitive",
   "precision", "recall", "F1", "span", "round trip",
@@ -61,14 +63,14 @@ const metrics = [
 const fidSection = spec.slice(spec.indexOf("## 9. Fidelity"), spec.indexOf("## 10. Agent Context"));
 const missingMetric = metrics.filter((m) => !fidSection.toLowerCase().includes(m.toLowerCase()));
 if (missingMetric.length) fail(`SPEC.md section 9 missing metric concepts: ${missingMetric.join(", ")}`);
-else ok("SPEC.md section 9 defines all metric families from brief section 10");
+else ok("SPEC.md section 9 defines every required metric family");
 
 for (const loop of ["docx → md → docx", "md → pdf → md", "md → md"]) {
   if (!fidSection.includes(loop)) fail(`SPEC.md section 9.5 missing round trip: ${loop}`);
 }
 ok("SPEC.md section 9.5 covers all three required round trips");
 
-// --- 4. Context unit categories: brief section 6.1 lists ten. They must agree across
+// --- 4. Context unit categories: docs/SPEC.md section 10 lists ten. They must agree across
 // SPEC.md and the target registry schema.
 const categories = [
   "constraint", "invariant", "convention", "command", "entity",
@@ -84,7 +86,7 @@ const catMismatch = categories.filter((c) => !schemaCats.includes(c)).concat(sch
 if (catMismatch.length) fail(`target schema category enum disagrees with SPEC: ${catMismatch.join(", ")}`);
 else ok("target schema category enum matches SPEC exactly");
 
-// --- 5. Agentify: all seven pipeline stages from brief section 6.1.
+// --- 5. Agentify: all seven pipeline stages from docs/SPEC.md section 10.
 const stages = ["Ingest", "Classify", "Extract context units", "Deduplicate", "Budget and assemble", "Verify", "Emit"];
 const agSection = spec.slice(spec.indexOf("## 10. Agent Context"), spec.indexOf("## 11. Packages"));
 const missingStage = stages.filter((s) => !agSection.includes(s));
@@ -93,8 +95,8 @@ else ok("SPEC.md section 10 covers all 7 agentify stages");
 
 // --- 6. ADRs: files, index, and cross-references must all agree.
 const adrFiles = readdirSync(join(REPO, "docs/adr")).filter((f) => /^\d{4}-.*\.md$/.test(f)).sort();
-// 15 through Phase 2; Phase 3 adds 0016 (LLM runtime) and 0017 (the OCR boundary);
-// Phase 4 adds 0018 (unit ordering), 0019 (token counting), and 0020 (dedup staging).
+// The count is asserted so that adding a decision record without indexing it fails here
+// rather than going unnoticed.
 if (adrFiles.length !== 20) fail(`expected 20 ADR files, found ${adrFiles.length}`);
 else ok("20 ADR files present");
 
@@ -237,9 +239,8 @@ ok("CORPUS.md covers licensing enforcement, competitor scoreboard, and construct
 const questionHeadings = [...openQ.matchAll(/^## (\d+)\.\s+(.+)$/gm)];
 if (questionHeadings.length < 6) fail(`OPEN_QUESTIONS.md has only ${questionHeadings.length} numbered questions`);
 const unlabelled = questionHeadings.filter(([, , title]) =>
-  // "answered" joined this list in Phase 3, when §3 stopped being resolved-by-deferral and
-  // became resolved-by-measurement. The invariant is that no question sits in limbo, not
-  // which word its heading uses.
+  // The invariant is that no question sits in limbo, not which word its heading uses —
+  // hence the alternation rather than one required label.
   !/resolved|answered|descoping|descoped|deferred|reversal|Phase 1\+ can answer/i.test(title));
 if (unlabelled.length) {
   // A question with no disposition in its heading must state what it blocks in its body.
@@ -342,9 +343,8 @@ else ok(`all ${officeFiles.length} office binary/ies in the tree are gitignored 
 // empty register cannot be mistaken for an unenforced rule.
 if (!/no fixture lands without a licence line/i.test(fixReadme)) fail("fixtures/README.md does not state the licence rule");
 if (!/ieee-conference-template\.docx/.test(fixLicenses)) fail("fixtures/LICENSES.md does not account for the IEEE template's exclusion");
-// The register was empty in Phase 0 and had to explain itself; now it has entries
-// and each must name the failure mode it catches. check-fixtures.mjs enforces the
-// per-row rule; here we only assert the register is not silently empty again.
+// Every entry must name the failure mode it catches. check-fixtures.mjs enforces the
+// per-row rule; here we only assert the register is not silently empty.
 const registerRows = (fixLicenses.match(/^\| (md|docx|expected)\//gm) ?? []).length;
 if (registerRows === 0) fail("fixtures/LICENSES.md register has no entries and no explanation");
 ok("fixtures/ licence register exists, states the rule, and accounts for the excluded IEEE template");
@@ -357,10 +357,9 @@ if (!/Apache License\s*\n\s*Version 2\.0, January 2004/.test(license)) fail("LIC
 if (!license.includes("END OF TERMS AND CONDITIONS")) fail("LICENSE text is truncated");
 ok(`LICENSE is the full canonical Apache-2.0 text (${license.length} bytes)`);
 
-// The README must be honest about what actually runs. In Phase 0 that meant
-// disclosing that nothing did; now it means naming the phase and saying plainly
-// which subcommands are not built, so --help and the README cannot disagree.
-if (!/## Status: Phase \d/.test(readme)) fail("README.md does not state which phase the project is in");
+// The README must be honest about what actually runs: it states what is built and says
+// plainly which subcommands are not, so `--help` and the README cannot disagree.
+if (!/^## Status\b/m.test(readme)) fail("README.md has no '## Status' section summarising what runs");
 if (!/refuse rather than pretend|not yet built|Not yet built/i.test(readme)) {
   fail("README.md does not disclose which subcommands are unimplemented");
 }
@@ -368,7 +367,7 @@ for (const d of ["docs/SPEC.md", "docs/PRIOR_ART.md", "docs/CORPUS.md", "docs/TE
   if (!readme.includes(d)) fail(`README.md does not link ${d}`);
 }
 if (!/fixtures\/` is not covered|fixtures\/ is not covered/.test(readme)) fail("README.md does not scope the licence away from fixtures/");
-ok("README.md links every deliverable, states the phase and what is unbuilt, and scopes the licence");
+ok("README.md links every deliverable, states what runs and what is unbuilt, and scopes the licence");
 
 // FIDELITY.md is generated from measurements. A repo that ships fidelity claims
 // without the generator having run is claiming something it has not measured.
@@ -429,12 +428,13 @@ if (existsSync(join(REPO, "docs/SCOREBOARD.md"))) {
   // The same discipline for the reference project, and for the same reason: the scoreboard's
   // numbers depend on the competitor's version, so a caret range would make our own scores
   // appear to move when someone else shipped a release. `word-to-markdown` is the npm name of
-  // `benbalter/word-to-markdown-js`, which brief §2 makes the baseline to beat.
+  // `benbalter/word-to-markdown-js`, the reference project this one is measured against
+  // (docs/PRIOR_ART.md).
   const rootManifest = JSON.parse(read("package.json"));
   const w2mPin = rootManifest.devDependencies?.["word-to-markdown"];
   const w2mRecorded = /Reference project: word-to-markdown ([0-9][^\s(]*)/.exec(board);
   if (!w2mPin) {
-    fail("package.json does not depend on word-to-markdown, so the Phase 1 baseline is absent");
+    fail("package.json does not depend on word-to-markdown, so the reference baseline is absent");
   } else if (!/^\d+\.\d+\.\d+$/.test(w2mPin)) {
     fail(
       `word-to-markdown must be pinned to an exact version, not "${w2mPin}": the scoreboard ` +
@@ -455,17 +455,12 @@ if (existsSync(join(REPO, "docs/SCOREBOARD.md"))) {
   fail("docs/SCOREBOARD.md is missing — run `node scripts/run-scoreboard.mjs`");
 }
 
-// --- 14. Phase 1 architecture invariants.
-//
-// The Phase 0 version of this check asserted the repository contained *no* code.
-// That was right then and is wrong now: Phase 1's whole job is to add code. It is
-// replaced rather than deleted, because the underlying question — "is the package
-// boundary still real?" — outlives the phase.
+// --- 14. Architecture invariants: is the package boundary still real?
 
-// Every package with source, not just Phase 1's. The dependency rule below is the one
-// ADR-0009 relies on, and a rule that only inspects the packages that existed when it was
-// written stops being a rule the moment a package is added — which Phase 3 did, including
-// the one package the rule is *about*.
+// The dependency rule below is the one ADR-0009 relies on, and a rule that only inspects the
+// packages that existed when it was written stops being a rule the moment a package is added.
+// This list is maintained by hand: 14a fails when a name here has no directory, but nothing
+// yet fails when a directory is missing from here — `http`, `mcp`, and `browser` are absent.
 const PACKAGES = [
   "ir", "ooxml", "infer", "adapters-docx", "adapters-md",
   "render-md", "render-docx", "fidelity", "core", "cli",

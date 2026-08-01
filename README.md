@@ -13,7 +13,7 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 
 ---
 
-## Status: Phase 5 — six formats read, three written, on four surfaces that agree byte for byte
+## Status: six formats read, three written, on four surfaces that agree byte for byte
 
 `markforge convert`, `markforge fmt`, and `markforge check` are real, and every number in
 [docs/FIDELITY.md](docs/FIDELITY.md) is measured rather than claimed.
@@ -51,7 +51,7 @@ node packages/cli/dist/index.js fmt docs/**/*.md --check
 ### The LLM layer is off unless you ask for it
 
 `--no-llm` is the default and the whole deterministic pipeline works offline with no key
-([ADR-0009](docs/adr/0009-llm-openai-compatible-only.md), brief §3.6). When enabled, a model may
+([ADR-0009](docs/adr/0009-llm-openai-compatible-only.md)). When enabled, a model may
 do exactly two things: break a tie between heading levels the deterministic scorer already
 declared too close to call — choosing from *its* candidate set, never inventing one — and
 transcribe a scanned page that has no text layer, because there the deterministic alternative is
@@ -129,7 +129,7 @@ source rather than installing it.
 | [docs/OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md) | Everything unresolved, and every decision made without asking |
 | [docs/FIDELITY.md](docs/FIDELITY.md) | Measured conversion fidelity. Generated; every fixture appears |
 | [docs/SCOREBOARD.md](docs/SCOREBOARD.md) | MarkForge against Pandoc on the same corpus, with the bias disclosed |
-| [docs/STATUS.md](docs/STATUS.md) | Delivered against promised, per phase. Names what is missing |
+| [docs/STATUS.md](docs/STATUS.md) | Delivered against promised. Names what is missing |
 
 Machine-readable contracts live beside the docs, not inside them:
 

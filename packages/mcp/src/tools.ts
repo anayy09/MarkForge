@@ -1,7 +1,7 @@
 /**
  * The tools this server exposes, and the reason each one is here.
  *
- * Brief §8: "MCP server so coding agents can call the converter at runtime. This closes the
+ * SPEC §8: "MCP server so coding agents can call the converter at runtime. This closes the
  * loop: the agent that consumes `CLAUDE.md` can also generate it." So `agentify` is not one
  * tool among several — it is the one the sentence is about, and `convert` and `fmt` are
  * here because an agent that can generate context files should also be able to read the

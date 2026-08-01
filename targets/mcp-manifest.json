@@ -10,7 +10,7 @@
   "verifiedAgainst": {
     "url": "https://code.claude.com/docs/en/mcp",
     "date": "2026-07-31",
-    "note": "Verified: project-scoped MCP servers live in a `.mcp.json` at the project root, checked into version control, in the standardized shape {\"mcpServers\": {\"<name>\": {...}}}. A stdio server carries command/args/env; an http server carries type and url. THE FILE FORMAT IS VERIFIED; THE CONTENT MODEL IS NOT VENDOR-SPECIFIED. Brief section 6.3 asks for 'an MCP server manifest' without saying what a document-derived one should contain, so what this target puts inside the verified envelope is our design and is described in vendorFields."
+    "note": "Verified: project-scoped MCP servers live in a `.mcp.json` at the project root, checked into version control, in the standardized shape {\"mcpServers\": {\"<name>\": {...}}}. A stdio server carries command/args/env; an http server carries type and url. THE FILE FORMAT IS VERIFIED; THE CONTENT MODEL IS NOT VENDOR-SPECIFIED. docs/SPEC.md section 10.9 asks for 'an MCP server manifest' without saying what a document-derived one should contain, so what this target puts inside the verified envelope is our design and is described in vendorFields."
   },
   "outputs": [
     { "path": ".mcp.json", "role": "manifest", "condition": "hasCategory(environmentVariable)" }

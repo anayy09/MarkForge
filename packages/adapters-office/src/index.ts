@@ -5,7 +5,7 @@
  * are built on `@markforge/ooxml`: the same ZIP container, the same XML reader, the
  * same query helpers. That reuse is the entire argument for making `ooxml` a
  * separate package rather than burying it inside the DOCX adapter — recorded as a
- * deviation from the brief's §9 layout in `docs/OPEN_QUESTIONS.md` §7a, and this is
+ * deviation from the package layout in SPEC §11 in `docs/OPEN_QUESTIONS.md` §7a, and this is
  * the deviation paying for itself.
  *
  * They share a package because they share a shape: one container, many sub-documents

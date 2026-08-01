@@ -1,5 +1,5 @@
 /**
- * The invariant brief §3.3 states and `--strict` is supposed to enforce: every degradation
+ * The invariant SPEC §1.3 states and `--strict` is supposed to enforce: every degradation
  * is visible, and something can fail on it.
  *
  * This file exists because the invariant was broken for a whole phase in a way no test

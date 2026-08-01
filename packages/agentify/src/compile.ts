@@ -1,5 +1,5 @@
 /**
- * The pipeline — brief §6.1's seven stages, in order, with the gate between assembly and
+ * The pipeline — SPEC §10's seven stages, in order, with the gate between assembly and
  * emission where §10.6 puts it.
  *
  * Ingest happens *before* this function: the caller hands over parsed IR documents, because

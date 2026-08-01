@@ -1,10 +1,11 @@
-// Phase 0 schema check. Compiles the three JSON Schemas under ajv strict mode and validates the
+// Schema check. Compiles the three JSON Schemas under ajv strict mode and validates the
 // worked examples in docs/examples/ against the IR schema, including the adapter-contract
 // invariants that a schema alone cannot express (rule A4: every node has provenance; every
 // `unknown` node has a lossy diagnostic).
 //
-// Requires ajv + ajv-formats, which Phase 0 deliberately does not install (there is no
-// package.json yet — see docs/OPEN_QUESTIONS.md). Until the Phase 1 workspace exists, run:
+// Requires ajv + ajv-formats, both devDependencies. On a fresh clone, before
+// `pnpm install` has run, they are absent and the guard below skips rather than fails.
+// To run this standalone:
 //   npm i --no-save ajv ajv-formats && node scripts/check-schemas.mjs
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +18,7 @@ try {
 } catch {
   console.log(
     "SKIP schema checks: ajv is not installed.\n" +
-    "      Phase 0 ships no package.json, so install transiently:\n" +
+    "      Run `pnpm install`, or install transiently:\n" +
     "        npm i --no-save ajv ajv-formats && node scripts/check-schemas.mjs\n" +
     "      Exiting 0 — a missing dev dependency is not a spec failure."
   );

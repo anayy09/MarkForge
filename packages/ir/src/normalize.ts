@@ -1,8 +1,8 @@
 /**
  * Normalisation, per docs/SPEC.md §2.8.
  *
- * This is the *only* place whitespace rules are applied (brief §5.1: "normalize
- * whitespace once, at the IR level"). Every adapter runs it, so a whitespace bug is
+ * This is the *only* place whitespace rules are applied ("normalize whitespace once, at
+ * the IR level", SPEC §2.8). Every adapter runs it, so a whitespace bug is
  * fixed once rather than once per input format.
  *
  * The guarantee that matters: `normalize(normalize(x)) === normalize(x)`. It is

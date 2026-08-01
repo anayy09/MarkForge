@@ -1,5 +1,5 @@
 /**
- * @markforge/agentify — the Agent Context Compiler (SPEC §10, brief §6).
+ * @markforge/agentify — the Agent Context Compiler (SPEC §10).
  *
  * Three rules shape this package, and they are why it looks the way it does:
  *

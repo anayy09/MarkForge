@@ -7,9 +7,9 @@ hand-maintained numbers page drifts from the numbers.
 Every figure here is produced offline, with no API key present. The LLM path is measured
 separately and is noted where it changes an answer.
 
-## The Phase 4 done-criterion
+## The acceptance criterion
 
-`docs/INIT.md` §11: *done when a folder of mixed source documents produces a `CLAUDE.md` set
+*Done when a folder of mixed source documents produces a `CLAUDE.md` set
 that passes the verification gate at 100 percent traceability, and editing one source
 document produces a minimal, readable git diff.*
 
@@ -110,7 +110,7 @@ Recall **2/2** on the authored conflicts, with **0** false positives.
 The false-positive count is the load-bearing number. `NIMBUS_QUEUE_URL` is declared
 identically by both runbooks and must not be reported, and the first run of the detector
 did report a false conflict — three sequential deploy commands under one heading in one
-document, read as three competing answers. Conflicts are between *documents* (brief §6.1);
+document, read as three competing answers. Conflicts are between *documents* (SPEC §10);
 that rule is now enforced rather than assumed.
 
 ## Deduplication

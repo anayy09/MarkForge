@@ -54,7 +54,7 @@ function verticalAlign(rPr: XmlElement | undefined): "sub" | "super" | undefined
  * full cascade and reading `weight >= 600` wraps every heading's text in `strong`.
  * The round trip then produces `# **Title**` — bold inside a heading that is
  * already bold by definition, and on the way back to DOCX that bold becomes direct
- * run formatting, which is exactly the defect brief §5.1 exists to remove.
+ * run formatting, which is exactly the defect SPEC §4.2 exists to remove.
  *
  * So marks come from the run's own `w:rPr` only. Inherited formatting stays where
  * it belongs: in the style sidecar, as evidence.

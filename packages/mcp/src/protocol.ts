@@ -6,7 +6,7 @@
  * which is the argument for not having added a dependency to hold them." MCP over stdio is
  * the same shape: newline-delimited JSON-RPC 2.0 with four methods that matter
  * (`initialize`, `tools/list`, `tools/call`, `ping`). Taking a dependency to hold this file
- * would be a dependency without a one-line justification anyone could write (brief §13).
+ * would be a dependency without a one-line justification anyone could write.
  *
  * The cost is stated rather than hidden: protocol revisions are ours to follow. That is
  * bounded because `PROTOCOL_VERSION` is a string a client negotiates against, so a mismatch

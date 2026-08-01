@@ -209,8 +209,8 @@ describe("DOCX adapter — tracked changes and furniture", () => {
     expect(textContent(del[0]!)).toBe("removed");
   });
 
-  // A7 / ADR-0002: brief §5.2 says "stripping", but stripping loses content, which
-  // §3.3 forbids. Routing satisfies both.
+  // A7 / ADR-0002: stripping headers and footers loses content, which SPEC §1.3
+  // forbids. Routing satisfies both.
   it("routes headers and footers to furniture instead of dropping them", () => {
     const bytes = buildDocx({
       body: p("Body"),

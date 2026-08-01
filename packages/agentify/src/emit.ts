@@ -3,7 +3,7 @@
  *
  * "`.markforge/provenance.json` maps every output file → section → sentence range → unit
  * ids → source locators. That chain is what makes Surface A trustworthy rather than a
- * hallucination machine (brief §3.7)."
+ * hallucination machine (SPEC §2.5)."
  *
  * The manifest is committed, so it obeys the same rule as the LLM cache: **no wall clock
  * anywhere**. A timestamp would produce a diff on every run and nobody would commit it,

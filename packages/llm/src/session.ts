@@ -5,7 +5,7 @@
  * only thing the rest of the project passes around. Tasks are functions over a session
  * (`tasks.ts`) rather than methods on it, so adding a task is adding a file.
  *
- * **The credential rule, and the one refinement Phase 3 needed.** ADR-0009 says a
+ * **The credential rule, and its one refinement.** ADR-0009 says a
  * missing environment variable while the LLM is enabled is a startup error, never a
  * silent downgrade. That stands. But `cache.mode: "readOnly"` — the mode SPEC §6.3
  * introduces so CI can exercise this code offline — cannot require a key, because its
@@ -99,8 +99,8 @@ const EMBED_PREFIX = "clustering: ";
 /**
  * The SPEC §6.2 table, as defaults rather than as law.
  *
- * Every task on brief §7.1's permitted list appears here, including the seven Phase 4
- * has not built yet — listing a binding costs one line and makes the mapping legible in
+ * Every task on SPEC §6.2's permitted list appears here, including the seven that are
+ * not built yet — listing a binding costs one line and makes the mapping legible in
  * one place, where discovering it task by task as each is implemented would not.
  * `alt-text` is bound to `fast` because its usual input is surrounding text; when the
  * image itself is the input the caller passes `vision` explicitly.
@@ -184,7 +184,7 @@ export class LlmSession {
       throw new Error(
         `llm: no role is bound to task "${task}". Known tasks: ` +
           `${Object.keys(this.taskRoles).sort().join(", ")}. Bind it in llm.taskRoles, or ` +
-          `add it to DEFAULT_TASK_ROLES if it is a permitted task from brief §7.1.`,
+          `add it to DEFAULT_TASK_ROLES if it is a permitted task from SPEC §6.2.`,
       );
     }
     return role;
@@ -365,7 +365,7 @@ export class LlmSession {
  * Reads the API key from the environment, and only from the environment.
  *
  * `apiKeyEnv` is the *name* of a variable; the value never appears in config, in a
- * committed artifact, or in an error message from here (brief §7.2, ADR-0009).
+ * committed artifact, or in an error message from here (SPEC §6.1, ADR-0009).
  */
 export function resolveApiKey(
   apiKeyEnv: string,

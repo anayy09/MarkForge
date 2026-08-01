@@ -2,7 +2,7 @@
  * Conflict detection and reporting — SPEC §10.4.
  *
  * The rule the whole stage exists to obey: **conflicts are surfaced with both sources,
- * never silently resolved** (brief §6.1). Authority orders the report. It does not decide
+ * never silently resolved** (SPEC §10). Authority orders the report. It does not decide
  * it, and there is no code path here that drops a side.
  *
  * Detection is structural: one entity, two incompatible values. That covers the shapes the
@@ -64,8 +64,8 @@ export function detectConflicts(units: ContextUnit[], diagnostics: DiagnosticBag
     const [category, entity] = key.split("\u0000") as [UnitCategory, string];
     const values = new Set(bucket.map((u) => u.entityValue!));
 
-    // A conflict is between *documents* — brief §6.1 says "Contradictory units across
-    // documents". Several values for one entity inside a single document are a sequence,
+    // A conflict is between *documents*: contradictory units across two of them.
+    // Several values for one entity inside a single document are a sequence,
     // not a disagreement, and the first run of this detector proved the distinction has to
     // be enforced rather than assumed: the clean corpus's three deploy commands, all under
     // one `## Deploy` heading in one runbook, were reported as three incompatible answers

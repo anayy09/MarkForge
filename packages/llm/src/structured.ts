@@ -9,7 +9,7 @@
  *   3. Send the request, with `response_format` when the probe found guided decoding
  *      and without it otherwise.
  *   4. `JSON.parse` and validate against the schema with ajv. **Never** pull an answer
- *      out of prose with a regex (brief §7.3).
+ *      out of prose with a regex (SPEC §6.3).
  *   5. On a validation failure, feed the error back and try again, at most
  *      `maxRepairs` times. On final failure, fail the call — the caller applies its
  *      deterministic fallback and emits a diagnostic.
@@ -305,7 +305,7 @@ function schemaName(task: string): string {
 /**
  * `JSON.parse` on the response, tolerating exactly one wrapper: a fenced code block.
  *
- * This is not the regex-parsing brief §7.3 forbids, and the distinction is worth
+ * This is not the regex-parsing SPEC §6.3 forbids, and the distinction is worth
  * stating because it looks similar. Nothing here extracts an *answer* from prose: the
  * payload is still parsed as JSON and validated against the schema, and if this strips
  * the wrong thing the result fails validation and the repair loop reports it. Without

@@ -1,5 +1,5 @@
 /**
- * Prompts are files, not inline strings (SPEC §6.3, brief §7.3).
+ * Prompts are files, not inline strings (SPEC §6.3).
  *
  * `packages/llm/prompts/<task>/<version>.md`, with two sections — `## System` and
  * `## User` — and `{{placeholder}}` substitution. A file rather than a string literal

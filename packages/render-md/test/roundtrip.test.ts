@@ -112,7 +112,7 @@ describe("md → ir → md", () => {
   });
 });
 
-describe("fmt idempotency — the Phase 1 gate (brief §11)", () => {
+describe("fmt idempotency", () => {
   const CASES: [name: string, source: string][] = [
     ["heading", "# Title\n"],
     ["paragraph", "Just some text.\n"],

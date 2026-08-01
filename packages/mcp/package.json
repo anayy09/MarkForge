@@ -2,7 +2,7 @@
   "name": "@markforge/mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "MCP server over stdio, so a coding agent can call the converter at runtime (brief §8)",
+  "description": "MCP server over stdio, so a coding agent can call the converter at runtime (SPEC §8)",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {

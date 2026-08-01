@@ -5,7 +5,7 @@
  * deterministic pipeline and the LLM layer exist (ADR-0009), so the wiring lives here
  * rather than in `@markforge/core`.
  *
- * Three rules this module enforces, all from ADR-0009 and brief §3.6:
+ * Three rules this module enforces, all from ADR-0009:
  *
  *   - **`--llm` is required.** No environment variable, config file, or present API key
  *     turns the network on by itself.
@@ -88,8 +88,8 @@ export interface LlmFlags {
  *
  * `--llm` and `--no-llm` are read from argv rather than declared as a commander option
  * pair on purpose. Commander implements `--no-x` as the *negation* of `--x` and, when both
- * are declared, defaults the value to `true` — which would make the LLM opt-*out*. Brief
- * §3.6 requires the opposite, and a flag default that subtle is not worth inheriting from a
+ * are declared, defaults the value to `true` — which would make the LLM opt-*out*. ADR-0009
+ * requires the opposite, and a flag default that subtle is not worth inheriting from a
  * library's convention: so `--llm` enables, `--no-llm` is accepted and is the default, and
  * asking for both is an error rather than a coin toss.
  */

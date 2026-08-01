@@ -1,5 +1,5 @@
 /**
- * The MCP surface: the protocol, the root boundary, and the loop brief §8 describes.
+ * The MCP surface: the protocol, the root boundary, and the loop SPEC §8 describes.
  *
  * Conversion correctness lives in `@markforge/core`'s suite. What is tested here is
  * everything the server adds — JSON-RPC framing, notification handling, the path
@@ -153,7 +153,7 @@ describe("the tools", () => {
   });
 
   it("closes the loop: agentify produces a CLAUDE.md that passes the gate", async () => {
-    // Brief §8's actual sentence — "the agent that consumes CLAUDE.md can also generate
+    // SPEC §8's actual sentence — "the agent that consumes CLAUDE.md can also generate
     // it" — as an assertion rather than a claim.
     const res = await call("tools/call", {
       name: "agentify",

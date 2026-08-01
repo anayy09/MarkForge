@@ -45,7 +45,7 @@ export function base32lower(bytes: Uint8Array): string {
  * tree walk — and the browser has no synchronous SHA-256 at all: `crypto.subtle.digest`
  * is async, and making ids async would change every call site in every package to buy
  * one platform. `@noble/hashes` is MIT, dependency-free, audited, and sync, so it is the
- * whole of the fix. (Brief §13: the one-line justification is that sentence.)
+ * whole of the fix — the one-line justification a new dependency owes is that sentence.
  *
  * Used in Node too, deliberately. Two implementations chosen by platform would be two
  * things that must agree about every byte forever, and the agreement would be untested

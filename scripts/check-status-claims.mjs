@@ -95,7 +95,7 @@ text.forEach((line, i) => {
     /*
      * A `Where` column is the target form already: every row names the check that
      * produced it, which is the property this gate exists to enforce. Those tables are
-     * graded on evidence alone, without the verdict vocabulary — the done-criterion
+     * graded on evidence alone, without the verdict vocabulary — the acceptance-criterion
      * tables read "100.0% over 37 sentences" in the measured column, which is a number
      * rather than a verdict and is better than one.
      *

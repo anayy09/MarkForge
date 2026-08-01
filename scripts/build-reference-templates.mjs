@@ -4,8 +4,8 @@
 //   node scripts/build-reference-templates.mjs --check   fail if a committed one drifted
 //
 // The oldest unbuilt named deliverable in the repository: `TEMPLATES.md` specified these row
-// by row in Phase 0 and there was no `templates/` directory at all until now. `STATUS.md`
-// carried "not done" for three phases.
+// row by row from the start and there was no `templates/` directory at all until now.
+// `STATUS.md` carried "not done" for a long time.
 //
 // **They are written as raw OOXML rather than through `@markforge/render-docx`, and that is
 // the point rather than a shortcut.** The renderer cannot produce most of what §2.1 requires:
@@ -19,7 +19,7 @@
 // named style; the only `w:rPr` in the body is genuine inline semantics — `w:i` on a Latin
 // abbreviation, `w:vertAlign` on a footnote reference, and the `Verbatim Char` character
 // style. That is asserted below rather than left to care, because a shipped template with
-// direct formatting would undercut the argument brief §5.1 exists to make.
+// direct formatting would undercut the argument SPEC §4.2 exists to make.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -662,7 +662,7 @@ for (const [name, bytes] of Object.entries(built)) {
 //
 // The allowlist is three character styles' worth of genuine inline semantics. Anything else
 // inside a body `w:rPr` is decoration, and a shipped template containing decoration would
-// undercut the argument in brief §5.1 that named styles suffice.
+// undercut the argument in SPEC §4.2 that named styles suffice.
 const ALLOWED_IN_BODY = new Set(["w:rStyle", "w:i"]);
 for (const [name, bytes] of Object.entries(built)) {
   const xml = OpcPackage.open(new Uint8Array(bytes)).text("word/document.xml");

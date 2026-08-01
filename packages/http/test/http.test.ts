@@ -1,5 +1,5 @@
 /**
- * The HTTP surface, including the two claims brief §8 makes about it that are not about
+ * The HTTP surface, including the two claims SPEC §8 makes about it that are not about
  * conversion at all: stateless, and no document retention.
  *
  * Conversion correctness is not re-tested here — `@markforge/core` owns that, and a copy

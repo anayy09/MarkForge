@@ -7,8 +7,8 @@
  * whose output depends on a transitive dependency's default is not idempotent
  * across upgrades, and `fmt --check` would start failing in CI for no local reason.
  *
- * The Phase 1 gate is that `fmt` is provably idempotent (brief §11), so every
- * option below is a decision, not an omission.
+ * `fmt` is provably idempotent, and that is property-tested rather than asserted, so
+ * every option below is a decision rather than an omission.
  */
 import { toMarkdown, type Options as ToMarkdownOptions } from "mdast-util-to-markdown";
 import { gfmToMarkdown } from "mdast-util-gfm";
@@ -145,7 +145,7 @@ interface MdastContext {
  * MarkForge extension nodes have no Markdown syntax. Each one is handled
  * explicitly: some degrade to the nearest standard construct, some become HTML
  * comments that survive a round trip, and the rest emit a diagnostic. Silence is
- * never an option (brief §3.3).
+ * never an option (SPEC §1.3).
  */
 function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
   const { diagnostics } = ctx;
@@ -190,7 +190,7 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
     case "heading": {
       // Markdown caps at 6. A DOCX heading at resolved level 7 or deeper has no
       // syntax, so it clamps — and says so, because silently flattening a document
-      // outline is exactly the kind of loss brief §3.3 forbids.
+      // outline is exactly the kind of loss SPEC §1.3 forbids.
       const resolved = typeof node["resolvedLevel"] === "number" ? node["resolvedLevel"] : 1;
       const depth = Math.min(6, Math.max(1, resolved));
       if (resolved > 6) {
@@ -355,7 +355,7 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
  * table with two merges re-parses as 8 cells, only 3 of which land on their original
  * coordinates. Measured on `fixtures/docx/messy-combined.docx` that is a table cell
  * F1 of 42.9% — and until this function existed it happened without a diagnostic,
- * which is the failure mode brief §3.3 exists to forbid.
+ * which is the failure mode SPEC §1.3 exists to forbid.
  *
  * So a merged table is written as a real HTML `<table>`, which is valid CommonMark
  * and which `@markforge/adapters-md` reads back into the same IR. Unmerged tables,

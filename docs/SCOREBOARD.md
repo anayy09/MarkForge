@@ -75,7 +75,7 @@ word-to-markdown leads on **0** of the 28 pairs.
 count.** It converts one direction of one format, which is the limitation brief §2 names and
 the gap this project exists to fill. Folding it into the same tally would make a win against
 it look like the same kind of claim as a win against Pandoc, and it is not: Pandoc round-trips
-twenty-odd formats. Beating the reference project is the Phase 1 gate; beating Pandoc is the
+twenty-odd formats. Beating the reference project is the baseline; beating Pandoc is the
 harder measurement.
 
 ## What this shows

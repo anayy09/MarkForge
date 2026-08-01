@@ -18,7 +18,7 @@
 export type LlmRole = "fast" | "strong" | "vision" | "embed";
 
 /**
- * Style profile and run configuration (brief section 5.5, docs/SPEC.md section 7). Generated from the Zod schema in @markforge/core so the two cannot drift. Precedence: CLI flags > MARKFORGE_* env > this file > named profile > built-in defaults.
+ * Style profile and run configuration (docs/SPEC.md section 7, docs/SPEC.md section 7). Generated from the Zod schema in @markforge/core so the two cannot drift. Precedence: CLI flags > MARKFORGE_* env > this file > named profile > built-in defaults.
  */
 export interface MarkForgeConfig {
   $schema?: string;
@@ -27,7 +27,7 @@ export interface MarkForgeConfig {
    */
   profile?: string;
   /**
-   * Exit 2 when any lossy diagnostic is emitted (brief section 3.3).
+   * Exit 2 when any lossy diagnostic is emitted (docs/SPEC.md section 1.3).
    */
   strict?: boolean;
   /**
@@ -48,7 +48,7 @@ export interface MarkForgeConfig {
     fences?: boolean;
     listIndent?: "one" | "tab" | "mixed";
     /**
-     * 0 disables reflow. Reflowing destroys diff stability, which brief section 6.2 requires.
+     * 0 disables reflow. Reflowing destroys diff stability, which docs/SPEC.md section 10.8 requires.
      */
     lineWidth?: number;
     frontMatter?: "preserve" | "yaml" | "toml" | "none";
@@ -62,7 +62,7 @@ export interface MarkForgeConfig {
     };
   };
   /**
-   * Applied once, at the IR level (brief section 5.1). See docs/SPEC.md section 2.8.
+   * Applied once, at the IR level (docs/SPEC.md section 4.2). See docs/SPEC.md section 2.8.
    */
   whitespace?: {
     emptyParagraphsToSpacing?: boolean;
@@ -86,7 +86,7 @@ export interface MarkForgeConfig {
     onMissingStyle?: "warn" | "error" | "synthesize";
     revisionMode?: "clean" | "showInsertions" | "showAll";
     /**
-     * Forbids direct formatting on blocks. Turning this off reproduces the 'uneven fonts' defect in brief section 5.1.
+     * Forbids direct formatting on blocks. Turning this off reproduces the 'uneven fonts' defect in docs/SPEC.md section 4.2.
      */
     namedStylesOnly?: boolean;
   };
@@ -132,7 +132,7 @@ export interface MarkForgeConfig {
     headingVocabulary?: string;
   };
   /**
-   * Off by default; brief section 3.6 forbids network access as a default.
+   * Off by default; ADR-0009 forbids network access as a default.
    */
   llm?: {
     [k: string]: unknown;
@@ -150,7 +150,7 @@ export interface MarkForgeConfig {
     conflicts?: "report" | "failOnConflict";
     dedupeThreshold?: number;
     /**
-     * Inputs to conflict ordering. Conflicts are always reported regardless (brief section 6.1).
+     * Inputs to conflict ordering. Conflicts are always reported regardless (docs/SPEC.md section 10).
      */
     authority?: {
       sourceRanking?: string[];
@@ -171,7 +171,7 @@ export interface MarkForgeConfig {
       "structural" | "textStrict" | "textLoose" | "tableFull" | "tableContent" | "inlineStyling"
     )[];
     /**
-     * Scoreboard columns. brief section 10 requires honesty where we lose, so rows cannot be suppressed.
+     * Scoreboard columns. docs/SPEC.md section 9 requires honesty where we lose, so rows cannot be suppressed.
      */
     competitors?: ("word-to-markdown-js" | "pandoc" | "markitdown")[];
   };

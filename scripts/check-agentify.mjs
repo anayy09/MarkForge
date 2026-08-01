@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * The Phase 4 gate harness — both halves of the done-criterion, checked rather than asserted.
+ * The agentify gate harness — both halves of the acceptance criterion, checked rather
+ * than asserted.
  *
- * `docs/INIT.md` §11 says Phase 4 is done when "a folder of mixed source documents produces
- * a CLAUDE.md set that passes the verification gate at 100 percent traceability, and editing
- * one source document produces a minimal, readable git diff." Phase 3's precedent is that
- * each such claim is a CI job, so each is a check here and CI runs this file.
+ * The criterion: a folder of mixed source documents produces a CLAUDE.md set that passes
+ * the verification gate at 100 percent traceability, and editing one source document
+ * produces a minimal, readable git diff. Every such claim is a CI job, so each is a check
+ * here and CI runs this file.
  *
  * Seven checks:
  *
@@ -89,7 +90,7 @@ const setDir = (name) => join(REPO, "fixtures/agentify", name);
 const keyFor = (name) => JSON.parse(readFileSync(join(setDir(name), "expected-units.json"), "utf8"));
 
 // ---------------------------------------------------------------- 1. traceability
-console.log("\n1. Traceability on the clean set (INIT §11 done-criterion, first half)");
+console.log("\n1. Traceability on the clean set (acceptance criterion, first half)");
 const cleanSources = await readSet(setDir("clean"));
 const cleanRun = await agentify.compile(cleanSources, { registry, targets: FIRST_CLASS });
 
@@ -103,7 +104,7 @@ for (const result of cleanRun.results) {
   }
 }
 if (!cleanRun.results.some((r) => r.files.some((f) => f.path === "CLAUDE.md"))) {
-  fail("no CLAUDE.md was produced, which is the file the done-criterion names");
+  fail("no CLAUDE.md was produced, which is the file the criterion names");
 } else {
   ok("a CLAUDE.md set was produced from five documents in three formats");
 }
@@ -158,7 +159,7 @@ console.log("\n2. Negative control — the gate must be able to fail");
 }
 
 // ---------------------------------------------------------------- 3. diff stability
-console.log("\n3. Editing one sentence produces a minimal diff (done-criterion, second half)");
+console.log("\n3. Editing one sentence produces a minimal diff (acceptance criterion, second half)");
 {
   const work = mkdtempSync(join(tmpdir(), "mf-agentify-"));
   try {
@@ -542,7 +543,7 @@ console.log("\n8. Deduplication precision, from the committed cache (offline)");
     // prompt v2: merging drops `partial` and `never`, which §2.14.1 counts as scope. The
     // recall arm is exercised by §2.16 above, on a set authored after the predicate.
     //
-    // This assertion used to demand a merge here, and it went green in Phase 4 because of
+    // This assertion used to demand a merge here, and it went green because of
     // that same sentence-split merge, which was read as the authored pair working. Keeping
     // it would now fail for the correct behaviour.
     notes.push({
@@ -701,9 +702,9 @@ hand-maintained numbers page drifts from the numbers.
 Every figure here is produced offline, with no API key present. The LLM path is measured
 separately and is noted where it changes an answer.
 
-## The Phase 4 done-criterion
+## The acceptance criterion
 
-\`docs/INIT.md\` §11: *done when a folder of mixed source documents produces a \`CLAUDE.md\` set
+*Done when a folder of mixed source documents produces a \`CLAUDE.md\` set
 that passes the verification gate at 100 percent traceability, and editing one source
 document produces a minimal, readable git diff.*
 
@@ -793,7 +794,7 @@ Recall **${conflict.conflictRecall ?? "n/a"}** on the authored conflicts, with *
 The false-positive count is the load-bearing number. \`NIMBUS_QUEUE_URL\` is declared
 identically by both runbooks and must not be reported, and the first run of the detector
 did report a false conflict — three sequential deploy commands under one heading in one
-document, read as three competing answers. Conflicts are between *documents* (brief §6.1);
+document, read as three competing answers. Conflicts are between *documents* (SPEC §10);
 that rule is now enforced rather than assumed.
 
 ## Deduplication

@@ -102,7 +102,7 @@ describe("normalize", () => {
   });
 });
 
-describe("normalize idempotency (brief §3.5)", () => {
+describe("normalize idempotency (SPEC §2.8)", () => {
   // Arbitrary inline content, biased toward the shapes that stress the merge rules:
   // adjacent texts, nested identical marks, whitespace runs, and combining marks.
   const inline = fc.letrec((tie) => ({

@@ -400,9 +400,8 @@ describe("PDF adapter", () => {
   // Returning an almost-empty document that looks like a successful conversion is
   // the worst outcome, so a scan fails loudly and names the route that reads it.
   //
-  // This assertion used to require the phrase "OCR is Phase 3". It is now Phase 3 and
-  // OCR exists, so the message names the recogniser route instead — the durable
-  // invariant is that the error says what to do, not that it names a phase.
+  // The durable invariant is that the error says what to do about it: it names the
+  // recogniser route rather than only reporting that the page had no text layer.
   it("refuses a PDF with no usable text layer rather than returning nothing", async () => {
     const blank = buildPdf([{ items: [] }, { items: [] }]);
     await expect(parsePdf(blank)).rejects.toThrow(/no usable text layer/);
@@ -431,7 +430,7 @@ describe("PDF adapter", () => {
   // The case the document-level rule got wrong (OPEN_QUESTIONS §7i): a born-digital
   // report with a scanned page dropped into it. Averaging characters over the document
   // puts this comfortably above the threshold, so the old rule converted it and page 2
-  // vanished with no diagnostic anywhere — a silent loss, which brief §3.3 forbids.
+  // vanished with no diagnostic anywhere — a silent loss, which SPEC §1.3 forbids.
   describe("a document that is only partly scanned", () => {
     const mixed = () =>
       buildPdf([

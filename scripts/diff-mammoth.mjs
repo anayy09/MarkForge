@@ -1,6 +1,6 @@
 // Differential test: our OOXML reader against Mammoth (ADR-0005).
 //
-// ADR-0005 deviates from brief §5.2 by building our own reader instead of using Mammoth.
+// ADR-0005 deviates from SPEC §3 by building our own reader instead of using Mammoth.
 // The design argument is sound — Mammoth's style map targets HTML elements and discards
 // the computed style evidence IR §4.2 exists to carry, so building on it would mean
 // fighting it for the project's core data structure. The *risk* is not the design, it is

@@ -1,7 +1,7 @@
 /**
  * @markforge/render-docx — IR to DOCX.
  *
- * Two hard rules from brief §5.1, which diagnoses the user-visible complaint
+ * Two hard rules from SPEC §4.2, which diagnoses the user-visible complaint
  * precisely: generators emit inline run properties per run instead of resolving to
  * named styles, so changing a heading font means touching every heading.
  *
@@ -306,13 +306,13 @@ function renderBlock(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, 
       return renderBlocks(node, ctx, doc);
 
     case "footnoteDefinition":
-      // Footnote bodies live in footnotes.xml, which Phase 1 does not write. The
+      // Footnote bodies live in footnotes.xml, which this renderer does not write. The
       // content is emitted inline rather than dropped, and the diagnostic says so.
       ctx.diagnostics.degraded(
         DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
         "footnoteDefinition",
-        "Footnote bodies are emitted as body paragraphs: writing footnotes.xml is Phase 2 " +
-          "work. The text is preserved, its placement is not.",
+        "Footnote bodies are emitted as body paragraphs: writing footnotes.xml is not " +
+          "implemented. The text is preserved, its placement is not.",
       );
       return renderBlocks(node, ctx, doc);
 
@@ -395,7 +395,7 @@ function paragraph(runs: string, styleId: string | undefined, list?: { numId: nu
  * This is where rule 1 lives. The mark stack produces `w:rPr` containing **only**
  * inline semantics — bold, italic, strike, underline, sub/superscript, small caps,
  * highlight. Never a font family, never a size, never a colour from a style. Those
- * belong to the named style, which is the entire argument of brief §5.1.
+ * belong to the named style, which is the entire argument of SPEC §4.2.
  */
 function inlineRuns(
   node: AnyNode,
@@ -480,7 +480,7 @@ function inlineRuns(
           DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
           "image",
           "Images are emitted as alt-text placeholders: embedding image parts and their " +
-            "relationships is Phase 2 work.",
+            "relationships is not implemented.",
         );
         out += run(`[${alt}]`, marks, ctx);
         break;

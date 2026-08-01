@@ -47,8 +47,8 @@ const targets = [
 
 let generated = 0;
 for (const t of targets) {
-  // The agentify package is not scaffolded in Phase 1; skip rather than fail, so
-  // this script stays correct as packages land.
+  // A package may not be scaffolded yet; skip rather than fail, so this script stays
+  // correct as packages land.
   const outDir = join(REPO, t.out, "..");
   const pkgRoot = join(REPO, t.out.split("/").slice(0, 2).join("/"));
   try {

@@ -110,7 +110,7 @@ describe("context units (SPEC §10.3)", () => {
     expect(a).toBe(b);
   });
 
-  it("refuses a decision with no rationale (brief §6.1)", () => {
+  it("refuses a decision with no rationale (SPEC §10)", () => {
     expect(() => unit({ category: "decision" })).toThrow(/requires a rationale/);
     expect(() => unit({ category: "decision", rationale: "because" })).not.toThrow();
   });

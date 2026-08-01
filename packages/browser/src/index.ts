@@ -1,11 +1,11 @@
 /**
- * @markforge/browser — the browser entry point (ADR-0015, brief §3.6 and §8).
+ * @markforge/browser — the browser entry point (ADR-0015, ADR-0009, SPEC §8).
  *
  * ## Why this package exists at all
  *
  * `@markforge/core` is already pure — bytes in, bytes out — so a browser could import it
- * directly and this package could be nothing. Brief §13 forbids a package without a
- * justification, so here it is: **this file is the list of what is in the browser build.**
+ * directly and this package could be nothing. A package that exists without a stated
+ * justification is one nobody can safely delete, so here is this one's: **this file is the list of what is in the browser build.**
  * The bundle's contents are a decision recorded in a module rather than whatever a
  * tree-shaker happened to keep, and `scripts/check-surface-parity.mjs` builds exactly this
  * entry point. Adding something Node-only to the browser build means editing this file,
@@ -87,8 +87,8 @@ function assertBrowserFormat(format: string, role: "input" | "output"): void {
 /**
  * Converts one document, entirely in the browser.
  *
- * The output must be byte-identical to `markforge convert` on the same input — that is
- * Phase 5's done-criterion and `scripts/check-surface-parity.mjs` asserts it, so this
+ * The output must be byte-identical to `markforge convert` on the same input, which
+ * `scripts/check-surface-parity.mjs` asserts, so this
  * function deliberately adds nothing to the pipeline: no defaults of its own, no
  * normalisation, no post-processing. Anything it added would be a divergence.
  */

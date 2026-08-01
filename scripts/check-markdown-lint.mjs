@@ -31,7 +31,7 @@ const CONFIG = {
   default: true,
   // ADR-0006: `markdown.lineWidth` defaults to 0, never reflow. Reflowing destroys diff
   // stability — editing one word reflows a paragraph and the diff shows the whole block —
-  // and brief §6.2 requires minimal diffs. So line length is not ours to satisfy.
+  // and SPEC §10.8 requires minimal diffs. So line length is not ours to satisfy.
   MD013: false,
   // Duplicate headings are a property of the *source document*, not of our rendering. A
   // real manuscript has "Methods" under two parts, and rewriting it would be a content

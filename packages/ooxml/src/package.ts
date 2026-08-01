@@ -2,8 +2,8 @@
  * The OPC (Open Packaging Conventions) container: a ZIP with well-known parts.
  *
  * Shared by the DOCX, XLSX, and PPTX adapters, which is why it is its own package
- * rather than living inside adapters-docx (ADR-0005, and the §9 deviation recorded
- * in docs/OPEN_QUESTIONS.md §7a).
+ * rather than living inside adapters-docx (ADR-0005, and the package-layout deviation
+ * recorded in docs/OPEN_QUESTIONS.md §7a).
  */
 import { unzipSync, zipSync, strFromU8, strToU8 } from "fflate";
 import { parseXml, type XmlElement } from "./xml.js";

@@ -72,7 +72,7 @@ export interface InferResult {
    * The decisions that were too close to call, in document order.
    *
    * Empty on almost every document, and the only place the LLM is permitted to touch a
-   * conversion (brief §5.3, §7.1). Carries the node itself so a tie-break can be applied
+   * conversion (SPEC §5.1, §6.2). Carries the node itself so a tie-break can be applied
    * without a second traversal, which is why this is not part of the serialisable
    * `Decision` record.
    */
@@ -261,7 +261,7 @@ export function inferHeadings(
  * When a paragraph is promoted because it is bold and large, that bold *was the
  * evidence*. Leaving it as an inline mark too renders `## **PROJECT STATUS REPORT**` —
  * the formatting counted twice, and on the way back to DOCX it becomes direct run
- * formatting inside a heading style, which is the defect brief §5.1 exists to remove.
+ * formatting inside a heading style, which is the defect SPEC §4.2 exists to remove.
  *
  * Only a mark covering the whole heading is removed. Bold on three words inside a
  * heading is genuine emphasis the author added on top, and unwrapping that would be
@@ -465,7 +465,7 @@ export async function resolveAmbiguities(
         "heading",
         `A tie-breaker answered "${answer.chosen}", which is not among this node's ` +
           `candidates (${decision.candidates.map((c) => c.interpretation).join(", ")}). ` +
-          `Refused: the deterministic choice "${decision.chosenByRule}" stands. Brief §5.3 ` +
+          `Refused: the deterministic choice "${decision.chosenByRule}" stands. SPEC §5.1 ` +
           `allows a model to choose among candidates and never to invent one.`,
         { nodeId: decision.nodeId },
       );

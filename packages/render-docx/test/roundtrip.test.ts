@@ -32,7 +32,7 @@ describe("DOCX renderer", () => {
     }
   });
 
-  // Rule 1 of brief §5.1, asserted rather than trusted. This is the bug the whole
+  // Rule 1 of SPEC §4.2, asserted rather than trusted. This is the bug the whole
   // project exists to fix: run-level font properties instead of named styles.
   it("never emits direct font properties on a heading", () => {
     const pkg = OpcPackage.open(toDocx("# A Heading\n\n## Another\n").bytes);
@@ -132,7 +132,7 @@ describe("DOCX renderer", () => {
   });
 });
 
-describe("docx → md → docx round trip (Phase 1 gate)", () => {
+describe("docx → md → docx round trip", () => {
   const SOURCES = [
     ["heading and body", "# Title\n\nBody text.\n"],
     ["multiple heading levels", "# One\n\n## Two\n\n### Three\n\nBody.\n"],

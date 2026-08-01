@@ -12,8 +12,8 @@
  * PDFs, so the inference happens, is deterministic, and reports itself.
  *
  * A PDF with no text layer is a scan. This adapter says so and stops rather than
- * returning an empty document — OCR is Phase 3 (ADR-0012), and an empty document
- * that looks like a successful conversion is the worst possible outcome.
+ * returning an empty document — OCR is a separate, opt-in route (ADR-0012), and an
+ * empty document that looks like a successful conversion is the worst possible outcome.
  *
  * **Known limitation, in pdf.js rather than here:** text extending beyond the page's
  * MediaBox is clipped during extraction, and the items arrive truncated with no flag.
@@ -80,7 +80,7 @@ export type PdfReadResult =
        * The mixed document is the common real one — a born-digital report with a signed
        * cover sheet, a photocopied appendix, a submission bundle — and the two obvious
        * rules both fail it. Throwing loses the readable 90 percent; passing silently
-       * drops the scanned pages, which violates brief §3.3. So the readable pages
+       * drops the scanned pages, which violates SPEC §1.3. So the readable pages
        * convert, each unreadable page becomes an `unknown` placeholder node carrying its
        * page number and a lossy diagnostic (so `--strict` exits non-zero), and its image
        * is handed back here for a recogniser to fill in.
@@ -398,9 +398,8 @@ export async function readPdf(
 /**
  * Reads a PDF that has a text layer. Throws, by name, when it does not.
  *
- * Unchanged behaviour from Phase 2 (OPEN_QUESTIONS §7i) except for the last sentence of
- * the message: OCR is no longer "a later phase", it is a route this build has, and the
- * error now says how to take it.
+ * The refusal is deliberate (OPEN_QUESTIONS §7i), and the message names the OCR route
+ * this build has rather than only reporting failure, so the error says what to do next.
  */
 export async function parsePdf(
   bytes: Uint8Array,
