@@ -1,0 +1,52 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "mcp-manifest",
+  "targetVersion": "0.1.0",
+  "displayName": "MCP project manifest (.mcp.json)",
+  "kind": "manifest",
+  "tier": "firstClass",
+  "vendor": "Anthropic / Model Context Protocol",
+  "docsUrl": "https://code.claude.com/docs/en/mcp",
+  "verifiedAgainst": {
+    "url": "https://code.claude.com/docs/en/mcp",
+    "date": "2026-07-31",
+    "note": "Verified: project-scoped MCP servers live in a `.mcp.json` at the project root, checked into version control, in the standardized shape {\"mcpServers\": {\"<name>\": {...}}}. A stdio server carries command/args/env; an http server carries type and url. THE FILE FORMAT IS VERIFIED; THE CONTENT MODEL IS NOT VENDOR-SPECIFIED. Brief section 6.3 asks for 'an MCP server manifest' without saying what a document-derived one should contain, so what this target puts inside the verified envelope is our design and is described in vendorFields."
+  },
+  "outputs": [
+    { "path": ".mcp.json", "role": "manifest", "condition": "hasCategory(environmentVariable)" }
+  ],
+  "budget": {
+    "primaryTokens": 2000,
+    "secondaryTokens": 0,
+    "counter": {
+      "method": "approximate",
+      "charsPerToken": 3.8
+    },
+    "overflow": "fail"
+  },
+  "frontMatter": { "supported": false },
+  "imports": { "supported": false },
+  "sections": [
+    {
+      "id": "environment",
+      "heading": "env",
+      "headingLevel": 2,
+      "categories": ["environmentVariable"],
+      "categoryWeight": 2,
+      "render": "definitionList"
+    }
+  ],
+  "traceability": {
+    "required": 1,
+    "sentenceSegmenter": "simple"
+  },
+  "vendorFields": {
+    "serverName": "project-context",
+    "serverScaffold": {
+      "command": "npx",
+      "args": ["-y", "@markforge/mcp", "--context", ".markforge/provenance.json"]
+    },
+    "contentModel": "One server entry. Its command and args are template scaffolding, declared here and therefore exempt from the traceability gate exactly as a Markdown heading is. Its `env` block is the only unit-derived part: one key per environmentVariable unit, each traceable to the unit and through it to a source locator. Nothing in this file is prose, so the gate runs over derived key/value pairs rather than over segmented sentences.",
+    "honestyNote": "The server this manifest points at is `markforge serve`, which is Phase 5 and does not exist yet. The manifest is still correct about the environment the documents declare, and a manifest naming an unbuilt server is a promise this repository has made elsewhere too — but it is a promise, and docs/TARGETS.md says so rather than letting the file imply otherwise."
+  }
+}

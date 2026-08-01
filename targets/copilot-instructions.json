@@ -1,0 +1,26 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "copilot-instructions",
+  "targetVersion": "0.1.0",
+  "displayName": "GitHub Copilot repository instructions",
+  "extends": "agents-md",
+  "kind": "flatMarkdown",
+  "tier": "stub",
+  "vendor": "GitHub",
+  "docsUrl": "https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions",
+  "verifiedAgainst": {
+    "url": "https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions",
+    "date": "2026-07-31",
+    "note": "Verified: repository-wide instructions are .github/copilot-instructions.md. Path-specific instructions are NAME.instructions.md files within or below .github/instructions, carrying a required `applyTo` front-matter field with glob syntax. Also verified, and relevant to ADR-0013's base choice: Copilot reads AGENTS.md anywhere in the repository with nearest-in-tree precedence, plus CLAUDE.md and GEMINI.md at the root — so the AGENTS.md base really is read natively here."
+  },
+  "outputs": [
+    { "path": ".github/copilot-instructions.md", "role": "primary" },
+    { "path": ".github/instructions/{slug}.instructions.md", "role": "secondary" }
+  ],
+  "frontMatter": { "supported": false },
+  "imports": { "supported": false },
+  "vendorFields": {
+    "pathScopedFrontMatterField": "applyTo",
+    "stubNote": "Schema-valid and shipped, but ungated: no traceability gate and no fixture test. The secondary path is only correct if each file carries an applyTo glob, which the corpus gives no basis for."
+  }
+}

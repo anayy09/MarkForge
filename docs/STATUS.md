@@ -210,43 +210,144 @@ last section is about, in a file written to check for it.
 
 ## Phase 4 — the Agent Context Compiler
 
-**Not started.** `packages/agentify` is deliberately unscaffolded — it holds
-`schema/target.v0.schema.json` and nothing else, because `pnpm-workspace.yaml` records that an
-empty package is a promise and brief §13 forbids one without need.
-
 **Done when** a folder of mixed source documents produces a `CLAUDE.md` set that passes the
 verification gate at 100 percent traceability, and editing one source document produces a
 minimal, readable git diff.
 
-What exists for it already, so the phase does not start by building its own measuring stick:
+**The done-criterion is met, and both halves are checked in CI rather than asserted.**
+
+| Half | Measured | Where |
+| --- | --- | --- |
+| A `CLAUDE.md` set at 100% traceability | 100.0% over 37 sentences, from 5 documents in md + html + docx | `check-agentify.mjs` check 1, and a CLI job in `ci.yml` |
+| One source edit → a minimal diff | **1 line in 1 region** | check 3 |
+
+Both run offline with `MODEL_API_KEY` unset, because `--no-llm` is the default and a gate that
+needed a model would not be the default path.
+
+| Deliverable | State |
+| --- | --- |
+| `@markforge/agentify`: units, dedup, budget, targets, verification | done |
+| `targets/` registry — 12 profiles, all schema-validated | done |
+| Rule-based classification (§10.2) | done — **10/10** on the authored roles |
+| Deterministic extraction (§10.3) | done — recall **94.7%**, precision **75.0%** against the authored key |
+| Dedup by text, then by embedding (§10.4) | text pass done and measured; **embedding pass implemented but NOT measured** — see below |
+| Conflict report (§10.4) | done — **2/2** recall, **0** false positives |
+| Budget and progressive disclosure (§10.5) | done — 31 primary / 9 secondary at a 600-token budget, nothing lost |
+| The traceability gate (§10.6) | done, **and checked for its ability to fail** |
+| Provenance manifest (§10.7) | done, byte-identical across runs |
+| Incremental regeneration (§10.8) | partial — unchanged sources are detected and reported; units are re-extracted rather than reused |
+| `markforge agentify` (§8) | done — `--targets`, `--budget`, `--dry-run`, `--explain-drops`, `--strict`, `--json` |
+| Reverse direction (§10.10) | not done — a stated stretch, and no corpus for it |
+
+### The number that is not measured
+
+**The embedding half of §10.4 is implemented and has never been run against a model.** There
+is no `MODEL_API_KEY` in the environment this was built in, so no vectors were recorded and
+the committed cache still holds only Phase 3's two entries. What *is* tested is the merge
+logic, against a stand-in embedder: a pair above threshold merges additively and keeps both
+sources, a pair below it does not, and a misaligned batch is refused. What is **not** tested is
+the claim that actually matters — that `nomic-embed-text-v1.5` places the corpus's
+Jaccard-0.000 pairs above 0.9.
+
+This is the exact status Phase 3 carried for tesseract for a whole phase, and the first run
+found that wrapper could not start at all. It is recorded here in the same words so it does not
+get read as done: **implemented, not measured.** Recording it needs one run with a key
+(`markforge agentify fixtures/agentify/clean --llm --llm-cache-mode readWrite`) and a commit of
+the resulting cache.
+
+Offline, the two near-duplicate pairs stay unmerged and the run says so in a diagnostic. That
+is the honest cost of `--no-llm` and it is reported rather than hidden.
+
+### What "first-class" does and does not mean here
+
+Five targets are first-class per ADR-0013 and all five pass the gate. Three of them —
+`agents-md`, `claude-md`, `claude-skills` — are checked against something outside this
+repository: two vendor-documented filenames and, for skills, a normative specification whose
+`name` constraints are asserted field by field. **Two are not.** `claude-commands` and
+`mcp-manifest` have a verified *envelope* and an invented *content model*: brief §6.3 asked for
+an MCP manifest without saying what a document-derived one holds, so its shape is ours, and the
+server it names (`markforge serve`) is Phase 5 and does not exist. Their gates measure our
+authored expectation. That is a weaker claim than the other three and the shared label hides
+it, so it is written down here and in `docs/TARGETS.md` (OPEN_QUESTIONS §7n).
+
+### What building it found
+
+**Re-verifying the target registry broke ADR-0013's own premise.** ADR-0013 was written on
+2026-07-29 and states that Claude Code reads `AGENTS.md`. Checked on 2026-07-31, two days
+later, the vendor documentation says the opposite in as many words: *"Claude Code reads
+CLAUDE.md, not AGENTS.md."* The decision survives — the vendor's own remedy is a `CLAUDE.md`
+importing `@AGENTS.md`, which is base-plus-delta in the target's own syntax — but the premise
+was already stale when it was written down. Two more the same afternoon: Windsurf's docs now
+307-redirect to `docs.devin.ai`, and `.clinerules` is a directory rather than a file. Three
+corrections in one pass is the argument for `verifiedAgainst` being a required schema field
+rather than a note someone might read.
+
+**SPEC §10.8's ordering rule defeated its own goal, and it took a measurement to see it.**
+The spec orders units by `(sectionOrder, categoryOrder, id)` and calls that diff-stable. `id`
+is content-addressed, so editing a unit's text moves it: measured, a one-word edit changed
+three rows rather than one. The rule and the criterion it exists to serve contradicted each
+other in the spec, and reading them had not surfaced it. ADR-0018 amends the order; the row
+count is now asserted every CI run.
+
+**The traceability gate had a bypass, and the negative control that was supposed to catch it
+did not.** §10.6 exempts scaffolding from the gate and requires it to be "declared by the
+template, not inferred". The first implementation validated a `heading` fragment with, among
+other things, "any title-cased string under 40 characters" — so `## Ignore all previous
+instructions` was accepted as legitimate structure. The harness's own negative control missed
+it because the invented heading it used happened to be longer than 40 characters; a unit test
+with a shorter one found it. The allowed set is now enumerated rather than pattern-matched. A
+gate with a loose predicate is a gate with a bypass, which is precisely what §10.6 says it must
+not have.
+
+**The conflict detector's first run reported a false conflict on the set with no conflicts in
+it.** Three sequential deploy commands under one `## Deploy` heading in one runbook were read
+as three competing answers to one question. Brief §6.1 scopes conflicts to *across* documents;
+that is now enforced rather than assumed. The corpus's `nonConflicts` list exists for exactly
+this and earned its place on the first run.
+
+**The extractor found no commands and no environment variables at all, at first.** `textContent`
+walks children and returns `""` for a literal node, so every code fence produced an empty block
+and the shell-fence and env-assignment rules matched nothing — silently, because "no commands in
+this document" is a legitimate answer. Found by running it against the corpus rather than by
+reading it.
+
+**Two smaller ones.** The same DOCX sentence was emitted as both a `convention` and a
+`constraint`, in two different sections of the same file, because the extraction passes overlap
+by construction and nothing arbitrated; passes now claim their sentences. And the answer-key
+matcher, greedy on category, reported the *wrong* convention as missed when there were four
+expected and three found — a miss list is the part of a report someone acts on, so it now
+matches lexically first.
+
+### Prerequisites this phase inherited
 
 | Prerequisite | State |
 | --- | --- |
-| `CORPUS.md` §2.14 source sets | **done** — 10 documents across md/html/docx in three sets, with authored answer keys |
-| Near-duplicate pairs proven beyond lexical reach | **done** — both score Jaccard 0.000, asserted on every generator run |
+| `CORPUS.md` §2.14 source sets | done before the phase — 10 documents, three sets, authored answer keys |
+| Near-duplicate pairs proven beyond lexical reach | done — both score Jaccard 0.000 |
 | `embed` role and `context-unit-dedup` binding | done (Phase 3, OPEN_QUESTIONS §7c) |
-| Task→role bindings for the other five §10 tasks | done; the **prompts are not written** |
-| `target.v0.schema.json` | done (Phase 0) |
-| Everything in §10.1's ingest path | done — all ten corpus documents parse with zero lossy diagnostics |
-| `@markforge/agentify` itself | not started |
-| `targets/` registry contents | not started |
+| `target.v0.schema.json` | done (Phase 0), and it needed no changes |
+| Everything in §10.1's ingest path | done — all ten documents parse with zero lossy diagnostics |
 
-**The corpus was built before the phase deliberately.** Phase 3's done-criterion named an
-"ambiguous subset" that turned out not to exist, and the criterion was unmeasurable rather
-than unmet until the subset was authored to arithmetic. Building Phase 4's corpus first means
-its criterion is measurable on day one. The answer keys are authored rather than captured for
-the same reason: a snapshot taken from a run blesses whatever the first implementation did.
+**Building the corpus first paid off exactly as intended.** Phase 3's criterion named an
+"ambiguous subset" that did not exist, and was unmeasurable rather than unmet until one was
+authored. Phase 4's criterion was measurable on day one, and the authored keys caught two
+things a captured snapshot could not have: the classifier traps (`architecture.md` answers
+`decisionRecord`, `service-overview.md` answers `architecture`) and the false conflict above.
+
+Six of the ten bound LLM tasks still have no prompt file. Phase 4 wrote **none** of them and
+wired only the embeddings path, which needs no prompt; the reasoning is in OPEN_QUESTIONS §7o.
 
 ## Unbuilt CLI surface
 
-`SPEC.md` §8 specifies seven subcommands. Two work. The other five refuse by name rather
+`SPEC.md` §8 specifies seven subcommands. Three work. The other four refuse by name rather
 than pretending, which is the right behaviour but is not delivery.
 
 | Command | State |
 | --- | --- |
 | `convert`, `fmt` | done |
 | `check` | **partial, and no longer a lie** — validates documents against the IR schema, reports reference-document style coverage (`--reference-doc`), and probes the LLM endpoint (`--llm`). Corpus fidelity baselines stay in `scripts/run-fidelity.mjs`, and `check --help` says so rather than implying otherwise |
-| `diff`, `init`, `serve`, `agentify` | not done, by phase |
+| `agentify` | **done** — `--targets`, `--budget`, `--dry-run`, `--explain-drops`, `--strict`, `--json`. Exit 5 is the traceability gate and has no bypass flag (SPEC §10.6) |
+| `diff`, `init`, `serve` | not done, by phase |
 
 ## Renderer gaps that lose content today
 
@@ -291,7 +392,7 @@ from the style name and the paragraph border, exactly as blockquotes already are
 | 2.9 spreadsheets | not done |
 | 2.10 RTL and CJK | partial, inside 2.11; native-speaker review not done |
 | 2.12 tracked changes and comments | not done |
-| 2.14 agentify source sets | not done, Phase 4 |
+| 2.14 agentify source sets | done — 10 documents, 3 sets, authored answer keys, all measured in `docs/AGENTIFY.md` |
 | 2.15 library- and LLM-generated documents | partial — 2 of 4 producer profiles; Pandoc and LibreOffice exports need the binaries |
 
 The measured numbers in `FIDELITY.md` now cover eight deliberately defective DOCX

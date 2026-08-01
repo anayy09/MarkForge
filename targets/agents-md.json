@@ -1,0 +1,116 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "agents-md",
+  "targetVersion": "0.1.0",
+  "displayName": "AGENTS.md",
+  "kind": "flatMarkdown",
+  "tier": "firstClass",
+  "vendor": "Agentic AI Foundation (Linux Foundation)",
+  "docsUrl": "https://agents.md/",
+  "verifiedAgainst": {
+    "url": "https://agents.md/",
+    "date": "2026-07-31",
+    "note": "Confirmed: a single AGENTS.md at the repository root, 'just standard Markdown'. The site documents no front matter and no import syntax, and describes nested per-package AGENTS.md files resolved by nearest-in-tree precedence rather than by inclusion. Both `frontMatter.supported` and `imports.supported` are therefore false here — absence of a documented feature is recorded as unsupported rather than assumed."
+  },
+  "outputs": [
+    { "path": "AGENTS.md", "role": "primary" },
+    { "path": "docs/agent-context/{slug}.md", "role": "secondary" }
+  ],
+  "budget": {
+    "primaryTokens": 6000,
+    "secondaryTokens": 24000,
+    "counter": {
+      "method": "approximate",
+      "charsPerToken": 3.8
+    },
+    "overflow": "linkToSecondary"
+  },
+  "frontMatter": { "supported": false },
+  "imports": {
+    "supported": true,
+    "syntax": "[{title}]({path})",
+    "maxDepth": 1
+  },
+  "sections": [
+    {
+      "id": "commands",
+      "heading": "Commands",
+      "headingLevel": 2,
+      "categories": ["command"],
+      "categoryWeight": 1.6,
+      "render": "codeBlock"
+    },
+    {
+      "id": "constraints",
+      "heading": "Constraints and invariants",
+      "headingLevel": 2,
+      "categories": ["constraint", "invariant"],
+      "categoryWeight": 1.5,
+      "render": "bulletList"
+    },
+    {
+      "id": "conventions",
+      "heading": "Conventions",
+      "headingLevel": 2,
+      "categories": ["convention"],
+      "categoryWeight": 1.2,
+      "render": "bulletList"
+    },
+    {
+      "id": "anti-patterns",
+      "heading": "Do not",
+      "headingLevel": 2,
+      "categories": ["antiPattern"],
+      "categoryWeight": 1.4,
+      "render": "bulletList"
+    },
+    {
+      "id": "environment",
+      "heading": "Environment",
+      "headingLevel": 2,
+      "categories": ["environmentVariable"],
+      "categoryWeight": 1.1,
+      "render": "codeBlock"
+    },
+    {
+      "id": "dependencies",
+      "heading": "Dependencies",
+      "headingLevel": 2,
+      "categories": ["dependency"],
+      "categoryWeight": 0.8,
+      "render": "bulletList"
+    },
+    {
+      "id": "decisions",
+      "heading": "Decisions",
+      "headingLevel": 2,
+      "categories": ["decision"],
+      "categoryWeight": 1.0,
+      "render": "bulletList"
+    },
+    {
+      "id": "entities",
+      "heading": "Components",
+      "headingLevel": 2,
+      "categories": ["entity"],
+      "categoryWeight": 0.7,
+      "render": "bulletList"
+    },
+    {
+      "id": "glossary",
+      "heading": "Glossary",
+      "headingLevel": 2,
+      "categories": ["glossaryTerm"],
+      "categoryWeight": 0.6,
+      "render": "definitionList"
+    }
+  ],
+  "tone": {
+    "voice": "imperative",
+    "person": "second"
+  },
+  "traceability": {
+    "required": 1,
+    "sentenceSegmenter": "icu"
+  }
+}

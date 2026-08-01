@@ -1,0 +1,28 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "aider-conventions",
+  "targetVersion": "0.1.0",
+  "displayName": "Aider conventions file",
+  "extends": "agents-md",
+  "kind": "flatMarkdown",
+  "tier": "stub",
+  "vendor": "Aider",
+  "docsUrl": "https://aider.chat/docs/usage/conventions.html",
+  "verifiedAgainst": {
+    "url": "https://aider.chat/docs/usage/conventions.html",
+    "date": "2026-07-31",
+    "note": "Verified: the documented filename is CONVENTIONS.md, and it is not auto-discovered — it is loaded either by the `aider --read CONVENTIONS.md` flag or by a `read: CONVENTIONS.md` key in .aider.conf.yml, which also accepts a list. That non-discovery is the material difference from every other target here: emitting the file is not sufficient, so the profile records the config line a user still has to add."
+  },
+  "outputs": [
+    { "path": "CONVENTIONS.md", "role": "primary" }
+  ],
+  "frontMatter": { "supported": false },
+  "imports": { "supported": false },
+  "vendorFields": {
+    "notAutoDiscovered": true,
+    "loadFlag": "aider --read CONVENTIONS.md",
+    "configKey": "read",
+    "configFile": ".aider.conf.yml",
+    "stubNote": "Schema-valid and shipped, but ungated: no traceability gate and no fixture test."
+  }
+}

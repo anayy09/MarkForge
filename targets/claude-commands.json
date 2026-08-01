@@ -1,0 +1,81 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "claude-commands",
+  "targetVersion": "0.1.0",
+  "displayName": "Claude Code slash commands",
+  "kind": "commandSet",
+  "tier": "firstClass",
+  "vendor": "Anthropic",
+  "docsUrl": "https://code.claude.com/docs/en/skills",
+  "verifiedAgainst": {
+    "url": "https://code.claude.com/docs/en/skills",
+    "date": "2026-07-31",
+    "note": "Verified with a caveat worth reading before using this target. Custom commands have been MERGED INTO SKILLS: the docs state that `.claude/commands/deploy.md` and `.claude/skills/deploy/SKILL.md` both create `/deploy` and work the same way, that existing `.claude/commands/` files keep working and support the same front matter, and that skills are now recommended because they also support supporting files. Where a skill and a command share a name, the skill wins. This profile is therefore a live but superseded convention — prefer claude-skills. Kept first-class because ADR-0013 named it and because the path still works, not because it is the current recommendation."
+  },
+  "outputs": [
+    { "path": ".claude/commands/{slug}.md", "role": "primary", "condition": "hasCategory(command)" }
+  ],
+  "budget": {
+    "primaryTokens": 1500,
+    "secondaryTokens": 0,
+    "counter": {
+      "method": "approximate",
+      "charsPerToken": 3.8
+    },
+    "overflow": "truncateLowestValue"
+  },
+  "frontMatter": {
+    "supported": true,
+    "language": "yaml",
+    "required": ["description"],
+    "schema": {
+      "type": "object",
+      "required": ["description"],
+      "properties": {
+        "description": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "argument-hint": { "type": "string" },
+        "allowed-tools": { "type": "string" }
+      }
+    }
+  },
+  "imports": { "supported": false },
+  "sections": [
+    {
+      "id": "commands",
+      "heading": "Steps",
+      "headingLevel": 2,
+      "categories": ["command"],
+      "categoryWeight": 2,
+      "render": "codeBlock"
+    },
+    {
+      "id": "cautions",
+      "heading": "Do not",
+      "headingLevel": 2,
+      "categories": ["antiPattern"],
+      "categoryWeight": 1.4,
+      "render": "bulletList"
+    },
+    {
+      "id": "environment",
+      "heading": "Environment",
+      "headingLevel": 2,
+      "categories": ["environmentVariable"],
+      "categoryWeight": 1.1,
+      "render": "codeBlock"
+    }
+  ],
+  "tone": {
+    "voice": "imperative",
+    "person": "second"
+  },
+  "traceability": {
+    "required": 1,
+    "sentenceSegmenter": "icu"
+  },
+  "vendorFields": {
+    "partitionBy": "documentRole",
+    "partitionNote": "One command per role that carries command units. The `condition` on the output means a role with no commands emits no file rather than an empty one — a slash command with no steps is worse than a missing one.",
+    "supersededBy": "claude-skills"
+  }
+}

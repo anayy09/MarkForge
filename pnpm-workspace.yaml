@@ -17,7 +17,9 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - word-to-markdown@0.3.0
 
-# Phase 3 adds `llm` and `adapters-ocr` (docs/INIT.md §11, docs/SPEC.md §11). The
-# remaining packages named in SPEC §11 — render-pdf, agentify, http, mcp, browser —
-# are still deliberately not scaffolded: an empty package is a promise, and brief §13
-# forbids adding one without need.
+# Phase 3 adds `llm` and `adapters-ocr`, and Phase 4 adds `agentify` (docs/INIT.md §11,
+# docs/SPEC.md §11). `agentify` held only `schema/target.v0.schema.json` until it had code
+# to put beside it, which is the rule this comment records rather than an accident of
+# ordering. The remaining packages named in SPEC §11 — render-pdf, http, mcp, browser — are
+# still deliberately not scaffolded: an empty package is a promise, and brief §13 forbids
+# adding one without need.

@@ -82,6 +82,23 @@ export const DiagnosticCode = {
   LLM_BUDGET_EXCEEDED: "MF-LLM-0003",
   LLM_DISABLED_AMBIGUITY_STANDS: "MF-LLM-0004",
 
+  // --- Agent Context Compiler (SPEC §10) -----------------------------------
+  // Surface A loses information in ways Surface B cannot: a unit can be merged into
+  // another, ranked below a budget, or refused by the traceability gate. Each of those
+  // is a decision about someone's document, so each says so. The two that are `lossy`
+  // are the two where a fact present in a source reaches no output file.
+  AGENTIFY_ROLE_UNCERTAIN: "MF-AGENT-0001",
+  AGENTIFY_ROLE_LLM_DISAGREED: "MF-AGENT-0002",
+  AGENTIFY_UNITS_MERGED: "MF-AGENT-0003",
+  AGENTIFY_CONFLICT: "MF-AGENT-0004",
+  AGENTIFY_UNIT_OVERFLOWED: "MF-AGENT-0005",
+  AGENTIFY_UNIT_DROPPED: "MF-AGENT-0006",
+  AGENTIFY_UNIT_UNROUTED: "MF-AGENT-0007",
+  AGENTIFY_SENTENCE_UNSUPPORTED: "MF-AGENT-0008",
+  AGENTIFY_TRACEABILITY_FAILED: "MF-AGENT-0009",
+  AGENTIFY_TOKENIZER_UNAVAILABLE: "MF-AGENT-0010",
+  AGENTIFY_SOURCE_UNCHANGED: "MF-AGENT-0011",
+
   // --- IR -----------------------------------------------------------------
   IR_SCHEMA_INVALID: "MF-IR-0001",
   IR_PROVENANCE_MISSING: "MF-IR-0002",

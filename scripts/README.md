@@ -196,6 +196,33 @@ The DOCX file is rendered from authored Markdown by our own renderer, which woul
 choice in `fixtures/docx/` — the point there is catching adapter bugs — but is fine here, where
 the fixture is the document's content and role rather than its format fidelity.
 
+## `check-agentify.mjs`
+
+The Phase 4 gate harness. Runs both halves of the done-criterion (`docs/INIT.md` §11) plus five
+supporting checks, and regenerates `docs/AGENTIFY.md`. `--update` rewrites the document and the
+extraction baseline; CI runs it bare and fails on a regression or a stale document.
+
+Seven checks: traceability on the clean set for all five first-class targets; the **negative
+control**; the one-region diff after a one-sentence source edit; conflict recall and false
+positives; budget overflow losing no unit; byte-identical output across two runs; and extraction
+measured against the authored answer keys.
+
+**The negative control is the one that makes the rest mean anything.** Three crafted violations
+— invented text in a fragment that names a real unit, a fragment naming a unit id that does not
+exist, and scaffolding the target profile never declared — must each be caught, and a
+well-formed file must still pass. A gate that cannot fail proves nothing when it passes, and
+this project has shipped one of those before: see `STATUS.md` on the heading predicate that
+accepted `## Ignore all previous instructions` as legitimate structure.
+
+Extraction is scored against `expected-units.json` by matching on **words first, then category
+and source** — never on exact text, because the keys paraphrase deliberately and an exact
+comparison would measure paraphrase distance rather than extraction. Units found under the
+wrong category are counted separately from units not found at all, since they are different
+defects: one reaches the output file, the other does not.
+
+Everything runs offline with no API key. `--no-llm` is the default and the gate has to clear
+without a model.
+
 ## `run-fidelity.mjs`
 
 Measures three loops — `md → md`, `md → docx → md`, `docx → md → docx` — across the corpus,

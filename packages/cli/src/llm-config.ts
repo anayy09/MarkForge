@@ -175,6 +175,24 @@ export function assistFrom(
   };
 }
 
+/**
+ * The injection points `@markforge/agentify` accepts (SPEC §10.2–10.4).
+ *
+ * Only `embed` is wired today, and that is a statement about what is measured rather than
+ * about what is possible. §10.4's merge is the one stage whose correctness the corpus can
+ * actually check: both near-duplicate pairs score content-word Jaccard 0.000, so a merge
+ * that happens proves an embedding did it and a merge that does not happen is a visible
+ * failure. `classifyRole` and `extraUnits` are left unbound because this corpus gives no
+ * way to tell a good answer from a plausible one — the rule-based classifier is already
+ * 10 for 10 on the authored roles, so a model could only agree or be wrong, and generated
+ * context units would be graded against an answer key written before either existed.
+ * Wiring them would add two prompt files whose quality nothing would keep honest, which is
+ * the trap `packages/llm/src/tasks.ts` names at the top. Recorded in docs/AGENTIFY.md.
+ */
+export function agentifyAssistFrom(session: LlmSession): { embed: (texts: string[]) => Promise<number[][]> } {
+  return { embed: (texts) => session.embed(texts) };
+}
+
 function parseCacheMode(value: string | undefined): CacheMode {
   if (value === undefined) return "readWrite";
   if (!CACHE_MODES.has(value as CacheMode)) {

@@ -1,0 +1,26 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "cline-rules",
+  "targetVersion": "0.1.0",
+  "displayName": "Cline workspace rules",
+  "extends": "agents-md",
+  "kind": "flatMarkdown",
+  "tier": "stub",
+  "vendor": "Cline",
+  "docsUrl": "https://docs.cline.bot/features/cline-rules",
+  "verifiedAgainst": {
+    "url": "https://docs.cline.bot/features/cline-rules",
+    "date": "2026-07-31",
+    "note": "Verified, and it corrected a plausible wrong answer: `.clinerules` is a DIRECTORY at the project root, not a single file. Cline processes all .md and .txt files inside it and combines them into one rule set. Global rules live in the OS Cline Rules directory (Documents/Cline/Rules). Cline also reads AGENTS.md at the project root and ~/.agents/AGENTS.md as the cross-tool standard format; workspace rules take precedence over global rules, and the docs do not state AGENTS.md's precedence relative to the others."
+  },
+  "outputs": [
+    { "path": ".clinerules/{slug}.md", "role": "primary" }
+  ],
+  "frontMatter": { "supported": false },
+  "imports": { "supported": false },
+  "vendorFields": {
+    "partitionBy": "documentRole",
+    "alsoReadsAgentsMd": true,
+    "stubNote": "Schema-valid and shipped, but ungated: no traceability gate and no fixture test. Because Cline reads AGENTS.md natively, emitting the agents-md target alone is usually enough and this profile is the one to reach for only when Cline-specific rules should not be seen by other tools."
+  }
+}

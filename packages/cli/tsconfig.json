@@ -29,6 +29,9 @@
     },
     {
       "path": "../adapters-ocr"
+    },
+    {
+      "path": "../agentify"
     }
   ]
 }

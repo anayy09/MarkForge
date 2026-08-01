@@ -1,0 +1,28 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "windsurf-rules",
+  "targetVersion": "0.1.0",
+  "displayName": "Windsurf / Cascade workspace rules",
+  "extends": "agents-md",
+  "kind": "flatMarkdown",
+  "tier": "stub",
+  "vendor": "Cognition (Windsurf / Devin)",
+  "docsUrl": "https://docs.devin.ai/desktop/cascade/memories",
+  "verifiedAgainst": {
+    "url": "https://docs.devin.ai/desktop/cascade/memories",
+    "date": "2026-07-31",
+    "note": "THE CLEAREST EVIDENCE IN THIS REGISTRY FOR WHY verifiedAgainst IS A REQUIRED FIELD. docs.windsurf.com now 307-redirects to docs.devin.ai — the vendor was absorbed and its documentation moved to another company's domain, so the URL a training set would supply no longer serves the answer. Verified at the redirect target: workspace rules are one file per rule in `.devin/rules/*.md` (preferred) with `.windsurf/rules/*.md` still read as a legacy fallback; the legacy single-file `.windsurfrules` at the workspace root is also still read; global rules live at ~/.codeium/windsurf/memories/global_rules.md. This profile keeps emitting the .windsurf path because it is the one still documented as read AND still matches the profile id; a rename to devin-rules is the two-line delta ADR-0013 predicted."
+  },
+  "outputs": [
+    { "path": ".windsurf/rules/{slug}.md", "role": "primary" }
+  ],
+  "frontMatter": { "supported": false },
+  "imports": { "supported": false },
+  "vendorFields": {
+    "preferredPath": ".devin/rules/{slug}.md",
+    "legacySingleFile": ".windsurfrules",
+    "globalRules": "~/.codeium/windsurf/memories/global_rules.md",
+    "partitionBy": "documentRole",
+    "stubNote": "Schema-valid and shipped, but ungated: no traceability gate and no fixture test."
+  }
+}

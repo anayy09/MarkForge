@@ -1,0 +1,49 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "cursor-rules",
+  "targetVersion": "0.1.0",
+  "displayName": "Cursor project rules (.mdc)",
+  "extends": "agents-md",
+  "kind": "scopedRuleSet",
+  "tier": "stub",
+  "vendor": "Cursor",
+  "docsUrl": "https://cursor.com/docs/context/rules",
+  "verifiedAgainst": {
+    "url": "https://cursor.com/docs/context/rules",
+    "date": "2026-07-31",
+    "note": "Verified: project rules live in .cursor/rules as .mdc files and are version-controlled; plain .md files in that directory are ignored by the rules system. Front matter fields are description, globs, and alwaysApply. Four rule types: always apply, apply intelligently (by description), apply to specific files (by globs), apply manually (@-mention)."
+  },
+  "outputs": [
+    { "path": ".cursor/rules/{slug}.mdc", "role": "primary" }
+  ],
+  "budget": {
+    "primaryTokens": 4000,
+    "secondaryTokens": 0,
+    "counter": { "method": "approximate", "charsPerToken": 3.8 },
+    "overflow": "linkToSecondary"
+  },
+  "frontMatter": {
+    "supported": true,
+    "language": "yaml",
+    "required": ["description"],
+    "schema": {
+      "type": "object",
+      "required": ["description"],
+      "properties": {
+        "description": { "type": "string", "minLength": 1 },
+        "globs": { "type": "string" },
+        "alwaysApply": { "type": "boolean" }
+      }
+    }
+  },
+  "imports": { "supported": false },
+  "scoping": {
+    "byGlob": true,
+    "globField": "globs",
+    "alwaysApplyField": "alwaysApply"
+  },
+  "vendorFields": {
+    "partitionBy": "documentRole",
+    "stubNote": "Schema-valid and shipped, but ungated: no traceability gate and no fixture test. This is the one target with genuinely different assembly semantics — units are partitioned by path glob rather than budgeted into one file — which is why kind and scoping are first-class schema concepts even while the target is a stub (ADR-0013). Emitting it needs a glob per unit, and the corpus carries no path scoping to derive one from, so every rule would fall back to alwaysApply and prove nothing."
+  }
+}

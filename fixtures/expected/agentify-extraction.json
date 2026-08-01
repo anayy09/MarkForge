@@ -1,0 +1,64 @@
+{
+  "roles": {
+    "correct": 10,
+    "total": 10
+  },
+  "sets": {
+    "clean": {
+      "units": 24,
+      "byCategory": {
+        "constraint": 8,
+        "decision": 3,
+        "convention": 3,
+        "antiPattern": 2,
+        "command": 5,
+        "environmentVariable": 3
+      },
+      "recall": 0.9474,
+      "precision": 0.75,
+      "missed": [
+        {
+          "category": "invariant",
+          "text": "A batch is committed whole or not at all; partial ingestion never occurs."
+        }
+      ],
+      "categoryMismatches": [
+        {
+          "text": "Never swallow an error to keep a request alive.",
+          "expected": "convention",
+          "got": "antiPattern"
+        }
+      ]
+    },
+    "conflicting": {
+      "units": 5,
+      "byCategory": {
+        "command": 2,
+        "environmentVariable": 3
+      }
+    },
+    "oversized": {
+      "units": 40,
+      "byCategory": {
+        "convention": 31,
+        "constraint": 1,
+        "glossaryTerm": 8
+      }
+    }
+  },
+  "notes": [
+    {
+      "diffRegions": 1,
+      "diffLines": 1
+    },
+    {
+      "conflictRecall": "2/2",
+      "falsePositives": 0
+    },
+    {
+      "oversizedConventions": 31,
+      "oversizedGlossary": 8,
+      "expectedConventions": 30
+    }
+  ]
+}
