@@ -72,7 +72,7 @@ Pandoc, 27 tied** (within half a percentage point). Against the reference projec
 word-to-markdown leads on **0** of the 28 pairs.
 
 **Why the reference project is a separate column rather than a third contender in the win
-count.** It converts one direction of one format, which is the limitation brief §2 names and
+count.** It converts one direction of one format, which is the limitation docs/PRIOR_ART.md names and
 the gap this project exists to fill. Folding it into the same tally would make a win against
 it look like the same kind of claim as a win against Pandoc, and it is not: Pandoc round-trips
 twenty-odd formats. Beating the reference project is the baseline; beating Pandoc is the
