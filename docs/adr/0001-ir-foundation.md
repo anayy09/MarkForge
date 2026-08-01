@@ -3,6 +3,7 @@
 - Status: Proposed
 - Date: 2026-07-29
 - Relates to: brief §4, `SPEC.md` §2, ADR-0002
+- Enforced by: scripts/check-schemas.mjs
 
 ## Context
 

@@ -191,6 +191,20 @@ jobs:
       - name: The merge predicate agrees with the corpus keys (CORPUS §2.14.1)
         run: node scripts/check-merge-predicate.mjs
 
+      # ADR-0015 sat Accepted while wrong for all ten packages it named, because
+      # acceptance never had a check attached. Every ADR now names one.
+      - name: Every ADR names the check that enforces it
+        run: node scripts/check-adr-enforcement.mjs
+
+      # The closing property: a claim with neither a check nor an unverified marker is a
+      # defect regardless of whether it happens to be true.
+      - name: STATUS.md carries no unmarked unchecked claim
+        run: node scripts/check-status-claims.mjs
+
+      # A note about data must not live where the data cannot contradict it.
+      - name: docs/TARGETS.md is derived from targets/*.json
+        run: node scripts/check-target-docs.mjs
+
       # Phase 5's done-criterion. The same input through the CLI, the HTTP API, the MCP
       # server, and the browser build must produce identical bytes — this is what makes
       # four surfaces one engine rather than four converters, and a wrapper that trimmed a

@@ -3,6 +3,7 @@
 - Status: **Accepted** — flagged for reversal in `OPEN_QUESTIONS.md` §7l
 - Date: 2026-07-31
 - Relates to: `SPEC.md` §10.5; brief §6.1, §13
+- Enforced by: scripts/check-agentify.mjs
 
 ## Context
 

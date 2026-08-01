@@ -29,9 +29,12 @@
     "check:mammoth": "node scripts/diff-mammoth.mjs --check",
     "codegen": "node scripts/codegen-types.mjs",
     "fidelity": "node scripts/run-fidelity.mjs",
-    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run check:agentify-corpus && pnpm run typecheck && pnpm run check:markdown && pnpm run check:mammoth && pnpm run test && pnpm run build && pnpm run check:templates && pnpm run check:agentify && pnpm run check:browser && pnpm run check:retention && pnpm run check:parity && pnpm run check:degradation && pnpm run check:merge-predicate",
+    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run check:agentify-corpus && pnpm run typecheck && pnpm run check:markdown && pnpm run check:mammoth && pnpm run test && pnpm run build && pnpm run check:templates && pnpm run check:agentify && pnpm run check:browser && pnpm run check:retention && pnpm run check:parity && pnpm run check:degradation && pnpm run check:merge-predicate && pnpm run check:adr && pnpm run check:status && pnpm run check:target-docs",
     "check:degradation": "node scripts/check-degradation.mjs",
-    "check:merge-predicate": "node scripts/check-merge-predicate.mjs"
+    "check:merge-predicate": "node scripts/check-merge-predicate.mjs",
+    "check:adr": "node scripts/check-adr-enforcement.mjs",
+    "check:status": "node scripts/check-status-claims.mjs",
+    "check:target-docs": "node scripts/check-target-docs.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

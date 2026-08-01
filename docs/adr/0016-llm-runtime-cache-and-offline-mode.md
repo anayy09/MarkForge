@@ -3,6 +3,7 @@
 - Status: **Accepted** (Phase 3)
 - Date: 2026-07-31
 - Relates to: brief §7.3, §3.6, §10; `SPEC.md` §6.3; [ADR-0009](0009-llm-openai-compatible-only.md)
+- Enforced by: scripts/check-agentify.mjs
 
 ## Context
 

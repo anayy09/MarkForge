@@ -3,6 +3,7 @@
 - Status: Proposed
 - Date: 2026-07-29
 - Relates to: brief §3.4, §10, §11; `SPEC.md` §9
+- Enforced by: scripts/run-fidelity.mjs
 
 ## Context
 

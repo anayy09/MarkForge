@@ -3,6 +3,7 @@
 - Status: Proposed
 - Date: 2026-07-29
 - Relates to: brief §5.2, §7.1; `SPEC.md` §3.3
+- Enforced by: scripts/check-degradation.mjs
 
 ## Context
 

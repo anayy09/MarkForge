@@ -3,6 +3,7 @@
 - Status: Proposed
 - Date: 2026-07-29
 - Relates to: brief §3.7, §6.2; `SPEC.md` §2.7; ADR-0002
+- Enforced by: packages/ir/test/node-id.test.ts
 
 ## Context
 

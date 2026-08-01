@@ -3,6 +3,7 @@
 - Status: **Confirmed by reviewer.** Deliberate deviation from brief §5.2.
 - Date: 2026-07-29
 - Relates to: brief §5.2, §4.2, §5.3; `SPEC.md` §3.1; ADR-0004
+- Enforced by: scripts/diff-mammoth.mjs
 
 ## Context
 

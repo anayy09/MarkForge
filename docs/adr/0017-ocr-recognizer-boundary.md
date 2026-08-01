@@ -3,6 +3,7 @@
 - Status: **Accepted** (Phase 3)
 - Date: 2026-07-31
 - Relates to: brief §5.2, §3.6, §7.1; `SPEC.md` §3.3, §3.4, §11; [ADR-0012](0012-pdf-adapter-stack.md), [ADR-0009](0009-llm-openai-compatible-only.md)
+- Enforced by: scripts/check-browser-bundle.mjs
 
 ## Context
 

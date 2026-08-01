@@ -3,6 +3,7 @@
 - Status: **Accepted** — supersedes half of `OPEN_QUESTIONS.md` §7c, flagged for reversal in §7p
 - Date: 2026-07-31
 - Relates to: `SPEC.md` §10.4; brief §6.1, §7.1; `OPEN_QUESTIONS.md` §7c; ADR-0009
+- Enforced by: scripts/check-merge-predicate.mjs
 
 ## Context
 

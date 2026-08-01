@@ -25,6 +25,9 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `fetch-ocr-assets.mjs` | network, once | Downloads tesseract language data and the found scan into gitignored `fixtures/local/` (`docs/CORPUS.md` §2.7) |
 | `check-browser-bundle.mjs` | `esbuild`, built packages | Builds every package ADR-0015 claims runs in-browser at `platform=browser` and fails on any `node:` builtin or polyfill. The Phase 5 gate that took ADR-0015 off `Proposed` |
 | `check-http-retention.mjs` | built packages | Measures brief §8's "stateless, no document retention" — filesystem delta, retrieval routes, minted ids, cross-request contamination — against a deliberately retaining control |
+| `check-adr-enforcement.mjs` | none | Every ADR names the check that enforces it, and that check exists and runs. An ADR with no enforcing check is a comment |
+| `check-status-claims.mjs` | none | Every state cell in `docs/STATUS.md` is produced by a named check or explicitly marked unverified |
+| `check-target-docs.mjs` | none | `docs/TARGETS.md`'s tables are generated from `targets/*.json`, and each `honestyNote` is validated against the profile it describes |
 | `check-degradation.mjs` | none | Every `catch` block in every package declares what it does with the failure. An unannotated one fails |
 | `check-merge-predicate.mjs` | built packages | CORPUS §2.14.1's merge predicate, applied to every pair a corpus key makes a claim about |
 | `check-surface-parity.mjs` | `esbuild`, built packages | **Phase 5's done-criterion.** Every corpus fixture through the CLI, the HTTP API, the MCP server, and the browser build, compared byte for byte, with `MODEL_API_KEY` unset |

@@ -5,6 +5,7 @@
 - Date: 2026-07-29
 - Relates to: brief §3.6, §8; `SPEC.md` §11
 - Gated by: `scripts/check-browser-bundle.mjs`, CI job `build`
+- Enforced by: scripts/check-browser-bundle.mjs
 
 ## Context
 

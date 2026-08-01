@@ -3,6 +3,7 @@
 - Status: **Confirmed by reviewer**
 - Date: 2026-07-29
 - Relates to: brief §6.3; `SPEC.md` §10.9
+- Enforced by: scripts/check-agentify.mjs
 
 ## Context
 

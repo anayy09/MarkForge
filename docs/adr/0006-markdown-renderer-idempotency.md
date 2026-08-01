@@ -3,6 +3,7 @@
 - Status: Proposed
 - Date: 2026-07-29
 - Relates to: brief §5.4, §3.5, §10; `SPEC.md` §4.1
+- Enforced by: scripts/check-markdown-lint.mjs
 
 ## Context
 

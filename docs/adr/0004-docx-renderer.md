@@ -3,6 +3,7 @@
 - Status: Proposed
 - Date: 2026-07-29
 - Relates to: brief §5.1, §5.4; `SPEC.md` §4.2
+- Enforced by: scripts/build-reference-templates.mjs
 
 ## Context
 
