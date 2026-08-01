@@ -314,9 +314,22 @@ it there; `nemotron-3-super-120b-a12b` spent all of it before writing JSON. STAT
 records this exact mistake from Phase 3's capability probe, which is the argument for the
 ceiling being commented with its number rather than merely set.
 
-The cache is committed — 48 entries, 324 KB — and the path is offline-reproducible: two
-`readOnly` runs with no key present are byte-identical, and `--llm` differs from `--no-llm` by
-exactly the one merged line. Both are CI jobs.
+The cache is committed and the path is offline-reproducible: two `readOnly` runs with no key
+present are byte-identical, and `--llm` differs from `--no-llm` by exactly the one merged
+line. Both are CI jobs.
+
+**Corrected 2026-08-01:** that second claim used to be made about the *clean* set, where it
+held because of a sentence-split merge. Adjudicator prompt v2 correctly declines that merge —
+it drops `partial` and `never`, which §2.14.1 counts as scope — so the clean set now merges
+nothing and the CI job failed for the right behaviour. It runs on
+`fixtures/agentify/dedup` (CORPUS §2.16), which contains a genuine near-duplicate, and the
+diff is one line there.
+
+Worth recording separately: the identical stale assertion existed in **two** places, and
+fixing `check-agentify.mjs` did not fix `ci.yml`, because `pnpm verify` does not run the
+workflow. The local suite was green and CI was red for the same commit. That is the Phase 1
+lesson — *a check that has never run is not a check* — arriving from the opposite direction:
+here the check ran and the local proxy for it did not.
 
 ### The 10/10 that measured nothing
 
