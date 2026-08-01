@@ -94,6 +94,10 @@ The honest part is the `tier` field, which says plainly which ones are tested.
   is designed to be updated without a code release.
 - A stale `verifiedAgainst.date` is machine-detectable, so CI can warn when a profile has not
   been re-verified within a chosen window. Cheap, and it addresses the brief's actual worry.
+  **Wired** as check 10 of `scripts/check-agentify.mjs`, at 180 days. A warning rather than a
+  failure, deliberately: a profile is correct until a vendor changes something, which no date
+  can know, and failing the build on the calendar would train people to bump the date instead
+  of re-reading the documentation — strictly worse than no check at all.
 - Cursor and Copilot users get output that is schema-correct but not fidelity-gated. The `tier`
   field makes that visible rather than implied.
 - Promoting skills, commands, and the MCP manifest to planned work means `agentify` must emit

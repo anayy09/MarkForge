@@ -21,6 +21,8 @@
  *   8. **Deduplication precision**, from the committed cache. `nearDuplicates` alone grades
  *      §10.4 in one direction — a method that merged everything would pass it — so the
  *      corpus authors `mustNotMerge` pairs and this asserts none of them merged.
+ *  10. Target profiles re-verified against vendor documentation within 180 days — a
+ *      warning, because failing on the calendar would train people to bump the date.
  *   9. **The classification holdout.** The 10/10 in check 7 is in-distribution: `classify.ts`
  *      was tuned while reading its own output on those documents. This runs a set authored
  *      afterwards and never tuned against, and it scores 1 of 5.
@@ -474,6 +476,35 @@ let holdout = { correct: 0, total: 0 };
 }
 function measuredRolesLine() {
   return `${measured.roles.correct}/${measured.roles.total}`;
+}
+
+// ---------------------------------------------------------------- 10. vendor staleness
+console.log("\n10. Target profiles re-verified against vendor documentation recently enough");
+{
+  // ADR-0013's own consequences section says a stale `verifiedAgainst.date` is
+  // machine-detectable and CI should warn. It was never wired, which made it a note someone
+  // might read — the exact thing the required schema field exists to avoid being.
+  //
+  // A warning, not a failure. The profiles are correct until a vendor changes something, and
+  // nobody can know that from a date; failing the build on the calendar would train people
+  // to bump the date rather than re-read the docs, which is strictly worse than no check.
+  const STALE_DAYS = 180;
+  const today = new Date();
+  const ages = registry.verificationAges(today);
+  const stale = ages.filter((a) => !Number.isFinite(a.ageDays) || a.ageDays > STALE_DAYS);
+  if (stale.length === 0) {
+    ok(`all ${ages.length} profiles verified within ${STALE_DAYS} days (oldest ${Math.max(...ages.map((a) => a.ageDays))}d)`);
+  } else {
+    for (const a of stale) {
+      console.log(
+        `  warn  ${a.id}: last verified ${a.date || "(never)"}, ${a.ageDays}d ago. Re-read the ` +
+          `vendor docs and update verifiedAgainst — three of these were already wrong two days ` +
+          `after being written (docs/TARGETS.md).`,
+      );
+    }
+    console.log(`  info  ${stale.length} profile(s) need re-verification. Not a failure; see the comment in this script.`);
+  }
+  notes.push({ staleProfiles: stale.length, oldestVerificationDays: Math.max(...ages.map((a) => a.ageDays)) });
 }
 
 // ---------------------------------------------------------------- baseline
