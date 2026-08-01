@@ -1,0 +1,26 @@
+{
+  "key": "af54cd369bd02d2ed0f2715045d7d13928774b7443b1fb2c50e1414bf9b7fae7",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "c69a2e23a3c2cdf7b0a77bbb6dc41e2faf1b833ecf9682ade939fe44f1dacf09",
+  "inputPreview": "We accept batches into a durable queue and acknowledge before processing. || Customers register a schema before their first submission.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Dropping statement B would lose the requirement that customers register a schema before their first submission.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 598,
+      "completionTokens": 309,
+      "totalTokens": 907
+    }
+  }
+}

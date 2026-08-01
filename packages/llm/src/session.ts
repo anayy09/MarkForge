@@ -209,6 +209,7 @@ export class LlmSession {
       else this.liveCalls++;
       this.repairs += result.attempts - 1;
       return result;
+    // degradation: rethrows
     } catch (error) {
       this.failures++;
       throw error;

@@ -43,9 +43,6 @@
       "path": "../adapters-office"
     },
     {
-      "path": "../adapters-pdf"
-    },
-    {
       "path": "../adapters-ocr"
     }
   ]

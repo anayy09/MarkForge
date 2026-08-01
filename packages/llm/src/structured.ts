@@ -221,6 +221,7 @@ export async function callStructured<T>(
             ? { jsonSchema: { name: schemaName(request.task), schema: request.schema } }
             : {}),
         });
+      // degradation: rethrows
       } catch (error) {
         const transport = error as LlmTransportError;
         throw new LlmCallFailed(
@@ -317,6 +318,7 @@ function parseJsonPayload(content: string): { ok: true; value: unknown } | { ok:
   const candidate = unfenced?.[1] ?? trimmed;
   try {
     return { ok: true, value: JSON.parse(candidate) };
+  // degradation: benign — returns a Result the repair loop reads; a schema violation is information, not a failure to hide
   } catch (error) {
     return { ok: false, error: (error as Error).message };
   }

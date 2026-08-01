@@ -65,8 +65,8 @@
       "expectedConventions": 30
     },
     {
-      "dedupAuthoredRecall": "0/2",
-      "dedupMergesPerformed": 1,
+      "dedupAuthoredRecall": "0/0",
+      "dedupMergesPerformed": 0,
       "dedupFalseMerges": 0
     },
     {

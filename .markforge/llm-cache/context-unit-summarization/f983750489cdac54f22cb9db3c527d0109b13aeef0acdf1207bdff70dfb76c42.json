@@ -1,0 +1,26 @@
+{
+  "key": "f983750489cdac54f22cb9db3c527d0109b13aeef0acdf1207bdff70dfb76c42",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "a1e82a68b2c269b98ddd56555fe5036df9030092a685e6612c6a0d389e7f3718",
+  "inputPreview": "No user should ever wait more than two seconds for a batch to be acknowledged. || A batch that fails validation must be rejected whole.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Dropping B would lose the requirement that a batch failing validation must be rejected whole.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 605,
+      "completionTokens": 259,
+      "totalTokens": 864
+    }
+  }
+}

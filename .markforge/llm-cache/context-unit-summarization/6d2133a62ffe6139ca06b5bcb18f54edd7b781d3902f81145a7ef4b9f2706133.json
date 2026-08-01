@@ -1,0 +1,26 @@
+{
+  "key": "6d2133a62ffe6139ca06b5bcb18f54edd7b781d3902f81145a7ef4b9f2706133",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "2d782fec6a78b49402c7d9ae43c9935fb291c54db1f0f10de3050120ab506050",
+  "inputPreview": "A submission is committed in one transaction or not at all. || the p95 acknowledgement budget for a single submission is 2000 milliseconds, and synchronous validation against the warehouse cannot meet it under load.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the p95 acknowledgement budget of 2000 ms and the statement that synchronous validation cannot meet it under load.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 619,
+      "completionTokens": 479,
+      "totalTokens": 1098
+    }
+  }
+}

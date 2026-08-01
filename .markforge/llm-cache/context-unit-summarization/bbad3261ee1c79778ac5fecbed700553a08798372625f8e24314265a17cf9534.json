@@ -1,0 +1,26 @@
+{
+  "key": "bbad3261ee1c79778ac5fecbed700553a08798372625f8e24314265a17cf9534",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "aee35b0438dadc60ab06abef15cccc9bfd98a50d7b54fbce5a4cf8ad3d77ed12",
+  "inputPreview": "the p95 acknowledgement budget for a single submission is 2000 milliseconds, and synchronous validation against the warehouse cannot meet it under load. || A batch that fails validation must be rejected whole.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping A would drop the requirement that a batch failing validation must be rejected whole.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 618,
+      "completionTokens": 433,
+      "totalTokens": 1051
+    }
+  }
+}

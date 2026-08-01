@@ -1,0 +1,26 @@
+{
+  "key": "371e553b6eef6df7bb5c79274701be8060b7f41d707522939dd90baa370a5eab",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v1",
+  "mode": "guided",
+  "inputDigest": "42cba994c8d8946968a2c3e5a1ed9b5c8608e761bc241dad2b26c5126e84879e",
+  "inputPreview": "The service must refuse any submission exceeding 64 MB. || Purge requests must be processed within 7 days.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "6db9cd0e43c0c4161751820d2c5944c8d3d3f3ce0ce0906dbbb96efabc64b2a8",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Statement A limits submission size while Statement B sets a purge‑request processing deadline; they address unrelated requirements.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 312,
+      "completionTokens": 247,
+      "totalTokens": 559
+    }
+  }
+}

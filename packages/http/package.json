@@ -19,5 +19,8 @@
   "dependencies": {
     "@markforge/core": "workspace:*",
     "@markforge/ir": "workspace:*"
+  },
+  "markforge": {
+    "browserTier": "nodeOnly"
   }
 }

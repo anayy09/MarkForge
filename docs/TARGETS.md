@@ -58,13 +58,15 @@ but superseded convention, and its profile says so.
 Gated: each carries the §10.6 traceability gate and a fixture test in
 `scripts/check-agentify.mjs`. Measured numbers are in [AGENTIFY.md](AGENTIFY.md).
 
+<!-- generated: first-class -->
 | Id | Output | Kind | Verified against |
 | --- | --- | --- | --- |
-| `agents-md` | `AGENTS.md` | flatMarkdown | [agents.md](https://agents.md/) |
-| `claude-md` | `CLAUDE.md` | flatMarkdown | [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory) |
-| `claude-skills` | `.claude/skills/{slug}/SKILL.md` | skillPackage | [agentskills.io/specification](https://agentskills.io/specification) |
+| `agents-md` | `AGENTS.md`, `docs/agent-context/{slug}.md` | flatMarkdown | [agents.md](https://agents.md/) |
 | `claude-commands` | `.claude/commands/{slug}.md` | commandSet | [code.claude.com/docs/en/skills](https://code.claude.com/docs/en/skills) |
+| `claude-md` | `CLAUDE.md`, `.claude/context/{slug}.md` | flatMarkdown | [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory) |
+| `claude-skills` | `.claude/skills/{slug}/SKILL.md`, `.claude/skills/{slug}/references/detail.md` | skillPackage | [agentskills.io/specification](https://agentskills.io/specification) |
 | `mcp-manifest` | `.mcp.json` | manifest | [code.claude.com/docs/en/mcp](https://code.claude.com/docs/en/mcp) |
+<!-- /generated: first-class -->
 
 **Two of these five are gated against fixtures we authored, not against a format anyone
 handed us.** `claude-skills` has a normative specification and is checked against it — the
@@ -113,15 +115,17 @@ Schema-valid and shipped, but **ungated**: no traceability gate, no fixture test
 presence proves the schema generalizes; the `tier` field says plainly that they are not
 tested. ADR-0013 chose to ship them because a delta on a base costs almost nothing.
 
-| Id | Output | Note |
+<!-- generated: stubs -->
+| Id | Output | Verified against |
 | --- | --- | --- |
-| `cursor-rules` | `.cursor/rules/{slug}.mdc` | The one target with genuinely different assembly semantics — units partition by glob rather than filling a budget. `kind: scopedRuleSet` and the `scoping` block exist for it, and the schema is proven to express its front matter, but nothing emits it: the corpus carries no path scoping to derive a glob from, so every rule would fall back to `alwaysApply` and demonstrate nothing. |
-| `copilot-instructions` | `.github/copilot-instructions.md` | Also reads `AGENTS.md` anywhere in the tree, plus `CLAUDE.md` and `GEMINI.md` at the root — so the base target already serves Copilot. |
-| `gemini-md` | `GEMINI.md` | Filename overridable via the `context.fileName` setting. Imports are `@file.md`, Markdown only. |
-| `windsurf-rules` | `.windsurf/rules/{slug}.md` | See correction 2 above. `.devin/rules/` is now preferred; the profile records both. |
-| `cline-rules` | `.clinerules/{slug}.md` | A directory (correction 3). Cline reads `AGENTS.md` natively, so the base usually suffices. |
-| `aider-conventions` | `CONVENTIONS.md` | **Not auto-discovered.** Needs `aider --read CONVENTIONS.md` or `read: CONVENTIONS.md` in `.aider.conf.yml`; emitting the file is not enough, and the profile records the config line a user still has to add. |
-| `generic` | `AGENT_CONTEXT.md` | No vendor, and therefore nothing to verify against — the profile says so in its own note rather than implying a check happened. Prefer `agents-md`. |
+| `aider-conventions` | `CONVENTIONS.md` | [aider.chat](https://aider.chat/docs/usage/conventions.html) |
+| `cline-rules` | `.clinerules/{slug}.md` | [docs.cline.bot](https://docs.cline.bot/features/cline-rules) |
+| `copilot-instructions` | `.github/copilot-instructions.md`, `.github/instructions/{slug}.instructions.md` | [docs.github.com](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions) |
+| `cursor-rules` | `.cursor/rules/{slug}.mdc` | [cursor.com](https://cursor.com/docs/context/rules) |
+| `gemini-md` | `GEMINI.md`, `docs/agent-context/{slug}.md` | [google-gemini.github.io](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) |
+| `generic` | `AGENT_CONTEXT.md`, `docs/agent-context/{slug}.md` | [agents.md](https://agents.md/) |
+| `windsurf-rules` | `.windsurf/rules/{slug}.md` | [docs.devin.ai](https://docs.devin.ai/desktop/cascade/memories) |
+<!-- /generated: stubs -->
 
 ## Staleness
 

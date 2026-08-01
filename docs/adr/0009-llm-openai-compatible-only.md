@@ -3,6 +3,7 @@
 - Status: **Confirmed** (the descoping in this record was decided by the reviewer, 2026-07-30)
 - Date: 2026-07-29, amended 2026-07-30
 - Relates to: brief §7.2, §7.3, §3.6; `SPEC.md` §6
+- Enforced by: scripts/check-docs.mjs
 
 ## Context
 

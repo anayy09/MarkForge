@@ -22,5 +22,8 @@
     "@markforge/ooxml": "workspace:*",
     "@markforge/infer": "workspace:*",
     "@markforge/render-md": "workspace:*"
+  },
+  "markforge": {
+    "browserTier": "eager"
   }
 }

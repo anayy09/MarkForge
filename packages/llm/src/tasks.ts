@@ -185,7 +185,7 @@ export interface UnitEquivalenceResult {
 }
 
 const EQUIVALENCE_TASK = "context-unit-summarization";
-const EQUIVALENCE_VERSION = "v1";
+const EQUIVALENCE_VERSION = "v2";
 
 /**
  * Decides whether two context units state one fact — SPEC §10.4's merge, after measurement

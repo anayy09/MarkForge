@@ -3,6 +3,7 @@
 - Status: Proposed
 - Date: 2026-07-29
 - Relates to: brief §0, §8, §9; `SPEC.md` §3, §4, §11
+- Enforced by: scripts/check-docs.mjs
 
 ## Context
 

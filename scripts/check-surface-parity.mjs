@@ -271,6 +271,24 @@ if (controlChecks === compared && compared > 0) {
     } else {
       ok(`each failed model call carries a diagnostic (${llmDiagnostics.length} × MF-LLM-0001)`);
     }
+
+    // The diagnostic existing is not enough — `--strict` has to be able to fail on it.
+    // Keyed on `lossy` alone it could not: nothing was lost, so no exit code could ever
+    // reflect a model that was asked for and never reached. `degraded` is what makes it
+    // visible to `--strict`, and asserting the flag here is what stops the widening from
+    // being quietly reverted. The predicate itself is unit-tested in
+    // `packages/ir/test/degradation.test.ts`.
+    const notDegraded = llmDiagnostics.filter((d) => d.degraded !== true);
+    if (notDegraded.length > 0) {
+      fail(`${notDegraded.length} MF-LLM-0001 diagnostic(s) lack degraded:true, so --strict cannot fail on them`);
+    } else if (llmDiagnostics.length > 0) {
+      ok("each carries degraded:true, which is what --strict fails on");
+    }
+    const wronglyLossy = llmDiagnostics.filter((d) => d.lossy === true);
+    if (wronglyLossy.length > 0) {
+      fail("MF-LLM-0001 is marked lossy, which would claim content was lost when none was");
+    }
+
     if (envelope.ok !== false) fail("`ok` was not false while every model call failed");
     else ok("`ok` is false when the requested model was never reached");
   }

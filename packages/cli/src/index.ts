@@ -91,6 +91,30 @@ function fail(message: string): void {
  * transcription, because a local recogniser that is already installed should not be
  * silently replaced by a network call.
  */
+/**
+ * The PDF reader, injected because `@markforge/core` no longer imports it.
+ *
+ * **Not part of `buildAssist`**, despite travelling in the same object. `Assist` otherwise
+ * holds things the user opts into with a flag, and `buildAssist` returns nothing at all
+ * unless `--llm` or `--ocr` was given — which is what makes `--no-llm` the default. A PDF
+ * reader is not an opt-in: `markforge convert paper.pdf -o paper.md` must work with no
+ * flags, so wiring it inside `buildAssist` would have silently broken every plain PDF
+ * conversion. It is a *platform capability*, present in the Node build by definition and
+ * absent in the browser one.
+ *
+ * Why it is injected at all: core used to reach `@markforge/adapters-pdf` through
+ * `await import(...)`, on the reasoning that a dynamic import is the lazy boundary
+ * ADR-0015 asks for. Measured, it is not — a bundler follows a dynamic import like any
+ * other, and `splitting: true` decides which *chunk* a module lands in, not whether
+ * `node:zlib` resolves. `core` and `@markforge/browser` failed to bundle for a browser
+ * under every standard esbuild configuration; the gate only passed because it supplied a
+ * stub plugin, so a build-tool flag was standing in for a property of the code. ADR-0017
+ * already made the OCR recogniser injected for this exact reason, and `adapters-ocr`
+ * bundles cleanly as a result.
+ */
+const nodePdfReader: NonNullable<Assist["readPdf"]> = async (bytes, options) =>
+  (await import("@markforge/adapters-pdf")).readPdf(bytes, options);
+
 function buildAssist(
   opts: Record<string, unknown>,
   argv: string[],
@@ -264,7 +288,10 @@ convertCommand
           onMissingStyle: opts["onMissingStyle"] as "warn" | "error" | "synthesize",
           ...(referenceDoc ? { referenceDoc } : {}),
         },
-        ...(assist.assist ? { assist: assist.assist } : {}),
+        // The reader is always present in the Node build; anything the user opted into
+        // is layered over it. Merged here rather than inside `buildAssist` so that
+        // `--no-llm` staying the default and PDFs being readable stay independent.
+        assist: { readPdf: nodePdfReader, ...assist.assist },
       });
 
       for (const failure of assistFailures) log(`  ${failure}`, flags);
@@ -294,6 +321,10 @@ convertCommand
           code: DiagnosticCode.LLM_CALL_FAILED,
           severity: "warning",
           lossy: false,
+          // Nothing was lost — the deterministic answer is correct — but a capability the
+          // user explicitly asked for did not happen, and `--strict` keyed on `lossy`
+          // alone could never fail on that. See `DiagnosticBag.capabilityUnavailable`.
+          degraded: true,
           message:
             `${failure} The deterministic result stands, which is what --no-llm would have ` +
             `produced. Nothing was lost; a requested model opinion was not obtained.`,
@@ -304,6 +335,7 @@ convertCommand
       await writeFile(resolve(output), result.bytes);
 
       const lossy = result.diagnostics.filter((d) => d.lossy);
+      const strictFailing = result.diagnostics.filter((d) => d.lossy || d.degraded === true);
 
       /*
        * Asked for the model, got none of it.
@@ -358,7 +390,8 @@ convertCommand
 
       // Exit 2 only under --strict: losing something is worth knowing about always,
       // but only worth *failing* on when the user asked.
-      process.exit(flags.strict && lossy.length > 0 ? ExitCode.STRICT_LOSSY : ExitCode.SUCCESS);
+      process.exit(flags.strict && strictFailing.length > 0 ? ExitCode.STRICT_LOSSY : ExitCode.SUCCESS);
+    // degradation: rethrows
     } catch (error) {
       fail((error as Error).message);
       process.exit(ExitCode.ERROR);
@@ -414,6 +447,7 @@ program
       }
 
       process.exit(check && changed.length > 0 ? ExitCode.NEEDS_FORMATTING : ExitCode.SUCCESS);
+    // degradation: rethrows
     } catch (error) {
       fail((error as Error).message);
       process.exit(ExitCode.ERROR);
@@ -509,7 +543,10 @@ checkCommand
           process.exit(ExitCode.ERROR);
         }
         const bytes = new Uint8Array(await readFile(path));
-        const parsed = await parse(bytes, format, file);
+        // `check` reads PDFs too, so it needs the reader for the same reason `convert`
+        // does. Missing it here would have made `markforge check paper.pdf` fail with a
+        // "this build has no PDF reader" message on a build that plainly has one.
+        const parsed = await parse(bytes, format, file, { readPdf: nodePdfReader });
         const validation = validateDocument(parsed.document);
         const lossy = parsed.diagnostics.lossy();
         documents.push({
@@ -556,6 +593,7 @@ checkCommand
       report["ok"] = exit === ExitCode.SUCCESS;
       if (flags.json) process.stdout.write(JSON.stringify(report, null, 2) + "\n");
       process.exit(exit);
+    // degradation: rethrows
     } catch (error) {
       fail((error as Error).message);
       process.exit(ExitCode.ERROR);
@@ -635,6 +673,7 @@ agentifyCommand.action(async (sources: string[], opts: Record<string, unknown>) 
       }
     }
     process.exit(exit);
+  // degradation: rethrows
   } catch (error) {
     fail((error as Error).message);
     process.exit(ExitCode.ERROR);

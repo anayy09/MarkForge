@@ -20,5 +20,8 @@
   "dependencies": {
     "@markforge/ir": "workspace:*",
     "fflate": "^0.8.3"
+  },
+  "markforge": {
+    "browserTier": "eager"
   }
 }

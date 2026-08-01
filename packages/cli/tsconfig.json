@@ -38,6 +38,9 @@
     },
     {
       "path": "../mcp"
+    },
+    {
+      "path": "../adapters-pdf"
     }
   ]
 }

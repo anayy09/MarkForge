@@ -127,6 +127,7 @@ export async function runAgentify(options: AgentifyRunOptions): Promise<{
   if (existsSync(manifestPath)) {
     try {
       previous = JSON.parse(await readFile(manifestPath, "utf8")) as ProvenanceManifest;
+    // degradation: rethrows
     } catch {
       previous = undefined;
     }

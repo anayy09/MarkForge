@@ -25,5 +25,8 @@
     "mdast-util-math": "^3.0.0",
     "@markforge/adapters-md": "workspace:*",
     "@markforge/render-html": "workspace:*"
+  },
+  "markforge": {
+    "browserTier": "eager"
   }
 }

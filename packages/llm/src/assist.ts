@@ -62,6 +62,7 @@ export function headingTiebreaker(session: LlmSession, options: AssistOptions = 
           result.rationale,
         producedBy: result.producedBy,
       };
+    // degradation: caller-diagnoses — via options.onFailure, which @markforge/cli turns into MF-LLM-0001
     } catch (error) {
       options.onFailure?.({
         task: "heading-tiebreak",
@@ -104,6 +105,7 @@ export function visionRecognizer(session: LlmSession, options: AssistOptions = {
         mediaType: page.mediaType,
       });
       return { blocks: result.blocks, confidence: result.confidence, engine: result.producedBy };
+    // degradation: caller-diagnoses — via options.onFailure, which @markforge/cli turns into MF-LLM-0001
     } catch (error) {
       options.onFailure?.({
         task: "page-transcription",

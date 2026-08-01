@@ -21,5 +21,8 @@
     "@markforge/ir": "workspace:*",
     "@markforge/adapters-html": "workspace:*",
     "@markforge/adapters-md": "workspace:*"
+  },
+  "markforge": {
+    "browserTier": "eager"
   }
 }

@@ -9,48 +9,23 @@ import { fileURLToPath } from "node:url";
 
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 
-/**
- * Replaces the deferred packages with a module that throws.
+/*
+ * There is deliberately **no plugin here, and no `external`**.
  *
- * `@markforge/core` reaches `@markforge/adapters-pdf` through `await import(...)`, which
- * is exactly the lazy boundary ADR-0015 asks for — but a single-file bundle has no chunks
- * to defer *into*, so the bundler inlines it and the build fails on `node:module`,
- * `node:path`, and `node:zlib`.
+ * There used to be one: a stub that replaced `@markforge/adapters-pdf` and friends with a
+ * module that threw, because `@markforge/core` reached the PDF adapter through
+ * `await import(...)` and a single-file bundle has no chunk to defer it into. That stub
+ * was a mistake of exactly the kind this project keeps finding — a **build-tool flag
+ * standing in for a property of the code**. With it, the gate passed; without it,
+ * `@markforge/core` and `@markforge/browser` failed to bundle under *every* standard
+ * esbuild configuration, `splitting: true` included, because splitting decides which chunk
+ * a module lands in and not whether `node:zlib` resolves.
  *
- * Stubbing rather than marking it external, because the two say different things. An
- * external leaves a bare import that the host would have to satisfy, and in a browser that
- * is a network request nobody asked for. A stub says what is true: PDF is not in this
- * build, and here is the message you get if you reach it. `convertInBrowser` refuses `pdf`
- * before this can execute, so the throw is a backstop rather than a path anyone travels —
- * and a backstop that names its own reason is better than an unresolved specifier.
- *
- * This is the honest version of ADR-0015's lazy tier as it stands today: `adapters-pdf`
- * is deferred *and* not yet browser-capable, so the browser build excludes it rather than
- * pretending a lazy chunk would work.
+ * The fix was in the code, not the config: the PDF reader is now injected into `core` the
+ * way ADR-0017 already injects the OCR recogniser, `core` has no reference of any kind to
+ * `adapters-pdf`, and both bundle with nothing configured. Keeping the build honest means
+ * the gate must not help, so it does not.
  */
-const stubDeferred = {
-  name: "stub-deferred-packages",
-  setup(build) {
-    const deferred = /^@markforge\/(adapters-pdf|adapters-ocr|render-pdf)$/;
-    build.onResolve({ filter: deferred }, (args) => ({ path: args.path, namespace: "deferred-stub" }));
-    build.onLoad({ filter: /.*/, namespace: "deferred-stub" }, (args) => ({
-      contents: `
-        const refuse = () => {
-          throw new Error(
-            "markforge (browser): ${args.path} is not in the browser build. ADR-0015 defers it " +
-            "behind a lazy load, and as of 2026-08-01 it still needs Node builtins, so it is " +
-            "deferred rather than browser-capable. Use the CLI or the HTTP API for this format."
-          );
-        };
-        export const readPdf = refuse;
-        export const documentFromPages = refuse;
-        export const createTesseractRecognizer = refuse;
-        export default refuse;
-      `,
-      loader: "js",
-    }));
-  },
-};
 
 /**
  * Export conditions for the browser build, and the reason this is not the default.
@@ -87,7 +62,6 @@ export async function buildBrowserBundle() {
     metafile: true,
     write: false,
     logLevel: "silent",
-    plugins: [stubDeferred],
   });
   return {
     code: Buffer.from(result.outputFiles[0].contents).toString("utf8"),

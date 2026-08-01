@@ -1,0 +1,26 @@
+{
+  "key": "0a5e95d2e3c834e5b5327da692b1cdc46acfb355655b9126e571cacf8b120481",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "844f3dd13fe89fc80090688627c9b43f105d3376ac0f5243751a2ec84644588b",
+  "inputPreview": "Purge requests must be processed within 7 days. || Deletion requests must be honoured within 24 hours.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the 24‑hour requirement for deletion requests.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 605,
+      "completionTokens": 300,
+      "totalTokens": 905
+    }
+  }
+}

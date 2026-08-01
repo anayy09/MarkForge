@@ -51,6 +51,7 @@ export class OpcPackage {
     let entries: Record<string, Uint8Array>;
     try {
       entries = unzipSync(bytes);
+    // degradation: rethrows
     } catch (cause) {
       throw new Error(
         "ooxml: not a readable ZIP container. DOCX, XLSX, and PPTX files are ZIP " +

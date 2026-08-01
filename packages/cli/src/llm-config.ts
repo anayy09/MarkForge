@@ -212,6 +212,7 @@ export function agentifyAssistFrom(
           pathB: b.sources[0]?.path ?? "(unknown)",
         });
         return { sameFact: verdict.sameFact, survivingText: verdict.survivingText };
+      // degradation: rethrows
       } catch (error) {
         // A failed adjudication leaves the pair unmerged, which is the safe direction: an
         // unmerged duplicate repeats itself where a wrongly merged one deletes a fact.

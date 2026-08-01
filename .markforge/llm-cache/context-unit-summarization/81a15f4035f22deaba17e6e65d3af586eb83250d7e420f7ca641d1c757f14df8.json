@@ -1,0 +1,26 @@
+{
+  "key": "81a15f4035f22deaba17e6e65d3af586eb83250d7e420f7ca641d1c757f14df8",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "a57330a581b62ad0b6efcb66b995d3e0c6fc1ec7fcd7f78bd556f0aa3820ceca",
+  "inputPreview": "No user should ever wait more than two seconds for a batch to be acknowledged. || Every rejected batch must be retrievable for thirty days.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the thirty‑day retrievability requirement for rejected batches.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 607,
+      "completionTokens": 335,
+      "totalTokens": 942
+    }
+  }
+}

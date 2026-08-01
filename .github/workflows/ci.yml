@@ -179,6 +179,32 @@ jobs:
       - name: The HTTP API retains no document (brief §8)
         run: node scripts/check-http-retention.mjs
 
+      # Brief §3.3: every degradation carries a diagnostic. That was an invariant nobody
+      # could check, and one instance means it was never held. Every catch block now
+      # declares what it does with the failure, and an unannotated one fails here.
+      - name: Every degrading path is classified at its site (brief §3.3)
+        run: node scripts/check-degradation.mjs
+
+      # CORPUS §2.14.1's merge predicate, applied to every pair a corpus key claims
+      # something about. This is what makes "are these one fact" decidable rather than a
+      # matter of opinion between a fixture comment and a model.
+      - name: The merge predicate agrees with the corpus keys (CORPUS §2.14.1)
+        run: node scripts/check-merge-predicate.mjs
+
+      # ADR-0015 sat Accepted while wrong for all ten packages it named, because
+      # acceptance never had a check attached. Every ADR now names one.
+      - name: Every ADR names the check that enforces it
+        run: node scripts/check-adr-enforcement.mjs
+
+      # The closing property: a claim with neither a check nor an unverified marker is a
+      # defect regardless of whether it happens to be true.
+      - name: STATUS.md carries no unmarked unchecked claim
+        run: node scripts/check-status-claims.mjs
+
+      # A note about data must not live where the data cannot contradict it.
+      - name: docs/TARGETS.md is derived from targets/*.json
+        run: node scripts/check-target-docs.mjs
+
       # Phase 5's done-criterion. The same input through the CLI, the HTTP API, the MCP
       # server, and the browser build must produce identical bytes — this is what makes
       # four surfaces one engine rather than four converters, and a wrapper that trimmed a
@@ -448,15 +474,27 @@ jobs:
       # reproducible offline, and *different* from the deterministic path. The second matters
       # more — a cached run that matched --no-llm exactly would mean the model changed nothing
       # and the measurement was vacuous. Here the difference is one merged near-duplicate.
+      # Runs on `fixtures/agentify/dedup` (CORPUS §2.16), not on the clean set.
+      #
+      # It used to run on `clean` and assert that `--llm` differed from `--no-llm` there,
+      # which held because of a sentence-split merge. Adjudicator prompt v2 correctly
+      # declines that merge — it drops `partial` and `never`, which §2.14.1 counts as scope
+      # — so the clean set now merges nothing and this job failed for the *correct*
+      # behaviour. §2.16 is the set with a genuine near-duplicate in it, and the diff is
+      # exactly one line.
+      #
+      # The same stale assertion existed in check-agentify.mjs and was fixed there; this
+      # copy was missed because `pnpm verify` does not run ci.yml. Two places asserting one
+      # thing is how one of them goes stale unnoticed.
       - name: Cached-LLM agentify is byte-reproducible, offline, and changes the output
         run: |
           set -e
           unset MODEL_API_KEY
           for run in a b; do
-            node packages/cli/dist/index.js agentify fixtures/agentify/clean               --targets claude-md --llm --llm-cache-mode readOnly               --out-dir "/tmp/agl-$run" --manifest "/tmp/agl-$run/p.json" --quiet
+            node packages/cli/dist/index.js agentify fixtures/agentify/dedup               --targets claude-md --llm --llm-cache-mode readOnly               --out-dir "/tmp/agl-$run" --manifest "/tmp/agl-$run/p.json" --quiet
           done
           diff -r /tmp/agl-a /tmp/agl-b             || (echo "::error::two cached-LLM agentify runs differ" && exit 1)
-          node packages/cli/dist/index.js agentify fixtures/agentify/clean             --targets claude-md --out-dir /tmp/agl-det --manifest /tmp/agl-det/p.json --quiet
+          node packages/cli/dist/index.js agentify fixtures/agentify/dedup             --targets claude-md --out-dir /tmp/agl-det --manifest /tmp/agl-det/p.json --quiet
           if cmp -s /tmp/agl-a/CLAUDE.md /tmp/agl-det/CLAUDE.md; then
             echo "::error::--llm produced the same CLAUDE.md as --no-llm; the near-duplicate"
             echo "::error::merge stopped happening, or the committed cache is unreachable"

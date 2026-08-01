@@ -3,6 +3,7 @@
 - Status: **Confirmed by reviewer**
 - Date: 2026-07-29
 - Relates to: brief §5.4, §3.1, §8; `SPEC.md` §4.3
+- Enforced by: not enforceable — the engine was chosen and `render-pdf` is unbuilt; `scripts/check-browser-bundle.mjs` reports its absence on every run rather than letting it read as present
 
 ## Context
 

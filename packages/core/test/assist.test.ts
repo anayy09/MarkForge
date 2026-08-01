@@ -185,9 +185,21 @@ describeIfScan("the scanned-PDF route", () => {
     engine: { kind: "ocr", engine: "stub", version: "0" },
   });
 
+  /**
+   * The PDF reader, injected — `@markforge/core` no longer imports `@markforge/adapters-pdf`.
+   *
+   * That import was what stopped `core` and `@markforge/browser` bundling for a browser
+   * under every standard esbuild configuration, so the reader became a platform capability
+   * the host supplies, exactly as ADR-0017 already does for the OCR recogniser. In the Node
+   * test environment it is always available; in a browser build it is absent and `parse`
+   * refuses PDFs by name.
+   */
+  const readPdf: NonNullable<Assist["readPdf"]> = async (b, o) =>
+    (await import("@markforge/adapters-pdf")).readPdf(b, o);
+
   it("refuses a scan with no recogniser rather than producing an empty document", async () => {
-    await expect(convert(bytes(), { from: "pdf", to: "md" })).rejects.toThrow(/no text layer/);
-    await expect(convert(bytes(), { from: "pdf", to: "md" })).rejects.toThrow(/--ocr|--llm/);
+    await expect(convert(bytes(), { from: "pdf", to: "md", assist: { readPdf } })).rejects.toThrow(/no text layer/);
+    await expect(convert(bytes(), { from: "pdf", to: "md", assist: { readPdf } })).rejects.toThrow(/--ocr|--llm/);
   });
 
   it("routes a scan to the recogniser and hands it a real page image", async () => {
@@ -202,7 +214,7 @@ describeIfScan("the scanned-PDF route", () => {
         return stubRecognizer(page);
       },
     };
-    const result = await convert(bytes(), { from: "pdf", to: "md", assist });
+    const result = await convert(bytes(), { from: "pdf", to: "md", assist: { ...assist, readPdf } });
     expect(seen).toHaveLength(1);
     expect(Buffer.from(result.bytes).toString()).toContain("Page 1 heading");
     // Both bags survive: the PDF adapter's says *why* OCR happened, the OCR adapter's says
@@ -212,7 +224,7 @@ describeIfScan("the scanned-PDF route", () => {
   });
 
   it("produces byte-identical output for the same recogniser answers", async () => {
-    const assist: Assist = { recognize: stubRecognizer };
+    const assist: Assist = { recognize: stubRecognizer, readPdf };
     const a = await convert(bytes(), { from: "pdf", to: "md", assist, path: "x.pdf" });
     const b = await convert(bytes(), { from: "pdf", to: "md", assist, path: "x.pdf" });
     expect(Buffer.from(a.bytes).toString()).toBe(Buffer.from(b.bytes).toString());
@@ -222,7 +234,7 @@ describeIfScan("the scanned-PDF route", () => {
     const result = await convert(bytes(), {
       from: "pdf",
       to: "md",
-      assist: { recognize: stubRecognizer },
+      assist: { recognize: stubRecognizer, readPdf },
     });
     expect(textContent(result.document.body)).not.toContain("0.9");
     // A transcribed node, not the root: the root is the adapter's own container and carries

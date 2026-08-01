@@ -20,5 +20,8 @@
     "@markforge/agentify": "workspace:*",
     "@markforge/core": "workspace:*",
     "@markforge/ir": "workspace:*"
+  },
+  "markforge": {
+    "browserTier": "nodeOnly"
   }
 }

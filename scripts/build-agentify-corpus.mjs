@@ -436,18 +436,36 @@ const EXPECTED = {
       { category: "convention", text: "A new runtime dependency requires a written reason in the pull request.", sources: ["conventions.docx"] },
       { category: "antiPattern", text: "Do not delete queued batches; they are the only copy until the warehouse commit succeeds.", sources: ["runbook.md"] },
     ],
-    // The pair §10.4 exists for, and the reason `embed` is a role (OPEN_QUESTIONS §7c).
-    nearDuplicates: [
+    // RETIRED 2026-08-01. Both were asserted to be one fact and both are NOT, measured
+    // against the §2.14.1 predicate (CORPUS.md §2.14.2): merging pair 1 drops `more` and
+    // `second`, merging pair 2 drops `whole`. The adjudicator was right about both, and the
+    // 0-of-2 recall reported through Phases 4 and 5 was the correct answer to a question
+    // whose key was wrong.
+    //
+    // They stay here as documentation and are **not graded**: each has now informed either
+    // the fixture or the predicate, so grading §10.4 on them would grade the correction that
+    // came out of them. §10.4's live grading moved to `fixtures/agentify/dedup/`
+    // (CORPUS.md §2.16), authored afterwards. `retired` is read by check-agentify.mjs.
+    nearDuplicates: [],
+    retiredNearDuplicates: [
       {
+        retired: "2026-08-01",
+        verdict: "differentFacts",
         why:
-          "The same latency constraint stated in a PRD and in an ADR. Almost no shared " +
-          "content words, so a lexical threshold cannot merge them and an embedding must. " +
-          "Measured Jaccard is asserted by the --check run below.",
+          "Asserted as the same latency constraint stated in a PRD and in an ADR. It is not: " +
+          "a p95 engineering budget is not a per-user ceiling, and merging drops `more` and " +
+          "`second`. Jaccard 0.000, so the lexical claim held; the identity claim did not.",
         a: { source: "product-spec.md", text: "No user should ever wait more than two seconds for a batch to be acknowledged." },
         b: { source: "architecture.md", text: "The p95 acknowledgement budget for a single submission is 2000 milliseconds." },
       },
       {
-        why: "Whole-batch atomicity, stated as a requirement and as a decision rationale.",
+        retired: "2026-08-01",
+        verdict: "differentFacts",
+        why:
+          "Asserted as whole-batch atomicity stated twice. It is not: a rule about what " +
+          "happens on validation failure is not the rule about commit atomicity, and merging " +
+          "drops `whole`. The second implies the first only if you already believe they are " +
+          "the same design, which is the assumption the corpus was encoding.",
         a: { source: "product-spec.md", text: "A batch that fails validation must be rejected whole. Partial ingestion is never acceptable." },
         b: { source: "architecture.md", text: "A submission is committed in one transaction or not at all." },
       },
@@ -653,7 +671,7 @@ for (const file of files) {
 // being unambiguous.
 console.log("\nNear-duplicate lexical similarity (must stay below a lexical threshold):");
 let lexicalFailures = 0;
-for (const pair of EXPECTED.clean.nearDuplicates) {
+for (const pair of EXPECTED.clean.retiredNearDuplicates) {
   const score = jaccard(pair.a.text, pair.b.text);
   const verdict = score < 0.2 ? "ok   " : "FAIL ";
   if (score >= 0.2) lexicalFailures++;

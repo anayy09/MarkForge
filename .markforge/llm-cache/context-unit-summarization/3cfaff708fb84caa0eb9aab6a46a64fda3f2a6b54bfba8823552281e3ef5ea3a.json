@@ -1,0 +1,26 @@
+{
+  "key": "3cfaff708fb84caa0eb9aab6a46a64fda3f2a6b54bfba8823552281e3ef5ea3a",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "1a89de229906c2799fb66df60688af4e9e743c31947aa6d5ea22c88d2a2e9f65",
+  "inputPreview": "Every archive must be written to two availability zones before the write is acknowledged. || An acknowledged write must have reached at least two zones.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": true,\n  \"surviving\": \"A\",\n  \"rationale\": \"Nothing would be dropped; both statements express the same requirement that a write is acknowledged only after reaching two zones.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 606,
+      "completionTokens": 627,
+      "totalTokens": 1233
+    }
+  }
+}

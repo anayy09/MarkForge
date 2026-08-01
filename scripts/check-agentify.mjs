@@ -466,10 +466,85 @@ console.log("\n8. Deduplication precision, from the committed cache (offline)");
             `${pair.a.text.slice(0, 34)} / ${pair.b.text.slice(0, 34)}`,
       );
     }
-    console.log(`  info  merges performed: ${run.merges.length} — ${run.merges.map((m) => m.text.slice(0, 46)).join(" | ") || "(none)"}`);
-    if (run.merges.length === 0) {
-      fail("nothing merged at all, so the recall arm is not exercised in any direction");
+    // ---------------------------------------------------------------- §2.16, the fresh set
+    //
+    // The clean set's two authored pairs are RETIRED (CORPUS.md §2.14.2): both were wrong,
+    // and each has now informed either the fixture or the §2.14.1 predicate, so grading
+    // §10.4 on them would grade the correction that came out of them. `fixtures/agentify/dedup/`
+    // was authored afterwards and has never informed anything, which is what makes it a
+    // graded case. One recall pair, two hard negatives — both directions.
+    const dedupDir = setDir("dedup");
+    if (existsSync(dedupDir)) {
+      const dedupKey = JSON.parse(readFileSync(join(dedupDir, "expected-units.json"), "utf8"));
+      const dedupRun = await agentify.compile(await readSet(dedupDir), {
+        registry, targets: ["claude-md"], assist,
+      });
+      const dedupMerged = new Map();
+      for (const unit of dedupRun.units) dedupMerged.set(unit.id, new Set([norm(unit.text)]));
+      for (const m of dedupRun.merges) dedupMerged.get(m.survivingId)?.add(norm(m.text));
+      const dedupTogether = (x, y) =>
+        [...dedupMerged.values()].some((t) => contains(t, x) && contains(t, y));
+
+      /*
+       * Both sides of every graded pair must actually exist as units.
+       *
+       * Without this the precision arm passes **vacuously**: a `mustNotMerge` pair whose
+       * sentences were never extracted cannot merge, so the gate reports "kept apart" and
+       * measures nothing. That is exactly what happened on this set's first run — three of
+       * the four sentences were not extracted at all, and two hard negatives went green on
+       * the strength of their own absence.
+       */
+      // Surviving units **plus everything merged away**. Checking survivors alone is wrong
+      // in the one case that matters: a pair that correctly merged has one side absent from
+      // `units`, so the existence check would report the successful merge as "never
+      // extracted". Measured on the first run of this very check.
+      const dedupUnitTexts = [
+        ...dedupRun.units.map((u) => norm(u.text)),
+        ...dedupRun.merges.map((m) => norm(m.text)),
+      ];
+      const present = (text) => dedupUnitTexts.some((t) => contains1(t, norm(text)));
+      for (const pair of [...(dedupKey.nearDuplicates ?? []), ...(dedupKey.mustNotMerge ?? [])]) {
+        for (const side of ["a", "b"]) {
+          if (!present(pair[side].text)) {
+            fail(
+              `§2.16 grades nothing for "${pair[side].text.slice(0, 44)}" — it was never extracted ` +
+                `as a unit, so the pair cannot merge and cannot fail to merge`,
+            );
+          }
+        }
+      }
+
+      for (const pair of dedupKey.nearDuplicates ?? []) {
+        if (dedupTogether(pair.a.text, pair.b.text)) {
+          ok(`§2.16 recall: merged "${pair.a.text.slice(0, 40)}"`);
+        } else {
+          fail(
+            `§2.16 recall: "${pair.a.text.slice(0, 34)}" / "${pair.b.text.slice(0, 34)}" did NOT merge, ` +
+              `and §2.14.1 says they are one fact (merging drops nothing renderable)`,
+          );
+        }
+      }
+      for (const pair of dedupKey.mustNotMerge ?? []) {
+        if (dedupTogether(pair.a.text, pair.b.text)) {
+          fail(`§2.16 FALSE MERGE: "${pair.a.text.slice(0, 34)}" with "${pair.b.text.slice(0, 34)}"`);
+        } else {
+          ok(`§2.16 kept apart: ${pair.a.text.slice(0, 34)} / ${pair.b.text.slice(0, 34)}`);
+        }
+      }
+    } else {
+      fail("fixtures/agentify/dedup/ is absent, so §10.4 has no live grading set (CORPUS §2.16)");
     }
+
+    console.log(`  info  clean-set merges performed: ${run.merges.length} — ${run.merges.map((m) => m.text.slice(0, 46)).join(" | ") || "(none)"}`);
+    // The clean set is no longer the recall grading set, so it is not asserted to merge
+    // anything. Its two authored pairs are retired (CORPUS §2.14.2) and the one merge it
+    // used to perform — the product-spec sentence split — is correctly **declined** by
+    // prompt v2: merging drops `partial` and `never`, which §2.14.1 counts as scope. The
+    // recall arm is exercised by §2.16 above, on a set authored after the predicate.
+    //
+    // This assertion used to demand a merge here, and it went green in Phase 4 because of
+    // that same sentence-split merge, which was read as the authored pair working. Keeping
+    // it would now fail for the correct behaviour.
     notes.push({
       dedupAuthoredRecall: `${positives}/${total}`,
       dedupMergesPerformed: run.merges.length,

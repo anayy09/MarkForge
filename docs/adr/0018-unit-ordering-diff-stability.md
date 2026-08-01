@@ -3,6 +3,7 @@
 - Status: **Accepted** — amends `SPEC.md` §10.8, flagged for reversal in `OPEN_QUESTIONS.md` §7k
 - Date: 2026-07-31
 - Relates to: `SPEC.md` §10.8, §10.3, §2.7; brief §6.2; ADR-0014
+- Enforced by: scripts/check-agentify.mjs
 
 ## Context
 
