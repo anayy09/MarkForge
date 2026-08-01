@@ -1,0 +1,26 @@
+{
+  "key": "e780b6ff7a8d930071842969ab79c65cdfac0fb746128008cc50a8f0f6520202",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v1",
+  "mode": "guided",
+  "inputDigest": "0f6a4acdcc0f02f90ec9b48cf8f8bded036616db605ab8bee5602127eeea4c5f",
+  "inputPreview": "Tokens are issued per customer and are never shared between environments. || A submission is committed in one transaction or not at all.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "6db9cd0e43c0c4161751820d2c5944c8d3d3f3ce0ce0906dbbb96efabc64b2a8",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Statement A concerns token issuance per customer, while Statement B concerns atomic submission commits; they address different aspects.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 325,
+      "completionTokens": 136,
+      "totalTokens": 461
+    }
+  }
+}

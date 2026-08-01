@@ -37,6 +37,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const UPDATE = process.argv.includes("--update");
+const REFRESH_CACHE = process.argv.includes("--refresh-cache");
 const BASELINE = join(REPO, "fixtures/expected/agentify-extraction.json");
 const DOC = join(REPO, "docs/AGENTIFY.md");
 
@@ -370,10 +371,21 @@ console.log("\n8. Deduplication precision, from the committed cache (offline)");
 
   // readOnly, no key: the recorded answers or nothing. A miss is a hard error rather than a
   // silent downgrade to the deterministic path, which is what makes this a real check.
+  //
+  // `--refresh-cache` is the deliberate exception, and it is a separate flag from `--update`
+  // because they cost different things: `--update` rewrites a document from numbers already
+  // in hand, while this one spends real calls against a real endpoint. Needed when a change
+  // alters *which pairs get compared* — the §7q reclassification did exactly that, and a
+  // pair that was previously blocked has no recorded answer to read. CI never passes it, so
+  // a missing entry stays a hard failure there.
   const session = new llm.LlmSession({
     baseUrl: llm.DEFAULT_BASE_URL,
     models: llm.DEFAULT_MODELS,
-    cache: { dir: join(REPO, ".markforge/llm-cache"), mode: "readOnly" },
+    cache: {
+      dir: join(REPO, ".markforge/llm-cache"),
+      mode: REFRESH_CACHE ? "readWrite" : "readOnly",
+    },
+    ...(REFRESH_CACHE ? { apiKey: process.env["MODEL_API_KEY"] ?? "" } : {}),
     // These three are part of the cache key, so they must match what `buildSession` used
     // when the entries were recorded. Omitting the seed alone was enough to miss every one.
     seed: 20260731,
@@ -383,6 +395,13 @@ console.log("\n8. Deduplication precision, from the committed cache (offline)");
       maxAgeMs: Number.POSITIVE_INFINITY,
     }),
   });
+  // Every pair the adjudicator was actually asked about.
+  //
+  // "0 of 2 merged" cannot distinguish *never compared* from *compared and rejected*, and
+  // those are completely different states: one is a pipeline that never reached the
+  // question, the other is a disagreement about meaning. That ambiguity is what let
+  // OPEN_QUESTIONS §7q stay unresolved for a phase — the number looked the same either way.
+  const adjudicated = [];
   const assist = {
     embed: (texts) => session.embed(texts),
     adjudicate: async ({ a, b }) => {
@@ -390,6 +409,7 @@ console.log("\n8. Deduplication precision, from the committed cache (offline)");
         textA: a.text, textB: b.text,
         pathA: a.sources[0]?.path ?? "?", pathB: b.sources[0]?.path ?? "?",
       });
+      adjudicated.push({ a: norm(a.text), b: norm(b.text), sameFact: v.sameFact });
       return { sameFact: v.sameFact, survivingText: v.survivingText };
     },
   };
@@ -419,15 +439,33 @@ console.log("\n8. Deduplication precision, from the committed cache (offline)");
       }
     }
 
-    // Recall is reported and baselined, not hard-failed. It currently reads 0/2 and the
-    // reason is understood and recorded (OPEN_QUESTIONS §7q): pair 1 is shortlisted and
-    // rejected by the adjudicator on defensible grounds, and pair 2 is never *compared*,
-    // because its two sides land in different categories and §10.4 blocks cross-category
-    // merges by design. A hard failure on a known, reported gap trains people to ignore red;
-    // the baseline below still catches it getting worse.
+    // Recall is reported and baselined, not hard-failed. It reads 0/2, and since the §7q
+    // ruling on 2026-08-01 **both** pairs reach the adjudicator and both are rejected —
+    // which is a different state from the one this comment used to describe, when pair 2
+    // was never compared at all. A hard failure on a known, reported gap trains people to
+    // ignore red; the baseline below still catches it getting worse.
     const positives = (key.nearDuplicates ?? []).filter((p) => together(p.a.text, p.b.text)).length;
     const total = (key.nearDuplicates ?? []).length;
     console.log(`  info  authored near-duplicates merged: ${positives}/${total}`);
+
+    // Say *why* each authored pair did not merge. See the note above `adjudicated`.
+    for (const pair of key.nearDuplicates ?? []) {
+      const a = norm(pair.a.text);
+      const b = norm(pair.b.text);
+      if (together(pair.a.text, pair.b.text)) {
+        ok(`authored pair merged: ${pair.a.text.slice(0, 40)}`);
+        continue;
+      }
+      const seen = adjudicated.find(
+        (x) => (contains1(x.a, a) && contains1(x.b, b)) || (contains1(x.a, b) && contains1(x.b, a)),
+      );
+      console.log(
+        seen
+          ? `  info  not merged, COMPARED and rejected: ${pair.a.text.slice(0, 34)} / ${pair.b.text.slice(0, 34)}`
+          : `  info  not merged, NEVER COMPARED (below the shortlist threshold, or blocked): ` +
+            `${pair.a.text.slice(0, 34)} / ${pair.b.text.slice(0, 34)}`,
+      );
+    }
     console.log(`  info  merges performed: ${run.merges.length} — ${run.merges.map((m) => m.text.slice(0, 46)).join(" | ") || "(none)"}`);
     if (run.merges.length === 0) {
       fail("nothing merged at all, so the recall arm is not exercised in any direction");
@@ -449,6 +487,11 @@ function contains(texts, needle) {
   const n = norm(needle);
   for (const t of texts) if (t.includes(n) || n.includes(t)) return true;
   return false;
+}
+
+/** The same containment test between two already-normalised strings. */
+function contains1(a, b) {
+  return a.includes(b) || b.includes(a);
 }
 
 // ---------------------------------------------------------------- 9. classification holdout

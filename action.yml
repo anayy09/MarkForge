@@ -1,0 +1,107 @@
+name: MarkForge
+description: >-
+  Run markforge fmt --check or markforge check in CI. Deterministic and offline —
+  no model is consulted and no document leaves the runner.
+author: MarkForge contributors
+
+branding:
+  icon: file-text
+  color: blue
+
+inputs:
+  command:
+    description: >-
+      Which subcommand to run: `fmt` (normalisation check) or `check` (IR validation).
+      `convert` and `agentify` are deliberately not offered — an action that rewrote
+      documents on every push is a different kind of thing from one that gates them.
+    required: false
+    default: fmt
+  paths:
+    description: Files or globs to operate on, space-separated.
+    required: false
+    default: "**/*.md"
+  write:
+    description: >-
+      For `fmt`: write the formatted files instead of only reporting. Off by default,
+      because a CI job that edits the tree is a surprise unless it was asked for.
+    required: false
+    default: "false"
+  strict:
+    description: Fail on lossy diagnostics as well as on errors.
+    required: false
+    default: "false"
+  working-directory:
+    description: Directory to run in.
+    required: false
+    default: "."
+
+outputs:
+  exit-code:
+    description: >-
+      The markforge exit code, per SPEC §8 — 0 clean, 3 `fmt --check` found changes,
+      2 lossy under strict, 1 error. Exposed so a workflow can branch on *which*
+      failure occurred rather than only on failure.
+    value: ${{ steps.run.outputs.exit-code }}
+
+# Composite rather than a Docker or JavaScript action.
+#
+# A JavaScript action must be committed with its dependencies bundled into `dist/`, and a
+# Docker action pays an image pull on every run. Composite runs the CLI this repository
+# already builds, which means the action and `pnpm verify` exercise the same binary rather
+# than two artifacts that could drift.
+#
+# It builds from source because **nothing is published** (OPEN_QUESTIONS §5, reaffirmed for
+# Phase 5). When that question is answered this step becomes an install; until then,
+# building is the only honest way for a consuming repository to get a working CLI, and
+# saying so here is better than an `npx @markforge/cli` line that cannot resolve.
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Build markforge
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        set -e
+        if [ -f packages/cli/dist/index.js ]; then
+          echo "markforge is already built; reusing it."
+          exit 0
+        fi
+        corepack enable
+        pnpm install --frozen-lockfile
+        pnpm run build
+
+    - name: Run markforge
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        # `--no-llm` is the default on every surface, and this makes it structural rather
+        # than a flag someone could forget: with no key in the environment there is nothing
+        # for the LLM path to authenticate with, so a CI run cannot quietly start calling a
+        # model because a workflow inherited a secret.
+        MODEL_API_KEY: ""
+      run: |
+        set +e
+        CLI="${{ github.action_path }}/packages/cli/dist/index.js"
+        ARGS=""
+        [ "${{ inputs.command }}" = "fmt" ] && [ "${{ inputs.write }}" != "true" ] && ARGS="--check"
+        [ "${{ inputs.command }}" = "fmt" ] && [ "${{ inputs.write }}" = "true" ] && ARGS="--write"
+        [ "${{ inputs.strict }}" = "true" ] && ARGS="$ARGS --strict"
+
+        node "$CLI" ${{ inputs.command }} ${{ inputs.paths }} $ARGS
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+
+        case "$code" in
+          0) echo "markforge ${{ inputs.command }}: clean." ;;
+          3) echo "::error::markforge fmt found files needing formatting. Run 'markforge fmt --write' and commit." ;;
+          2) echo "::error::markforge completed with lossy diagnostics and --strict was set." ;;
+          *) echo "::error::markforge ${{ inputs.command }} failed with exit $code." ;;
+        esac
+        exit $code

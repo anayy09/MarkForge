@@ -11,8 +11,8 @@
     "clean": {
       "units": 24,
       "byCategory": {
-        "constraint": 8,
-        "decision": 3,
+        "constraint": 9,
+        "decision": 2,
         "convention": 3,
         "antiPattern": 2,
         "command": 5,

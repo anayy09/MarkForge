@@ -76,6 +76,26 @@ in each profile's `vendorFields`, and the gate on them measures our expectation 
 vendor's. That is a weaker claim than the other three and is stated here rather than implied
 by the shared word "first-class".
 
+### The `mcp-manifest` correction, 2026-08-01
+
+This page said the manifest pointed at `markforge serve`, "which is Phase 5 and does not
+exist yet". That sentence was inherited from the profile's own `vendorFields.honestyNote`,
+and it was wrong about the profile it described — in three ways at once, which is worth
+recording because the field's name is `honestyNote`:
+
+1. The scaffold did not say `markforge serve`. It said `npx -y @markforge/mcp --context
+   .markforge/provenance.json`.
+2. `markforge serve` is the **HTTP API**. An MCP client spawning it on stdio would hang,
+   because the two are different protocols on different transports (§7u).
+3. `npx @markforge/mcp` names a package nothing publishes and nothing may publish
+   (`OPEN_QUESTIONS` §5, reaffirmed for Phase 5 as §7r), so the scaffold could not have
+   worked from any checkout. The `--context` flag was one no server ever accepted.
+
+It now scaffolds `markforge mcp`, which exists, exposes `convert`, `fmt`, and `agentify`, and
+was driven end to end over real stdio JSON-RPC. `STATUS.md` carried the same wrong claim and
+is corrected too. The envelope was verified against vendor documentation and stayed correct
+throughout; what was wrong was the sentence describing what we ourselves had built.
+
 ### Where the spec and the docs disagree
 
 `claude-skills` emits the stricter of two live sources. The [Agent Skills

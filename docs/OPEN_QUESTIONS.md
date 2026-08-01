@@ -390,16 +390,72 @@ ADR-0020. Reversing it means accepting either a threshold that merges nothing or
 deletes facts silently.
 
 **7q. §10.4's category blocking makes one of the corpus's own near-duplicate pairs
-unmergeable, and the two cannot both be right.** The clean set's second authored pair is a
-product-spec `constraint` against `architecture.md`'s ADR-2 statement, which extraction files
-as a `decision`. Deduplication blocks cross-category merges — merging a command into a
-constraint would be a claim about meaning the stage has no basis for — so that pair is never
-compared. `CORPUS.md` §2.14 says they are the same fact; `SPEC.md` §10.4 says units merge
-within a category. **This is open, not decided.** Either the corpus pair is wrong, or a small
-set of compatible categories should be mergeable (`constraint`/`invariant`/`decision` are the
-plausible ones), or the extractor should file an ADR statement as a constraint and let the
-rationale carry the decision. Loosening the block is the option that risks silent data loss,
-so it is not being taken unilaterally. Measured: 0 of 2 authored pairs merge today.
+unmergeable. — RULED ON 2026-08-01: the extractor changes; §10.4's block stands.**
+
+*Original entry:* the clean set's second authored pair is a product-spec `constraint` against
+`architecture.md`'s ADR-2 statement, which extraction files as a `decision`. Deduplication
+blocks cross-category merges, so that pair is never compared. `CORPUS.md` §2.14 says they are
+the same fact; `SPEC.md` §10.4 says units merge within a category.
+
+*Verdict:* the third option — an ADR statement that **asserts a rule** is filed as a
+`constraint` carrying its rationale, rather than as a `decision`. Loosening §10.4's block was
+the option that risks silently deleting a real fact, and it was not taken. `decision` stays
+reachable: an ADR recording a *choice* is still a decision, one stating a *rule* is a
+constraint that happens to have been written in an ADR. `assertsARule` in
+`packages/agentify/src/extract.ts` decides, on deontic modals and absolute constructions; its
+limits are written above it, including that it was designed after reading the only three ADR
+statements it is measured on.
+
+**Applying it did not produce the merge, and the reason is the interesting part.** ADR-2's
+statement is now a `constraint`, both sides are in one category, and the pair reaches the
+adjudicator **for the first time** — measured, not inferred. The adjudicator then judged them
+*different facts*: "A batch that fails validation must be rejected whole" is a requirement
+about validation failure, "A submission is committed in one transaction or not at all" is the
+commit mechanism. Recall still reads **0 of 2**.
+
+So the contradiction §7q named is resolved and the outcome it was expected to produce is not.
+The category block was **masking** a disagreement about meaning rather than causing it, and
+the two are indistinguishable from the number alone — which is why `check-agentify.mjs` now
+reports *why* each authored pair failed to merge, separating "never compared" from "compared
+and rejected". Under the old reporting both read `0/2`.
+
+What is still open, and is now a question about the corpus rather than about the code:
+**is `CORPUS.md` §2.14 right that these are one fact?** The model's reading is defensible and
+so is the author's. That is a judgement about the fixture, and it is yours; nothing in the
+pipeline is blocked either way.
+
+Added during Phase 5:
+
+**7r. `INIT.md` §11's "published packages" is struck from Phase 5. — RULED ON 2026-08-01.**
+The brief lists it as a Phase 5 deliverable and §5 above defers the name, the npm scope, and
+public-versus-private, keeping every package `"private": true` so an accidental publish is
+impossible. Both cannot hold. Per the reviewer, the brief's line is amended and §5 stays open.
+Nothing was un-privated, no `npm publish` ran, and no scope changed. The consequence is
+recorded where it bites: `action.yml` builds the CLI from source rather than installing it,
+and `targets/mcp-manifest.json` scaffolds `markforge mcp` rather than `npx @markforge/mcp` —
+which was naming a package nothing may publish.
+
+**7s. The documentation site is descoped; executable quickstarts replace it. — RULED ON
+2026-08-01.** Phase 5 names a documentation site. A site is artifact-shaped: it can be built
+and be wrong, and nothing would notice. Instead each surface's quickstart lives in
+`README.md` and its commands are executed in CI, so the documentation is measured rather than
+published. Reversing this is a generator and a deploy step; nothing about the descope makes a
+site harder later.
+
+**7t. `@noble/hashes` is the one runtime dependency Phase 5 adds.** Justification per brief
+§13: the browser has no synchronous SHA-256 and node ids are synchronous by construction
+(ADR-0014). Used in Node as well, so both surfaces run identical code rather than two
+implementations that must agree about every byte forever. `esbuild` is added as a
+devDependency for the same phase — it is the bundler the browser build ships with and the
+gates read its metafile, so depending on it directly rather than reaching into vitest's
+transitive tree makes the gates' behaviour a decision rather than an accident. ADR-0015.
+
+**7u. `serve` and `mcp` are separate subcommands, not one server with a `--transport` flag.**
+They are different protocols on different transports — HTTP for a client with a socket,
+JSON-RPC on stdin/stdout for an agent that spawned us — and a shared flag would make the
+manifest's `command`/`args` depend on getting that flag right. This is the shape
+`targets/mcp-manifest.json` already got wrong once by naming `markforge serve` for an MCP
+client, which would have hung.
 
 **7o. Only `embed` and `adjudicate` are wired; `classifyRole` and `extraUnits` are not.**
 `AgentifyAssist` has three injection points and one is connected. §10.4's merge is the one

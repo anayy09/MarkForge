@@ -426,7 +426,22 @@ verification gate at 100 percent traceability, and editing one source document p
 minimal, readable git diff.
 
 **Phase 5: Distribution.** HTTP API, browser build, MCP server, GitHub Action,
-documentation site, published packages.
+~~documentation site~~, ~~published packages~~.
+*Done when* the same input produces byte-identical output through the CLI, the HTTP API, the
+MCP server, and the browser build — with `MODEL_API_KEY` unset — and the browser bundle's
+freedom from `node:` builtins and the HTTP API's no-retention claim are each measured by a
+check that has been seen to fail.
+
+> **Amended 2026-08-01, by the reviewer.** This phase was the only one in this section with
+> no *done when*, which is a gap in a brief whose whole discipline is measurable criteria;
+> the sentence above was proposed and agreed before any Phase 5 code was written.
+>
+> Two deliverables are struck. **Published packages** contradicted `OPEN_QUESTIONS.md` §5,
+> which defers the name, the npm scope, and public-versus-private, and keeps every package
+> `"private": true` so an accidental publish is impossible — §5 stays open and nothing is
+> published (§7r). The **documentation site** is replaced by per-surface quickstarts whose
+> commands are executed in CI, because a site can be built and be wrong with nothing
+> noticing (§7s).
 
 ---
 

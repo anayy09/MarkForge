@@ -339,6 +339,14 @@ The Phase 4 gate harness. Runs both halves of the done-criterion (`docs/INIT.md`
 supporting checks, and regenerates `docs/AGENTIFY.md`. `--update` rewrites the document and the
 extraction baseline; CI runs it bare and fails on a regression or a stale document.
 
+`--refresh-cache` is a **separate flag from `--update`, deliberately**, because they cost
+different things: `--update` rewrites a document from numbers already in hand, while this one
+switches the LLM session to `readWrite` and spends real calls against a real endpoint. It is
+needed when a change alters *which pairs get compared* rather than what the model is asked —
+the §7q reclassification did exactly that, and a pair that was previously blocked has no
+recorded answer to read. CI never passes it, so a missing cache entry stays a hard failure
+there rather than becoming a silent network call.
+
 Seven checks: traceability on the clean set for all five first-class targets; the **negative
 control**; the one-region diff after a one-sentence source edit; conflict recall and false
 positives; budget overflow losing no unit; byte-identical output across two runs; and extraction

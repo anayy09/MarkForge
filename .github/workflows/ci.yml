@@ -476,6 +476,36 @@ jobs:
           node packages/cli/dist/index.js fmt fixtures/md/*.md --check --quiet
           echo "fmt reaches a fixed point on every corpus fixture."
 
+      # The GitHub Action, consumed by the repository that ships it.
+      #
+      # Its gate is not that `action.yml` exists — that would be a file, not a check.
+      # Dogfooding is the measurement: if the action's inputs, its exit-code mapping, or
+      # the path it builds the CLI at ever break, this step goes red in the same run that
+      # broke them, rather than in some other repository weeks later.
+      #
+      # `uses: ./` runs the action from this checkout, so it exercises the working tree
+      # rather than a tagged ref.
+      - name: The shipped GitHub Action gates this repository (dogfood)
+        uses: ./
+        with:
+          command: fmt
+          paths: fixtures/md/clean-report.md fixtures/md/tables.md fixtures/md/inline-marks.md
+
+      # And the other half: the action must be able to *fail*. A dogfood step that only
+      # ever passes proves the action runs, not that it gates. This points it at a file
+      # deliberately left unformatted and asserts exit 3, the SPEC §8 code for
+      # "fmt --check found files needing changes".
+      - name: The Action reports a file that needs formatting (negative control)
+        run: |
+          set +e
+          mkdir -p /tmp/action-control
+          printf '#  Badly   spaced\n\n\n\ntext\n' > /tmp/action-control/bad.md
+          MODEL_API_KEY="" node packages/cli/dist/index.js fmt /tmp/action-control/bad.md --check --quiet
+          code=$?
+          set -e
+          test "$code" -eq 3 || (echo "::error::expected exit 3 for a file needing formatting, got $code" && exit 1)
+          echo "The Action's failure path returns exit 3 as SPEC §8 specifies."
+
   # Brief §10: "A separate, non-blocking live job detects model drift." Non-blocking is the
   # whole design — it calls a real gateway, so it can fail for reasons that have nothing to do
   # with this repository, and a required check that goes red when someone else's server is busy

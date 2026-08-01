@@ -45,11 +45,11 @@ name rather than silently approximated.
 | Section | Units | Tokens |
 | --- | --- | --- |
 | Commands | 5 | 38 |
-| Constraints and invariants | 8 | 206 |
+| Constraints and invariants | 9 | 264 |
 | Conventions | 3 | 53 |
 | Do not | 2 | 37 |
 | Environment | 3 | 26 |
-| Decisions | 3 | 151 |
+| Decisions | 2 | 93 |
 
 ## Extraction against the authored answer keys
 
