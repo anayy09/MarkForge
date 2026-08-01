@@ -458,10 +458,14 @@ A diagnostic is still not a feature.
 | Tracked changes are read but not written | `revisionMode` affects reading only | yes |
 | DOCX has no figure, caption, or description list | text survives, the construct does not | yes, since this session |
 | Markdown has no figure, caption, or description list | same, and it is a format limit rather than a gap | yes, since this session |
-| `code` and `thematicBreak` are written to DOCX but not read back | a code block returns as prose, a rule as an empty paragraph | **no — the writer is correct and the reader has no case for them** |
+| ~~`code` and `thematicBreak` written to DOCX but not read back~~ | **fixed** — `inferCodeAndBreaks` reads both back from the style name and the paragraph border, exactly as blockquotes already were. `html -> docx -> html` text fidelity 89.7% to 96.2%, structural 91.2% to 93.8%, and both node types left the loss census | n/a |
 
-The last row is the tractable one: both are written correctly and recoverable by inference
-from the style name and the paragraph border, exactly as blockquotes already are.
+The last row was the tractable one and is now done. Fixing it needed three changes rather
+than one, which is the interesting part: the inference pass was the easy third. The cascade
+recorded no border at all, so `thematicBreak` had no evidence to be recovered *from* — and
+`normalize` was deleting the empty bordered paragraph as spacing before inference ever saw
+it. A construct can be written correctly, be readable in principle, and still be destroyed
+in between by a rule that was right about every other empty paragraph.
 
 ## Corpus coverage
 
@@ -526,7 +530,7 @@ right reason.
 
 In the order that removes the most risk:
 
-1. **Figures, description lists, and captions in the DOCX writer.** Now the top item,
+1. **Figures, description lists, and captions in the DOCX writer.** The top item,
    and the largest remaining measured loss. `docs/FIDELITY.md` **Where the losses are**
    names it exactly: through `html -> docx -> html`, `figure`, `caption`, `image`,
    `code`, `thematicBreak`, and all three `description*` node types go to zero. DOCX

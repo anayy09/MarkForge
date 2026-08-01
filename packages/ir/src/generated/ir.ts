@@ -901,6 +901,10 @@ export interface StyleEvidence {
     keepWithNext?: boolean;
     keepLines?: boolean;
     pageBreakBefore?: boolean;
+    /**
+     * A bottom border on the paragraph. Recorded because it is how Word draws a horizontal rule: an empty paragraph carrying one is a thematicBreak, and without this the construct round-tripped to an empty paragraph (docs/STATUS.md). Evidence, not a decision — @markforge/infer decides.
+     */
+    borderBottom?: boolean;
   };
   numbering?: {
     numId?: string;
