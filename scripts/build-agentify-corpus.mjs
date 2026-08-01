@@ -290,6 +290,115 @@ OVERSIZED["glossary.md"] =
     .join("\n");
 
 // --------------------------------------------------------------------------------
+// Set (d): classification holdout. Five documents the role rules were NOT written against.
+//
+// Added because the 10/10 the rules score on sets (a)-(c) measures nothing. `classify.ts`
+// and those documents were written in the same sitting, with the signal weights tuned while
+// reading the classifier's output on them — in-distribution by construction, with no
+// holdout. "The rules already win" was therefore not a finding, and citing it as a reason
+// not to wire an LLM classifier was citing an artifact.
+//
+// These five are authored to be plausibly missed, and the key is fixed BEFORE the rules are
+// run against it. Whatever score comes out is the reported result; if it is bad, that is the
+// measurement working. Each attacks a different assumption the rules make:
+//
+//   weekly.md      role only inferable from body structure; filename says nothing
+//   overview.md    a PRD written in ADR clothing — the decisionRecord rule's decoy
+//   README.md      a filename that suggests everything, a body that is one thing
+//   platform.md    architecture with none of the architecture heading vocabulary
+//   checks.md      testPolicy, a role sets (a)-(c) never exercise at all
+// --------------------------------------------------------------------------------
+
+const CLASSIFICATION = {};
+
+CLASSIFICATION["weekly.md"] = `# 2026-06-18
+
+Present: Priya, Marcus, Dana. Apologies: Sam.
+
+We walked through the ingest backlog. Marcus raised that the replay tooling is still manual
+and that two customers have asked about it this month.
+
+Dana will draft a short proposal for automated replay before the next session. Marcus is
+following up with the two customers to understand what they actually need. Priya is holding
+the queue-depth investigation until the proposal lands.
+
+Next session is the 25th, same time.
+`;
+
+CLASSIFICATION["overview.md"] = `# Nimbus Reporting — Overview
+
+## Decision
+
+Nimbus Reporting will present warehouse data to customers through a hosted dashboard rather
+than through scheduled email exports.
+
+**Rationale:** customers have asked for self-service access in every quarterly review since
+the product launched, and email exports cannot support the filtering they describe.
+
+## Requirements
+
+- A customer must be able to filter any report by date range and by batch status.
+- Reports must render within three seconds for a customer with one year of history.
+- Every figure shown must be traceable to the batch that produced it.
+
+## Out of scope
+
+Custom report authoring. Customers pick from a fixed set this release.
+`;
+
+CLASSIFICATION["README.md"] = `# nimbus-ingest
+
+## Naming
+
+Modules take the name of the thing they do, not the name of the pattern they are built with.
+
+## Errors
+
+An error is either handled where it occurs or allowed to propagate. It is never logged and
+swallowed.
+
+## Tests
+
+Every bug fix arrives with the test that would have caught it. A fix without one is a claim.
+
+## Reviews
+
+A pull request that changes behaviour explains why in its description, not only what.
+
+## Dependencies
+
+Adding a runtime dependency needs a written reason. Development dependencies do not.
+`;
+
+CLASSIFICATION["platform.md"] = `# Nimbus Platform
+
+Customer submissions arrive at the edge collector, which writes them to the durable queue and
+returns immediately. Nothing downstream is on the acknowledgement path.
+
+Workers read from the queue in batches, validate against the registered schema, and write to
+the warehouse in a single transaction. A worker that dies mid-batch leaves the batch on the
+queue; the next worker picks it up whole.
+
+The warehouse is the only consumer of committed batches. The rejection store sits beside it
+and is written by the workers directly, which is why a rejection survives a warehouse outage.
+`;
+
+CLASSIFICATION["checks.md"] = `# How we check things
+
+Every change ships with the unit tests for the code it touches. Integration tests cover the
+queue boundary and the warehouse write, and nothing else — they are slow and we keep them few.
+
+A flaky test is deleted or fixed within one week of being noticed. We do not retry a flaky
+test to make a build green.
+
+Coverage is measured but not enforced by a threshold, because a threshold rewards testing the
+easy paths.
+
+Before a release someone runs the replay procedure against staging by hand. That step has
+resisted automation twice and we have stopped trying for now.
+`;
+
+// --------------------------------------------------------------------------------
 // Answer keys.
 // --------------------------------------------------------------------------------
 
@@ -343,6 +452,81 @@ const EXPECTED = {
         b: { source: "architecture.md", text: "A submission is committed in one transaction or not at all." },
       },
     ],
+    // The precision arm. `nearDuplicates` alone grades §10.4 in one direction only: it shows
+    // a merge happened, never that the right thing merged, so any method loose enough to
+    // merge everything would pass. These four pairs must stay SEPARATE, and each is hard for
+    // a different reason — three of them are *closer* in embedding space than either
+    // near-duplicate pair above, which is why a cosine threshold cannot do this job at all.
+    mustNotMerge: [
+      {
+        why:
+          "The hardest of the four, and the one nothing structural catches: two sequential " +
+          "steps of one procedure. Same category, and the SAME entityKey, because both sit " +
+          "under the runbook's `## Deploy` heading — so entity blocking does not apply and " +
+          "the adjudicator has to reject them on meaning alone. A method that merges these " +
+          "collapses a deploy procedure into one step.",
+        a: { source: "runbook.md", text: "pnpm install --frozen-lockfile" },
+        b: { source: "runbook.md", text: "pnpm build" },
+        category: "command",
+        blockedBy: "adjudicator",
+      },
+      {
+        why:
+          "Measured cosine 0.7428 against nomic-embed-text-v1.5 — above BOTH authored " +
+          "near-duplicate pairs (0.63, 0.62). Same category, neither carries an entityKey, " +
+          "so this too reaches the model. One is about when a batch is rejected, the other " +
+          "about how long a rejected batch is kept: adjacent subject, different facts.",
+        a: { source: "product-spec.md", text: "Every rejected batch must be retrievable for thirty days." },
+        b: { source: "product-spec.md", text: "A batch that fails validation must be rejected whole." },
+        category: "constraint",
+        blockedBy: "adjudicator",
+      },
+      {
+        why:
+          "Measured cosine 0.8201 — the highest-scoring pair in the entire clean set, higher " +
+          "than either true near-duplicate. A timeout and a size cap are maximally topical " +
+          "and completely different facts. Caught structurally, by differing entityKeys, " +
+          "which is recorded here as a REQUIREMENT rather than left as an accident of " +
+          "implementation: remove that block and the highest-cosine pair in the corpus merges.",
+        a: { source: "runbook.md", text: "NIMBUS_MAX_BATCH_MB=64" },
+        b: { source: "runbook.md", text: "NIMBUS_BATCH_TIMEOUT_MS=30000" },
+        category: "environmentVariable",
+        blockedBy: "entityKey",
+      },
+      {
+        why:
+          "Both concern what an operator may do with a batch after ingestion, in the same " +
+          "document and the same category, and they are independent requirements — one could " +
+          "be met while the other is violated.",
+        a: { source: "product-spec.md", text: "Operators must be able to replay any accepted batch without contacting engineering." },
+        b: { source: "product-spec.md", text: "Every rejected batch must be retrievable for thirty days." },
+        category: "constraint",
+        blockedBy: "adjudicator",
+      },
+    ],
+  },
+
+  classification: {
+    set: "classification",
+    note:
+      "Authored ground truth for the role-classification holdout. Written BEFORE the rules " +
+      "were run against it, and the rules were not adjusted afterwards. The 10/10 on the " +
+      "other three sets is in-distribution — classify.ts was tuned while reading its own " +
+      "output on them — so this set exists to produce a number that can fail.",
+    roles: {
+      "weekly.md": "meetingNotes",
+      "overview.md": "productSpec",
+      "README.md": "codingConventions",
+      "platform.md": "architecture",
+      "checks.md": "testPolicy",
+    },
+    whyEachIsHard: {
+      "weekly.md": "No role word anywhere in the filename, and a date for a title. Everything is in the body: attendees, an apology, and three action items with owners.",
+      "overview.md": "A product spec wearing a decision record's clothes — an `## Decision` heading and a `**Rationale:**` paragraph, which are the two strongest signals the decisionRecord rule has. The content is requirements and scope. If the rules answer decisionRecord they have been fooled by format.",
+      "README.md": "A filename that could introduce anything, over a body that is nothing but coding conventions. The rules' filename signal offers no help and must not hurt.",
+      "platform.md": "Architecture described entirely in prose, with no heading vocabulary at all past the title — no `Components`, no `Data flow`, no `Overview`.",
+      "checks.md": "testPolicy, a role none of the other three sets contain, so nothing about it was exercised while the rules were being written.",
+    },
   },
 
   conflicting: {
@@ -440,6 +624,7 @@ for (const [name, text] of Object.entries(CLEAN)) {
     files.push({ path: `clean/${docxName}`, bytes: Buffer.from(bytes) });
   } else addText("clean", name, text);
 }
+for (const [name, text] of Object.entries(CLASSIFICATION)) addText("classification", name, text);
 for (const [name, text] of Object.entries(CONFLICTING)) addText("conflicting", name, text);
 for (const [name, text] of Object.entries(OVERSIZED)) addText("oversized", name, text);
 for (const [set, key] of Object.entries(EXPECTED)) {
@@ -474,6 +659,32 @@ for (const pair of EXPECTED.clean.nearDuplicates) {
   if (score >= 0.2) lexicalFailures++;
   console.log(`${verdict} Jaccard ${score.toFixed(3)}  ${pair.a.source} vs ${pair.b.source}`);
 }
+// A hard negative that a cheaper stage already separates proves nothing about the merge
+// decision, so the corpus asserts its own negatives are actually hard: same category (or
+// category blocking handles it), and at least half must survive as far as the adjudicator
+// (or the whole precision arm is really a test of entity blocking).
+console.log("\nHard negatives (must be hard, not merely different):");
+let negativeFailures = 0;
+const negatives = EXPECTED.clean.mustNotMerge ?? [];
+for (const pair of negatives) {
+  if (!pair.category) {
+    console.log(`FAIL  a mustNotMerge pair declares no category`);
+    negativeFailures++;
+    continue;
+  }
+  console.log(`ok    ${pair.category.padEnd(20)} blocked by ${pair.blockedBy.padEnd(12)} ${pair.a.text.slice(0, 34)} / ${pair.b.text.slice(0, 34)}`);
+}
+const reachAdjudicator = negatives.filter((p) => p.blockedBy === "adjudicator").length;
+if (negatives.length > 0 && reachAdjudicator * 2 < negatives.length) {
+  console.log(
+    `FAIL  only ${reachAdjudicator} of ${negatives.length} hard negatives reach the adjudicator; ` +
+      `the rest are separated structurally, so this measures entity blocking rather than the ` +
+      `merge decision.`,
+  );
+  negativeFailures++;
+}
+failures += negativeFailures;
+
 if (lexicalFailures > 0) {
   console.log(
     `\n${lexicalFailures} near-duplicate pair(s) are lexically similar enough that a ` +

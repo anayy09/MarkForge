@@ -15,7 +15,7 @@
 import { DiagnosticBag, DiagnosticCode, type Diagnostic } from "@markforge/ir";
 import { applyModelOpinion, classifyByRules } from "./classify.js";
 import { extractUnits, type SourceDocument } from "./extract.js";
-import { deduplicate, type Adjudicator, type Embedder } from "./dedup.js";
+import { deduplicate, type Adjudicator, type DedupResult, type Embedder } from "./dedup.js";
 import { detectConflicts, type ConflictReport } from "./conflicts.js";
 import { planBudget, type BudgetPlan } from "./budget.js";
 import { assemble, type EmittedFile } from "./assemble.js";
@@ -73,6 +73,14 @@ export interface CompileResult {
   manifest: ProvenanceManifest;
   diagnostics: Diagnostic[];
   drops: UnsupportedSentence[];
+  /**
+   * What merged, not just how many.
+   *
+   * A count tells you deduplication happened; it cannot tell you whether the right thing
+   * merged, and §10.4's precision arm needs to ask exactly that. Reporting only the number
+   * is how a stage that deletes data ends up ungraded in the direction that matters.
+   */
+  merges: DedupResult["merges"];
   /** True only when every target passed its gate. Drives exit 5. */
   passed: boolean;
   report: RunReport;
@@ -254,6 +262,7 @@ export async function compile(
     manifest,
     diagnostics: diagnostics.all(),
     drops,
+    merges: deduped.merges,
     passed,
     report: {
       sources: perSource,

@@ -1,0 +1,18 @@
+{
+  "set": "classification",
+  "note": "Authored ground truth for the role-classification holdout. Written BEFORE the rules were run against it, and the rules were not adjusted afterwards. The 10/10 on the other three sets is in-distribution — classify.ts was tuned while reading its own output on them — so this set exists to produce a number that can fail.",
+  "roles": {
+    "weekly.md": "meetingNotes",
+    "overview.md": "productSpec",
+    "README.md": "codingConventions",
+    "platform.md": "architecture",
+    "checks.md": "testPolicy"
+  },
+  "whyEachIsHard": {
+    "weekly.md": "No role word anywhere in the filename, and a date for a title. Everything is in the body: attendees, an apology, and three action items with owners.",
+    "overview.md": "A product spec wearing a decision record's clothes — an `## Decision` heading and a `**Rationale:**` paragraph, which are the two strongest signals the decisionRecord rule has. The content is requirements and scope. If the rules answer decisionRecord they have been fooled by format.",
+    "README.md": "A filename that could introduce anything, over a body that is nothing but coding conventions. The rules' filename signal offers no help and must not hurt.",
+    "platform.md": "Architecture described entirely in prose, with no heading vocabulary at all past the title — no `Components`, no `Data flow`, no `Overview`.",
+    "checks.md": "testPolicy, a role none of the other three sets contain, so nothing about it was exercised while the rules were being written."
+  }
+}

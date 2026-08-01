@@ -228,9 +228,9 @@ needed a model would not be the default path.
 | --- | --- |
 | `@markforge/agentify`: units, dedup, budget, targets, verification | done |
 | `targets/` registry — 12 profiles, all schema-validated | done |
-| Rule-based classification (§10.2) | done — **10/10** on the authored roles |
+| Rule-based classification (§10.2) | done — 10/10 in-distribution, but **1 of 5 on a holdout it was not tuned against** |
 | Deterministic extraction (§10.3) | done — recall **94.7%**, precision **75.0%** against the authored key |
-| Dedup by text, then embedding shortlist + model adjudication (§10.4) | done and **measured live** — 1 of 2 authored pairs merged, 0 false merges. The design as specified was refuted (ADR-0020) |
+| Dedup by text, then embedding shortlist + model adjudication (§10.4) | done and measured live — **0 of 2 authored pairs merged, 0 false merges on 4 hard negatives**. The design as specified was refuted (ADR-0020); one authored pair is unmergeable by design (OPEN_QUESTIONS §7q) |
 | Conflict report (§10.4) | done — **2/2** recall, **0** false positives |
 | Budget and progressive disclosure (§10.5) | done — 31 primary / 9 secondary at a 600-token budget, nothing lost |
 | The traceability gate (§10.6) | done, **and checked for its ability to fail** |
@@ -260,11 +260,18 @@ Shipped as specified, this would have failed one of two ways: a safe threshold t
 nothing, or a low one that silently deletes real facts from every generated file. The second
 is worse and is invisible, because a merged unit looks exactly like a unit.
 
-The embedding now **shortlists** and a `strong` model **decides** (ADR-0020). Measured:
-19 pairs adjudicated, 0 unparseable, **1 of 2 authored pairs merged, 0 false merges.** The
-unmerged one is defensible — a p95 target of 2000 ms permits 5% of requests past two seconds,
-which "no user should ever wait more than two seconds" forbids, and the model said exactly
-that. On the text the extractor produces, the answer key is optimistic.
+The embedding now **shortlists** and a `strong` model **decides** (ADR-0020). Measured: 19
+pairs adjudicated, 0 unparseable, **0 of 2 authored pairs merged, 0 false merges against 4
+hard negatives.**
+
+That first number was reported as 1 of 2 and was wrong, and how it was wrong matters more than
+the number. The merge that happens is between two *product-spec* sentences — one requirement
+bullet split by sentence segmentation — which is correct but is not an authored pair. The CI
+job asserting `--llm` differs from `--no-llm` went green because of it, and that was read as
+the authored pair working. Pair 1 is shortlisted and rejected on defensible grounds (a p95
+target is not a hard ceiling, and the model said so). **Pair 2 is never compared at all**: its
+two sides are a `constraint` and a `decision`, and cross-category merges are blocked by design.
+The corpus and §10.4 contradict each other there, and that is now open as OPEN_QUESTIONS §7q.
 
 Two more defects surfaced on the way, both only visible by running it:
 
@@ -283,6 +290,35 @@ ceiling being commented with its number rather than merely set.
 The cache is committed — 48 entries, 324 KB — and the path is offline-reproducible: two
 `readOnly` runs with no key present are byte-identical, and `--llm` differs from `--no-llm` by
 exactly the one merged line. Both are CI jobs.
+
+### The 10/10 that measured nothing
+
+`classify.ts` and the three corpus sets were written in the same sitting, with the signal
+weights tuned while reading the classifier's own output on those documents. The 10/10 it scores
+on them is therefore in-distribution by construction, with no holdout — it says the set is
+small and familiar, not that the rules are good. It was nonetheless reported here and in
+`AGENTIFY.md` as evidence, and used to argue against wiring an LLM classifier. That argument
+was circular.
+
+`fixtures/agentify/classification/` is the holdout: five documents authored to be plausibly
+missed, key fixed before the rules ran and not adjusted afterwards. **The rules score 1 of 5.**
+
+| Document | Want | Got | Why it is hard |
+| --- | --- | --- | --- |
+| `weekly.md` | meetingNotes | unknown | role only in the body — attendees, an apology, three owned action items |
+| `overview.md` | productSpec | unknown | a PRD in ADR clothing: an `## Decision` heading and a `**Rationale:**` paragraph over requirements and scope |
+| `README.md` | codingConventions | **apiContract** | an `## Errors` heading matched the API rule; the filename offers nothing |
+| `platform.md` | architecture | architecture | ✔ |
+| `checks.md` | testPolicy | unknown | a role none of the other sets contain |
+
+Three of the four misses were `margin: 0.000` — exact ties the classifier reported as decisions
+because the distribution sort falls back to `localeCompare`, so `weekly.md` answered
+"architecture" over "meetingNotes" because *a* precedes *m*. A tie now returns `unknown`, which
+is one of §10.2's ten roles and was previously unreachable. **That fix does not change the
+score**, which is the evidence it is a correctness fix and not tuning against the answers.
+
+The holdout is gated on regression, not on its value: 1 of 5 is the finding, and a gate set at
+today's number would only stop it getting worse without implying it is acceptable.
 
 ### What "first-class" does and does not mean here
 

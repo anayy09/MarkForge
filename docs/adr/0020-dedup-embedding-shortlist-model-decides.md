@@ -58,13 +58,34 @@ The schema is the guarantee, as everywhere else in `@markforge/llm`: the model a
 `surviving: "A" | "B"` and the code maps that back to verbatim text. A merged unit's wording
 is always one of its two inputs byte for byte.
 
-**Measured result on the clean corpus:** 19 pairs adjudicated, 0 unparseable, 1 merge. Pair 2
-merges. Pair 1 does not, and the model's reason is sound — *"Statement A defines a p95 latency
-target, while Statement B imposes a hard maximum wait; they describe different guarantees."* A
-p95 budget of 2000 ms permits 5% of requests to exceed two seconds, which "no user should ever
-wait more than two seconds" forbids. The answer key calls them near-duplicates; on the text the
-extractor actually produces, they are not, and the pipeline is right to keep them apart.
-Neither decoy merged. So: **1 of 2 authored pairs, 0 false merges.**
+**Measured result on the clean corpus, corrected.** 19 pairs adjudicated, 0 unparseable, 1
+merge, **0 false merges against 4 authored hard negatives** — and **0 of the 2 authored
+near-duplicate pairs merged.**
+
+The first version of this ADR claimed 1 of 2, which was wrong, and the way it was wrong is
+worth more than the number. The merge that happens is between two *product-spec* sentences —
+"A batch that fails validation must be rejected whole" and "Partial ingestion is never
+acceptable, because…" — which is one requirement bullet split by sentence segmentation and is
+a correct merge. It is not an authored pair. The CI job asserting `--llm` differs from
+`--no-llm` went green because of it, and that green was read as the authored pair working.
+That is exactly one-directional grading: the corpus had a recall arm and no precision arm, so
+nothing distinguished "the right thing merged" from "something merged".
+
+What actually happens to the two authored pairs:
+
+- **Pair 1** is shortlisted and the adjudicator rejects it, defensibly: *"Statement A defines
+  a p95 latency target, while Statement B imposes a hard maximum wait; they describe different
+  guarantees."* A p95 budget of 2000 ms permits 5% of requests past two seconds, which "no user
+  should ever wait more than two seconds" forbids. On the text the extractor produces, the
+  answer key is optimistic.
+- **Pair 2 is never compared at all.** Its product-spec side is a `constraint` and its
+  architecture side is a `decision` (it is ADR-2's statement), and this stage blocks
+  cross-category merges by design. The corpus asserts those two are the same fact; §10.4
+  asserts units only merge within a category. Both cannot be right, and that contradiction is
+  now open as OPEN_QUESTIONS §7q rather than hidden behind a passing test.
+
+The precision arm holds: all four hard negatives stay separate, three of them surviving as far
+as the adjudicator and being rejected there rather than filtered structurally.
 
 ## Rejected alternatives
 

@@ -67,9 +67,21 @@ named the *wrong* convention as missed when four were expected and three found.
 | `conflicting` | 5 | n/a | n/a |
 | `oversized` | 40 | n/a | n/a |
 
-Document role classification: **10/10**, including the two the
-corpus authored as traps — `architecture.md` answers `decisionRecord` because its content is
-ADR sections, and `service-overview.md` answers `architecture` with no such word in its name.
+### Role classification
+
+| Set | Score | What it measures |
+| --- | --- | --- |
+| sets (a)–(c), in-distribution | **10/10** | almost nothing — `classify.ts` was tuned while reading its own output on these documents |
+| `classification/` holdout | **1/5** | the real number: authored afterwards, key fixed before the rules ran, not adjusted after |
+
+The in-distribution score was reported as evidence in an earlier version of this document and
+of `STATUS.md`. It is not evidence: the rules and those documents were written together, with
+the weights tuned against the output. The holdout is what a reader should look at.
+
+Three of the holdout misses were exact ties (`margin: 0.000`) that the classifier used to
+report as decisions, because the distribution sort falls back to alphabetical order. A tie now
+returns `unknown`. That does not change the score, which is how you can tell it is a
+correctness fix rather than tuning.
 
 ### What the rules miss, and why
 
@@ -122,25 +134,39 @@ the documented task prefixes lift every score without changing it. Cosine measur
 relatedness; deduplication needs semantic equivalence. So the embedding **shortlists** and a
 `strong` model **decides** (ADR-0020).
 
-Measured end to end on the clean set, from the committed cache:
+### Both arms, measured
+
+`nearDuplicates` alone grades §10.4 in one direction: it shows a merge happened, never that
+the right thing merged, so anything loose enough to merge everything would pass. The corpus
+therefore also authors `mustNotMerge` pairs, three of which survive as far as the adjudicator
+rather than being filtered structurally.
 
 | | |
 | --- | --- |
 | pairs adjudicated | 19 |
 | unparseable responses | 0 |
 | median completion | 153 tokens |
-| authored pairs merged | **1 of 2** |
-| false merges | **0** |
+| **precision** — hard negatives kept apart | **4 of 4** |
+| **recall** — authored near-duplicate pairs merged | **0 of 2** |
+| merges performed | 1 |
 
-The unmerged pair is pair 1, and the model's reason is right: *"Statement A defines a p95
-latency target, while Statement B imposes a hard maximum wait; they describe different
-guarantees."* A p95 budget of 2000 ms lets 5% of requests exceed two seconds, which "no user
-should ever wait more than two seconds" forbids. On the text the extractor actually produces —
-the ADR's rationale sentence, compound clause included — they are not the same fact. The
-answer key is optimistic here and the pipeline is right to keep them apart.
+**Recall is 0 of 2, and an earlier version of this document said 1 of 2.** The merge that does
+happen is between two *product-spec* sentences — one requirement bullet split by sentence
+segmentation — which is a correct merge and is not an authored pair. The CI job asserting
+`--llm` differs from `--no-llm` went green because of it, and that was read as the authored
+pair working. That is precisely the failure a recall-only corpus invites.
 
-One decoy never reached the model at all: two units with different `entityKey`s are different
-facts by definition, so they are blocked structurally. The other was rejected by the model.
+The two authored pairs, individually:
+
+- **Pair 1** is shortlisted and the adjudicator rejects it: *"Statement A defines a p95 latency
+  target, while Statement B imposes a hard maximum wait; they describe different guarantees."*
+  A p95 budget of 2000 ms lets 5% of requests exceed two seconds, which "no user should ever
+  wait more than two seconds" forbids. On the text the extractor produces, the key is
+  optimistic and the pipeline is right.
+- **Pair 2 is never compared.** Its two sides are a `constraint` and a `decision`, and
+  cross-category merges are blocked by design. `CORPUS.md` §2.14 and `SPEC.md` §10.4
+  contradict each other here; open as OPEN_QUESTIONS §7q rather than resolved by loosening the
+  block, which is the option that risks silent loss.
 
 Offline with `--no-llm`, no pair merges and the run says so in a diagnostic. Two `readOnly`
 runs with no key present are byte-identical, and the `--llm` output differs from `--no-llm`

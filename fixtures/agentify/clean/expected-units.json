@@ -173,5 +173,59 @@
         "text": "A submission is committed in one transaction or not at all."
       }
     }
+  ],
+  "mustNotMerge": [
+    {
+      "why": "The hardest of the four, and the one nothing structural catches: two sequential steps of one procedure. Same category, and the SAME entityKey, because both sit under the runbook's `## Deploy` heading — so entity blocking does not apply and the adjudicator has to reject them on meaning alone. A method that merges these collapses a deploy procedure into one step.",
+      "a": {
+        "source": "runbook.md",
+        "text": "pnpm install --frozen-lockfile"
+      },
+      "b": {
+        "source": "runbook.md",
+        "text": "pnpm build"
+      },
+      "category": "command",
+      "blockedBy": "adjudicator"
+    },
+    {
+      "why": "Measured cosine 0.7428 against nomic-embed-text-v1.5 — above BOTH authored near-duplicate pairs (0.63, 0.62). Same category, neither carries an entityKey, so this too reaches the model. One is about when a batch is rejected, the other about how long a rejected batch is kept: adjacent subject, different facts.",
+      "a": {
+        "source": "product-spec.md",
+        "text": "Every rejected batch must be retrievable for thirty days."
+      },
+      "b": {
+        "source": "product-spec.md",
+        "text": "A batch that fails validation must be rejected whole."
+      },
+      "category": "constraint",
+      "blockedBy": "adjudicator"
+    },
+    {
+      "why": "Measured cosine 0.8201 — the highest-scoring pair in the entire clean set, higher than either true near-duplicate. A timeout and a size cap are maximally topical and completely different facts. Caught structurally, by differing entityKeys, which is recorded here as a REQUIREMENT rather than left as an accident of implementation: remove that block and the highest-cosine pair in the corpus merges.",
+      "a": {
+        "source": "runbook.md",
+        "text": "NIMBUS_MAX_BATCH_MB=64"
+      },
+      "b": {
+        "source": "runbook.md",
+        "text": "NIMBUS_BATCH_TIMEOUT_MS=30000"
+      },
+      "category": "environmentVariable",
+      "blockedBy": "entityKey"
+    },
+    {
+      "why": "Both concern what an operator may do with a batch after ingestion, in the same document and the same category, and they are independent requirements — one could be met while the other is violated.",
+      "a": {
+        "source": "product-spec.md",
+        "text": "Operators must be able to replay any accepted batch without contacting engineering."
+      },
+      "b": {
+        "source": "product-spec.md",
+        "text": "Every rejected batch must be retrievable for thirty days."
+      },
+      "category": "constraint",
+      "blockedBy": "adjudicator"
+    }
   ]
 }
