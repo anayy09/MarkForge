@@ -80,7 +80,12 @@ if (unlicensed.length) {
 }
 
 // --- Direction 2: every licence line names a file that exists.
-const phantom = [...registered].filter((p) => !existsSync(join(FIXTURES, p)));
+// A registered path is relative to `fixtures/`, except for the `templates/` rows, which are
+// relative to the repository root. The templates are shipped artifacts rather than test
+// inputs so they live outside `fixtures/`, but they are committed binaries and belong in one
+// licence register rather than two — see the note at the top of LICENSES.md.
+const resolveRegistered = (p) => (p.startsWith("templates/") ? join(REPO, p) : join(FIXTURES, p));
+const phantom = [...registered].filter((p) => !existsSync(resolveRegistered(p)));
 if (phantom.length) {
   fail(
     `fixtures/LICENSES.md names file(s) that do not exist: ${phantom.join(", ")}\n` +

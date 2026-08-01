@@ -196,7 +196,7 @@
       }
     },
     "Locator": {
-      "oneOf": [
+      "anyOf": [
         {
           "type": "object",
           "required": [
@@ -331,7 +331,7 @@
       ]
     },
     "Producer": {
-      "oneOf": [
+      "anyOf": [
         {
           "type": "object",
           "required": [
@@ -1030,7 +1030,7 @@
       }
     },
     "BlockContent": {
-      "oneOf": [
+      "anyOf": [
         {
           "$ref": "#/$defs/Paragraph"
         },
@@ -1109,7 +1109,7 @@
       ]
     },
     "PhrasingContent": {
-      "oneOf": [
+      "anyOf": [
         {
           "$ref": "#/$defs/Text"
         },
@@ -1985,7 +1985,7 @@
         "children": {
           "type": "array",
           "items": {
-            "oneOf": [
+            "anyOf": [
               {
                 "$ref": "#/$defs/DescriptionTerm"
               },

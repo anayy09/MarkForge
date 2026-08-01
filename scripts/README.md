@@ -196,6 +196,28 @@ The DOCX file is rendered from authored Markdown by our own renderer, which woul
 choice in `fixtures/docx/` — the point there is catching adapter bugs — but is fine here, where
 the fixture is the document's content and role rather than its format fidelity.
 
+## `build-reference-templates.mjs`
+
+Builds the three reference DOCX templates `TEMPLATES.md` §2 promises, into `templates/`.
+`--check` fails if a committed byte drifted, and also re-asserts the §2.1 inventory: all 38
+Pandoc style names defined in each, the twenty constructs the primary template must contain,
+and **zero direct formatting in the body**.
+
+That last one is the reason the templates exist. They are our own demonstration that named
+styles suffice, so a shipped template containing direct formatting would undercut the argument
+in brief §5.1. The check allowlists exactly two elements inside a body `w:rPr` — `w:rStyle` and
+`w:i` — and fails on anything else.
+
+**Written as raw OOXML rather than through `@markforge/render-docx`, deliberately.** The
+renderer cannot produce most of §2.1: no embedded images, no `footnotes.xml`, no OMML, no
+resolved cross-references. A template built by the renderer would contain exactly the
+constructs we already handle, which is the opposite of a gate.
+
+Building them found two defects immediately, both invisible until a document with a header
+existed: furniture `content` was a bare array where the schema declares a `Root` — forced past
+the compiler with a double cast — and IR validation took longer than two minutes on a 183-node
+document, so `markforge check` hung on anything with tables in it.
+
 ## `check-agentify.mjs`
 
 The Phase 4 gate harness. Runs both halves of the done-criterion (`docs/INIT.md` §11) plus five

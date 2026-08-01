@@ -226,11 +226,23 @@ describe("DOCX adapter — tracked changes and furniture", () => {
     const { document } = parseDocx(bytes);
     expect(document.furniture).toHaveLength(2);
     expect(document.furniture.map((f) => f.kind)).toEqual(["footer", "header"]);
+    // `content` is a `root` node, not a bare array. It was an array until the reference
+    // templates of TEMPLATES.md §2.1 became the first committed fixtures with a header, at
+    // which point every furniture-bearing document turned out to fail schema validation at
+    // `/furniture/0/content`. This test asserted the wrong shape too, which is why it did
+    // not catch it — so it now also validates the document, below.
     const headerText = document.furniture
       .filter((f) => f.kind === "header")
-      .flatMap((f) => (f.content as unknown as AnyNode[]).map(textContent))
+      .map((f) => textContent(f.content as unknown as AnyNode))
       .join("");
     expect(headerText).toBe("Running head");
+
+    // The assertion that would have caught the shape bug on the day it was written.
+    // Checking the *kind* and the *text* of furniture says nothing about whether the
+    // document it belongs to is well-formed, and the schema is where the shape is declared.
+    const validation = validateDocument(document);
+    expect(validation.errors.slice(0, 3)).toEqual([]);
+    expect(validation.valid).toBe(true);
   });
 });
 

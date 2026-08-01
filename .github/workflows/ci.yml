@@ -68,11 +68,21 @@ jobs:
       # Generated types must match the schemas. Running codegen and checking for a
       # diff catches the case where someone edits a schema and forgets to regenerate
       # — the compiler would still pass, and the mismatch would surface at runtime.
+      # `git status --porcelain`, not `git diff --exit-code`.
+      #
+      # `git diff` cannot see an untracked file, so *newly generated* output — which is what
+      # happens the first time a package acquires a schema — was invisible to this gate.
+      # `packages/agentify/src/generated/target.ts` went uncommitted through a full green CI
+      # run for exactly that reason. Modified output and new output are both staleness.
       - name: Generated types are up to date
         run: |
           pnpm run codegen
-          git diff --exit-code -- 'packages/*/src/generated' \
-            || (echo "::error::Generated types are stale. Run 'pnpm codegen' and commit." && exit 1)
+          drift=$(git status --porcelain -- 'packages/*/src/generated')
+          if [ -n "$drift" ]; then
+            echo "::error::Generated types are stale. Run 'pnpm codegen' and commit."
+            echo "$drift"
+            exit 1
+          fi
 
       - name: Build
         run: pnpm run build
@@ -108,6 +118,38 @@ jobs:
       # embeddings over a text threshold.
       - name: Agentify corpus fixtures are current
         run: node scripts/build-agentify-corpus.mjs --check
+
+      # The three reference templates of TEMPLATES.md §2. Committed rather than built on
+      # demand for the same reason the messy corpus is, and gated the same way — plus the
+      # §2.1 inventory itself, including the zero-direct-formatting rule, which is the
+      # property that makes them an argument rather than just a file.
+      - name: Reference templates are current and satisfy TEMPLATES.md §2.1
+        run: node scripts/build-reference-templates.mjs --check
+
+      # A shipped template that stops defining the full Pandoc set is a regression
+      # (TEMPLATES.md §2.2). This is also the only end-to-end exercise of `check
+      # --reference-doc` on a file we control.
+      - name: Every reference template defines all 38 Pandoc style names
+        run: |
+          set -e
+          for f in templates/*.docx; do
+            out=$(node packages/cli/dist/index.js check --reference-doc "$f")
+            echo "$out" | head -1
+            echo "$out" | grep -q "38 of 38 Pandoc names defined"               || (echo "::error::$f does not define all 38 Pandoc style names" && exit 1)
+          done
+
+      # The templates carry constructs the writer cannot yet produce — OMML, footnotes,
+      # embedded images, cross-references — so parsing them is a real test of the reader.
+      # It is also the regression guard for a defect they exposed: IR validation used to
+      # take longer than two minutes on a 183-node document with tables, so `check` hung.
+      - name: Reference templates parse, validate, and do so quickly
+        run: |
+          set -e
+          start=$(date +%s)
+          node packages/cli/dist/index.js check templates/*.docx
+          elapsed=$(( $(date +%s) - start ))
+          test "$elapsed" -lt 30             || (echo "::error::validating three templates took ${elapsed}s; IR validation has regressed" && exit 1)
+          echo "Three reference templates parsed and validated in ${elapsed}s."
 
       # Phase 4's measurements, and the negative control that makes them mean something.
       # Runs after the build because it imports the built packages.

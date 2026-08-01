@@ -38,7 +38,7 @@ provably idempotent.
 | Beats Pandoc on `docx → md → docx` | **done, after fixing three writer defects** |
 | Beats `word-to-markdown-js` | **done** — added to the scoreboard as a third column, pinned to `word-to-markdown@0.3.0`. Structural 100% against 99.4%, span F1 100% against 96.0%; it leads on 0 of 28 metric-fixture pairs |
 | Golden corpus v1 | **partial** — 7 of the 8 categories Phase 1 required |
-| Three reference DOCX templates | **not done** — `TEMPLATES.md` §2.1 specifies them row by row |
+| Three reference DOCX templates | **done** — `templates/`, built by `scripts/build-reference-templates.mjs`, all 38 Pandoc names and all 20 of `TEMPLATES.md` §2.1's rows asserted in CI including zero direct formatting |
 
 ### The Pandoc comparison, and why it was wrong before
 
@@ -68,6 +68,33 @@ The lesson is about the measurement, not the code. An aggregate fidelity score c
 nineties. The census diff found all four in under an hour. **That census now lives in
 `@markforge/fidelity` and is reported in `docs/FIDELITY.md`** under *Where the losses are*,
 and it found four more defects on its first run — see *What to fix first*.
+
+### What the reference templates found, three phases late
+
+They were the oldest unbuilt named deliverable: specified row by row in Phase 0, absent
+through Phases 1–4, with no `templates/` directory at all. Building them broke two things
+within minutes, both invisible until a document with a header and a table existed.
+
+**IR validation did not finish in 120 seconds on a 183-node document, so `markforge check`
+hung.** Two causes, compounding. The content unions are `oneOf` over 24 and 25 branches and
+they nest — a table holds cells, which hold paragraphs, which hold phrasing — and `oneOf`
+must evaluate every branch to prove exactly one matched. Every union is discriminated by a
+distinct `type` const, so `anyOf` accepts precisely the same documents and may stop at the
+first match; that change alone was not enough, because `allErrors: true` re-disables the
+short-circuit. `validateDocument` now runs a fast validator and compiles a thorough one only
+when the answer is "invalid" — paying for good error messages exactly when there are errors.
+**183 nodes: >120 s → 3 ms.** The table-conformance suite went from **154 s to 1.7 s**, a cost
+the test run had simply absorbed for two phases.
+
+**Furniture content was the wrong shape, forced past the compiler with a double cast.** The
+schema declares `Furniture.content` as a `Root`; the DOCX adapter emitted a bare array and
+wrote `as unknown as Furniture["content"]` to make it compile. Every document with a header or
+footer failed `validateDocument` at `/furniture/0/content`, and nothing noticed because no
+committed fixture had furniture until now. ADR-0002 routes headers rather than stripping them;
+routing them into a shape the schema rejects is not much better than stripping them.
+
+Both are the same lesson as the node-type census: a deliverable that is missing does not just
+lack its own value, it removes the pressure that would have found other defects.
 
 ## Phase 2 — breadth
 
