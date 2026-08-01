@@ -179,6 +179,17 @@ jobs:
       - name: The HTTP API retains no document (brief §8)
         run: node scripts/check-http-retention.mjs
 
+      # Phase 5's done-criterion. The same input through the CLI, the HTTP API, the MCP
+      # server, and the browser build must produce identical bytes — this is what makes
+      # four surfaces one engine rather than four converters, and a wrapper that trimmed a
+      # newline would pass every unit test in its own package and fail only here.
+      # MODEL_API_KEY is unset, so a surface reaching the network fails rather than
+      # quietly succeeding.
+      - name: Four surfaces, same input, same bytes (Phase 5 done-criterion)
+        run: node scripts/check-surface-parity.mjs
+        env:
+          MODEL_API_KEY: ""
+
       - name: Test
         run: pnpm run test
 

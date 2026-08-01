@@ -25,6 +25,8 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `fetch-ocr-assets.mjs` | network, once | Downloads tesseract language data and the found scan into gitignored `fixtures/local/` (`docs/CORPUS.md` §2.7) |
 | `check-browser-bundle.mjs` | `esbuild`, built packages | Builds every package ADR-0015 claims runs in-browser at `platform=browser` and fails on any `node:` builtin or polyfill. The Phase 5 gate that took ADR-0015 off `Proposed` |
 | `check-http-retention.mjs` | built packages | Measures brief §8's "stateless, no document retention" — filesystem delta, retrieval routes, minted ids, cross-request contamination — against a deliberately retaining control |
+| `check-surface-parity.mjs` | `esbuild`, built packages | **Phase 5's done-criterion.** Every corpus fixture through the CLI, the HTTP API, the MCP server, and the browser build, compared byte for byte, with `MODEL_API_KEY` unset |
+| `lib/browser-bundle.mjs` | `esbuild` | Not a check — the shared browser build and its web-platform-only sandbox, so the two gates above are talking about the same artifact |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
@@ -183,6 +185,49 @@ never exposes. Probe 4 catches retention that any observable behaviour depends o
 is the part that can leak. A buffer nobody reads is not distinguishable from one the
 allocator has not yet reclaimed, and claiming otherwise would be exactly the kind of
 assertion this file exists to replace.
+
+## `check-surface-parity.mjs`
+
+Phase 5's done-criterion, and the reason it is byte equality rather than "all four work":
+a surface that transformed anything on the way in or out — trimmed a trailing newline,
+re-encoded a string, normalised a line ending — would pass every unit test in its own
+package and show up nowhere except here.
+
+Thirty conversions: ten fixtures across Markdown, HTML, and DOCX inputs, times three
+output formats, each produced four ways. The CLI is spawned and writes real files; the
+HTTP API is a listening server; the MCP server is spawned and driven over real stdio
+JSON-RPC; the browser build is the bundle from `lib/browser-bundle.mjs` evaluated in a
+`vm` context holding **only web-platform globals** — no `process`, no `Buffer`, no
+`require`. `MODEL_API_KEY` is deleted from every child environment, so a surface that
+reached the network fails here rather than quietly succeeding.
+
+The negative control runs **per comparison rather than once**: a flipped byte in a copy of
+the CLI output must be detected every time, so a comparator that stopped comparing partway
+through the matrix is caught too.
+
+**Two things it found.**
+
+The browser build resolved `decode-named-character-reference` to `index.dom.js`, which
+decodes HTML entities by writing them into a detached `<i>` element and reading
+`textContent` back. Sensible in a page; a determinism hazard here, because it routes
+entity decoding through the host's HTML parser and the criterion is byte equality with the
+CLI. The `worker` export condition selects the same table-based module Node loads —
+measured, that changes exactly one package's resolution and costs 47 KB.
+
+And `--llm` against an unreachable endpoint exited **0** with `ok: true`. The first version
+of this check missed it by using `clean-report.md`, which produces zero ambiguous heading
+decisions, so `--llm` had nothing to ask; `messy-ambiguous-headings.docx` was authored in
+Phase 3 to produce them and yields four. The check then reported the finding **wrongly**,
+calling it a silent fallback — it was not silent, `llmFailures` carried all four and the
+run report showed `failures: 4, liveCalls: 0`. What was true is narrower and still a
+defect: no `Diagnostic` was emitted, so `--strict` could not see it and `MF-LLM-0001` had
+an emission site for one case and none for this one, while `ok: true` made "the model was
+never reached" indistinguishable from success.
+
+**What it does not do:** run a real browser. ADR-0015's *Consequences* promise Playwright
+against the same fixtures, and that remains unbuilt. The `vm` sandbox shares V8 with the
+host, so it would not catch a genuine engine difference; what it does catch is the failure
+that actually occurs — code reaching for a Node global — without a browser binary.
 
 ## `check-markdown-lint.mjs`
 

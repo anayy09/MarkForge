@@ -57,6 +57,9 @@
     },
     {
       "path": "packages/mcp"
+    },
+    {
+      "path": "packages/browser"
     }
   ]
 }

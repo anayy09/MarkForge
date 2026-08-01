@@ -136,6 +136,15 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
 
+  packages/browser:
+    dependencies:
+      '@markforge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@markforge/ir':
+        specifier: workspace:*
+        version: link:../ir
+
   packages/cli:
     dependencies:
       '@markforge/adapters-ocr':
