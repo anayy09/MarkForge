@@ -1,0 +1,26 @@
+{
+  "key": "84bd50beddc554ffe7a3b058b309ba4a229c31d370647ebb05a3dccdc1596e05",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "a7ff4ff9d51cfb9aa14e521a16b3c6a1569187da0ff47d02bed54acf3a283470",
+  "inputPreview": "A sealed document must be re-issued under a fresh reference. || The audit trail for a sealed document must be preserved for 90 days.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the 90‑day audit‑trail preservation requirement from B.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 610,
+      "completionTokens": 243,
+      "totalTokens": 853
+    }
+  }
+}

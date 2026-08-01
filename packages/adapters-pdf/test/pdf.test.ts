@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { analysePage, parsePdf, readPdf, groupIntoLines, detectColumns, joinBlockText, type TextRun, type Line } from "../src/index.js";
 import { buildPdf, paragraphPage } from "./helpers.js";
-import { checkUnknownNodesDiagnosed, selectType, textContent, validateDocument } from "@markforge/ir";
+import { pageImage } from "../src/pages.js";
+import { DiagnosticBag, checkUnknownNodesDiagnosed, selectType, textContent, validateDocument } from "@markforge/ir";
 
 const run = (text: string, x: number, y: number, height = 10, width = text.length * 5): TextRun => ({
   text, x, y, width, height, fontName: "F1",
@@ -127,6 +128,16 @@ describe("hyphenation repair", () => {
   });
 });
 
+/*
+ * Enforces **ADR-0012**, the three-layer PDF stack, for the layers that exist: `pdfjs-dist`
+ * extraction, our own line/block assembly and column ordering, hyphenation repair, and
+ * missing-text-layer detection routed with an `info` diagnostic.
+ *
+ * Four clauses of ADR-0012's Decision are unbuilt and nothing here asserts them —
+ * header/footer routing to `furniture`, ligature repair, figure/caption binding, and the
+ * confidence-gated table-recovery layer. The ADR enumerates them clause by clause rather
+ * than letting a missing test imply a missing feature.
+ */
 describe("PDF adapter", () => {
   it("extracts text and validates against the schema", async () => {
     const pdf = buildPdf([paragraphPage(["The first line of the body.", "The second line of the body."])]);
@@ -529,5 +540,58 @@ describe("PDF adapter", () => {
     const a = await parsePdf(pdf, { path: "x.pdf" });
     const b = await parsePdf(pdf, { path: "x.pdf" });
     expect(JSON.stringify(a.document.body)).toBe(JSON.stringify(b.document.body));
+  });
+});
+
+/**
+ * The one `catch` in this package that swallows a failure and returns a degraded result.
+ *
+ * `lookup()` catches pdf.js's `objs.get` throwing for an object the store does not know,
+ * resolves `undefined`, and `pageImage` turns that into `PDF_PAGE_IMAGE_UNAVAILABLE`. That
+ * chain was annotated and never executed: `scripts/check-degradation.mjs` claimed the site
+ * emitted `MF-PDF-0004`, a code no `DiagnosticCode` entry defines, and the cross-check that
+ * should have caught it searched a file containing the annotation making the claim.
+ *
+ * So the failure is forced here rather than described, and the assertion is on `lossy`,
+ * because `lossy` is the flag `--strict` exits non-zero on.
+ */
+describe("a page whose raster cannot be fetched degrades with a diagnostic", () => {
+  const OPS = { paintImageXObject: 85 };
+
+  /** A page painting one XObject, with a store that behaves however the test says. */
+  const pageWith = (get: (name: string, cb: (v: unknown) => void) => void) => ({
+    getOperatorList: async () => ({ fnArray: [OPS.paintImageXObject], argsArray: [["img0"]] }),
+    objs: { get },
+  });
+
+  it("emits MF-PDF-0002 as lossy when the object store throws", async () => {
+    const diagnostics = new DiagnosticBag({ kind: "rule", name: "test", version: "1" });
+    const image = await pageImage(
+      pageWith(() => {
+        throw new Error("Requesting object that isn't resolved yet");
+      }),
+      3,
+      { ops: OPS, diagnostics },
+    );
+
+    expect(image).toBeUndefined();
+    const raised = diagnostics.all().filter((d) => d.code === "MF-PDF-0002");
+    expect(raised).toHaveLength(1);
+    // `--strict` fails on this flag. Without it the page silently vanishes from a scan.
+    expect(raised[0]!.lossy).toBe(true);
+    expect(diagnostics.strictFailing()).toHaveLength(1);
+    expect(raised[0]!.message).toContain("Page 3");
+  });
+
+  it("stays silent when the raster is there, so the diagnostic means something", async () => {
+    const diagnostics = new DiagnosticBag({ kind: "rule", name: "test", version: "1" });
+    const image = await pageImage(
+      pageWith((_name, cb) => cb({ width: 2, height: 1, kind: 2, data: new Uint8Array([1, 2, 3, 4, 5, 6]) })),
+      1,
+      { ops: OPS, diagnostics },
+    );
+
+    expect(image?.width).toBe(2);
+    expect(diagnostics.strictFailing()).toHaveLength(0);
   });
 });

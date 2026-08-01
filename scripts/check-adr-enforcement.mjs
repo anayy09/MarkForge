@@ -67,10 +67,29 @@ for (const file of adrs) {
     continue;
   }
 
-  // Every artifact it names has to exist. A named check that does not exist is worse
-  // than none, because it reads as verified.
+  /*
+   * Every artifact it names has to exist, be invoked, **and be about this ADR**.
+   *
+   * The third clause is the one this gate was missing, and its absence made the whole gate
+   * a claim about filenames resolving. ADR-0012 named `scripts/check-degradation.mjs`, a
+   * generic catch-block classifier that asserts nothing whatever about the PDF adapter
+   * stack — no extraction, no layout analysis, no table escalation — and this file reported
+   * it `ok` for as long as the script existed and ran. "19 of 20 ADRs name a live enforcing
+   * check" was true and meant nothing.
+   *
+   * The relevance test is that the named artifact mentions the ADR by id. That is a weak
+   * test: a comment saying `ADR-0012` proves nobody typed the wrong filename, not that the
+   * assertions below it enforce the decision. It is deliberately the weakest test that
+   * would have caught the real defect, because a stronger one has no mechanical form — no
+   * check can decide whether an assertion enforces a paragraph. What it does buy is that
+   * the binding becomes a two-way link: changing an ADR sends you to the file that names
+   * it, and a check that stops covering an ADR has to delete the reference to stay green.
+   */
   const targets = claim.split(/,|\band\b/).map((s) => s.trim()).filter(Boolean);
+  const adrId = /^(\d{4})-/.exec(file)[1];
+  const adrRefs = [`ADR-${adrId}`, `adr/${adrId}`];
   let allFound = true;
+  let relevant = false;
   for (const target of targets) {
     const path = /^(scripts|packages)\//.test(target) ? target.split(/\s/)[0] : null;
     if (path) {
@@ -98,10 +117,24 @@ for (const file of adrs) {
           allFound = false;
         }
       }
+      // Does the artifact it names actually mention this ADR?
+      const text = readFileSync(join(REPO, path), "utf8");
+      if (adrRefs.some((r) => text.includes(r))) relevant = true;
     } else if (!workflow.includes(target.slice(0, 40))) {
       fail(`${file} names CI step "${target}", which is not in ci.yml`);
       allFound = false;
+    } else if (adrRefs.some((r) => workflow.includes(r))) {
+      relevant = true;
     }
+  }
+
+  if (allFound && !relevant) {
+    fail(
+      `${file} names ${claim.slice(0, 48)}, which exists and runs but never mentions ADR-${adrId}. ` +
+        `That is a claim about a filename resolving, not about enforcement — the shape ADR-0012 ` +
+        `was found in.`,
+    );
+    allFound = false;
   }
   if (allFound) ok(`${file} — ${claim.slice(0, 62)}`);
 }

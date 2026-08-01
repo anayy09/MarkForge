@@ -1,0 +1,26 @@
+{
+  "key": "f8e72bed2d63f7606fcff6c75ffa97ac830d5653a7818fcb150c83becf768367",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "8ddf920567817389712a747eb32559b60a5b3283277b4f691ad10dac2617dca4",
+  "inputPreview": "An escalation notice must be dispatched 45 days from issue. || A reminder must be dispatched 21 days ahead of expiry.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping A would drop the reminder that must be sent 21 days before expiry.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 608,
+      "completionTokens": 395,
+      "totalTokens": 1003
+    }
+  }
+}

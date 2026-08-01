@@ -9,7 +9,7 @@
  * `--json` emits exactly one object on stdout and sends human output to stderr, so
  * piping is safe.
  */
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve, relative } from "node:path";
@@ -620,7 +620,28 @@ const agentifyCommand = program
     "allow the optional LLM layer: role classification, prose unit extraction, and " +
       "embedding-based deduplication (SPEC §10.2–10.4). Off unless given",
   )
-  .option("--no-llm", "the default: compile deterministically, with no network access");
+  .option("--no-llm", "the default: compile deterministically, with no network access")
+  /*
+   * Hidden on purpose, and not part of the CLI contract.
+   *
+   * The adjudicated half of §10.4 is a **measured no-op**: with CORPUS §2.14.1's veto active,
+   * `--llm` and `--no-llm` produce byte-identical output on every fixture there is, because the
+   * veto blocks the one merge the adjudicator proposes. Recall is 0 of 3 on unseen pairs
+   * (docs/ROADMAP.md).
+   *
+   * So this flag exists for re-enablement work and manual experiment, not for users. Listing it
+   * in `--help` would advertise a capability that currently does nothing and read as something
+   * a user is missing out on. `docs/CLI-CONTRACT.md` records it as explicitly unstable and
+   * outside the semver surface, which is the honest place for it — hidden and undocumented
+   * would be a different problem.
+   */
+  .addOption(
+    new Option(
+      "--dedup-adjudicate",
+      "EXPERIMENTAL, unstable, outside the semver surface: run the model adjudication half of " +
+        "§10.4. Currently a no-op behind the §2.14.1 veto — see docs/ROADMAP.md",
+    ).hideHelp(),
+  );
 withLlmOptions(agentifyCommand);
 agentifyCommand.action(async (sources: string[], opts: Record<string, unknown>) => {
   const flags = opts as GlobalFlags;
@@ -630,8 +651,23 @@ agentifyCommand.action(async (sources: string[], opts: Record<string, unknown>) 
     let llmReport: (() => LlmRunReport) | undefined;
     if (request.enabled) {
       const built = buildSession(opts as LlmFlags);
-      assist = agentifyAssistFrom(built.session);
-      if (!flags.json) log(built.describe(), flags);
+      // The embedding half always runs under `--llm`; the adjudication half is opt-in.
+      // Without `--dedup-adjudicate`, `deduplicate` gets an embedder and no adjudicator, which
+      // it already handles by merging nothing and saying so in a diagnostic.
+      const adjudicating = opts["dedupAdjudicate"] === true;
+      const full = agentifyAssistFrom(built.session);
+      assist = adjudicating ? full : { embed: full.embed };
+      if (!flags.json) {
+        log(built.describe(), flags);
+        log(
+          adjudicating
+            ? "  --dedup-adjudicate: model adjudication is ON. Experimental, unstable, and " +
+                "measured as a no-op behind the CORPUS §2.14.1 veto (docs/ROADMAP.md)."
+            : "  model adjudication of near-duplicates is off by default (docs/ROADMAP.md); " +
+                "pass --dedup-adjudicate to enable it.",
+          flags,
+        );
+      }
       llmReport = () => built.session.report();
     }
 

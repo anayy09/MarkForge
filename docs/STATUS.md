@@ -106,7 +106,7 @@ manual cleanup, verified by inspection against the fidelity report.
 | HTML adapter and renderer | done | `pnpm test`, `scripts/run-fidelity.mjs` |
 | PPTX adapter | done | `pnpm test`, `scripts/run-fidelity.mjs` |
 | XLSX adapter | done | `pnpm test`, `scripts/run-fidelity.mjs` |
-| PDF adapter, text layer | done | `pnpm test`, `scripts/run-fidelity.mjs` |
+| PDF adapter, text layer | done — extraction, line and block assembly, column order, hyphenation repair, scan detection. **Four clauses of ADR-0012 are unbuilt**: furniture routing, ligature repair, figure/caption binding, and table recovery. Enumerated in the ADR rather than implied by a missing test | `pnpm test` (`packages/adapters-pdf/test/pdf.test.ts`), ADR-0012 |
 | Deterministic structure inference | done — headings, lists, blockquotes | `pnpm test`, `scripts/run-fidelity.mjs` |
 | PDF renderer | **not done** — needs Typst WASM (ADR-0003) | not verified — unbuilt, needs Typst WASM (ADR-0003) |
 | Visual regression suite | **not done** | not verified — unbuilt, no snapshots exist |
@@ -257,7 +257,8 @@ needed a model would not be the default path.
 | `targets/` registry — 12 profiles, all schema-validated | done | `scripts/check-agentify.mjs` check 10 |
 | Rule-based classification (§10.2) | done — 10/10 in-distribution, but **1 of 5 on a holdout it was not tuned against** | `scripts/check-agentify.mjs` |
 | Deterministic extraction (§10.3) | done — recall **94.7%**, precision **75.0%** against the authored key | `scripts/check-agentify.mjs` |
-| Dedup by text, then embedding shortlist + model adjudication (§10.4) | done and measured live — **0 of 2 authored pairs merged, 0 false merges on 4 hard negatives**. The design as specified was refuted (ADR-0020); one authored pair is unmergeable by design (OPEN_QUESTIONS §7q) | `scripts/check-agentify.mjs` |
+| Dedup by text (§10.4, deterministic half) | done — exact-text collapse and the `entityKey` entity block, no model involved | `scripts/check-agentify.mjs` check 8 |
+| Dedup by embedding shortlist + model adjudication (§10.4, adjudicated half) | **deferred — disabled by default at 0.1.0, behind `--dedup-adjudicate`.** On every fixture that exists, **the LLM dedup path currently changes nothing**: `--llm` and `--no-llm` produce byte-identical output, because §2.14.1's veto blocks the one merge the adjudicator proposes. Measured on `CORPUS.md` §2.17, the first uncontaminated grading set: recall **0 of 3**, and the veto took false merges from 1 to 0. Every earlier number is withdrawn — §2.16's were the adjudicator reciting worked examples out of its own prompt. Reason and scope in `docs/ROADMAP.md` | `scripts/check-agentify.mjs` check 8, `scripts/check-fixture-contamination.mjs`, docs/CORPUS.md §2.17 |
 | Conflict report (§10.4) | done — **2/2** recall, **0** false positives | `scripts/check-agentify.mjs` |
 | Budget and progressive disclosure (§10.5) | done — 31 primary / 9 secondary at a 600-token budget, nothing lost | `scripts/check-agentify.mjs` |
 | The traceability gate (§10.6) | done, **and checked for its ability to fail** | `scripts/check-agentify.mjs` |
@@ -317,6 +318,39 @@ ceiling being commented with its number rather than merely set.
 The cache is committed and the path is offline-reproducible: two `readOnly` runs with no key
 present are byte-identical, and `--llm` differs from `--no-llm` by exactly the one merged
 line. Both are CI jobs.
+
+**Corrected again, 2026-08-01: every dedup number above is withdrawn, and the replacement is
+worse.** `CORPUS.md` §2.16 — the set authored to replace §2.14's retired pairs — had all three
+of its graded cases sitting inside the adjudicator prompt that grades them. Two sentence pairs
+verbatim; the third given away by its numbers and its verdict (*"24 hours and 7 days are
+different facts"*). The rule that retired §2.14's pairs was prose applied by hand, and its own
+replacement broke it three times.
+
+`scripts/check-fixture-contamination.mjs` is that rule as a gate: verbatim containment, a
+shared six-content-word run, and the signature predicate that caught the third case. §2.17 is
+the replacement, authored afterwards and clean under all three. Measured:
+
+| Arm | §2.16 (contaminated) | §2.17 (clean) |
+| --- | --- | --- |
+| Recall | 1 of 1 | **0 of 3**, all compared and rejected |
+| False merges | 0 of 2 | **1 of 2** |
+
+The false merge is the serious half: *"A sealed document must **never** be re-issued under the
+same reference"* was merged with *"A sealed document must be re-issued under a fresh
+reference"*, reasoning *"Keeping A would drop nothing."* `check-merge-predicate.mjs`
+independently says those drop `never` and are different facts, so the predicate is right and
+the model is wrong on a case where merging deletes a prohibition. **The adjudicated path is
+therefore off by default at 0.1.0** — see the deferred row above. No prompt has been changed:
+tuning against these cases would contaminate them and destroy the only clean §10.4 evidence
+there is.
+
+**§2.17 also found the precision arm could pass vacuously.** On its first run the category
+block separated all six pairs and the arm read 3/3 on cases nothing had compared. The clean
+set has separated *compared and rejected* from *never compared* since §7q; this set did not.
+It does now. The cause is a system limitation, recorded as `OPEN_QUESTIONS` §9: one filename
+matching the `codingConventions` signal routes **every** sentence in that document to a
+different category, and §10.4 then blocks every cross-document merge involving it.
+`MF-AGENT-0012` now counts those pairs, so the cost is visible per run.
 
 **Corrected 2026-08-01:** that second claim used to be made about the *clean* set, where it
 held because of a sentence-split merge. Adjudicator prompt v2 correctly declines that merge —
@@ -526,6 +560,36 @@ site for one case and none for this one. `resolveAmbiguities` swallows the excep
 comment "the caller diagnoses the failure with its own vocabulary"; the caller did half of
 that. Now each failure carries an `MF-LLM-0001` warning, and a run where `--llm` was requested
 and *every* call failed exits 1 with `ok: false`.
+
+**Corrected 2026-08-01, third time on the same claim: `--strict` was never run against it.**
+Everything above asserts the *precondition* — `degraded: true` on the diagnostic — and stopped
+one step short of the flag that consumes it. Adding `--strict` to that run looks like closing
+the gap and closes nothing: with the endpoint unreachable, `llmTotallyFailed` exits 1 before
+the flag is read, so the run exits 1 with the flag and 1 without. **Measured, both.** The first
+attempt at this fix asserted exactly that vacuous pair and passed.
+
+The discriminating case is a **partial** failure, which is also the common one. Three of the
+fixture's four committed tie-break answers are copied into a cache, the run is `readOnly` with
+no key, and the fourth call misses: nothing is lost, and `--strict` is the only reason to fail.
+Measured: **exit 0 without the flag, exit 2 with it.** Both codes are asserted, because the
+pair is the claim. `scripts/check-surface-parity.mjs` §3.
+
+**Two more found by enumerating the degrading paths rather than reading about them.**
+`scripts/check-degradation.mjs` classifies all 30 `catch` blocks, and its one checkable
+consequence — an `emits MF-XXX-0000` annotation must name a code the file can raise — was
+**vacuous**: it searched a file that contains the annotation making the claim, so every
+annotation satisfied itself. Under it sat a wrong one, `emits MF-PDF-0004`, a code no
+`DiagnosticCode` entry defines; the real one is `MF-PDF-0002`. The search now excludes
+annotation lines and resolves codes against the table parsed out of
+`packages/ir/src/diagnostics.ts` rather than a two-entry map maintained in the gate. The old
+negative control passed throughout, because it asserted only that the regex *exposed* the code
+and never ran the presence test on it.
+
+**Two of the four degrading paths had no test at all.** `adapters-pdf/src/pages.ts` and
+`llm/src/assist.ts`'s vision recogniser were annotated and never executed. Both are forced now
+— `packages/adapters-pdf/test/pdf.test.ts` throws from the object store and asserts
+`MF-PDF-0002` with `lossy: true`; `scripts/check-surface-parity.mjs` §3b converts a scan
+against a dead endpoint and asserts the page is reported lost.
 
 **`targets/mcp-manifest.json` was wrong in three ways at once, and its own `honestyNote` was
 wrong about the profile it was attached to.** The note said the manifest named

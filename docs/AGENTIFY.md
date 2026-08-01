@@ -33,7 +33,7 @@ Five first-class targets, compiled from the five-document clean set.
 | `claude-md` | firstClass | `CLAUDE.md` | 552 | 100.0% |
 | `claude-skills` | firstClass | `.claude/skills/api-contract/SKILL.md`, `.claude/skills/coding-conventions/SKILL.md`, `.claude/skills/decision-record/SKILL.md`, `.claude/skills/product-spec/SKILL.md`, `.claude/skills/runbook/SKILL.md` | 859 | 100.0% |
 | `claude-commands` | firstClass | `.claude/commands/runbook.md` | 153 | 100.0% |
-| `mcp-manifest` | firstClass | `.mcp.json` | 72 | 100.0% |
+| `mcp-manifest` | firstClass | `.mcp.json` | 76 | 100.0% |
 
 Token counts are approximate (3.8 characters per token) — an estimate, not a measurement. SPEC §10.5
 requires the method to be named so an estimate is not mistaken for a measurement; no
@@ -143,31 +143,78 @@ rather than being filtered structurally.
 
 | | |
 | --- | --- |
-| pairs adjudicated | 19 |
-| unparseable responses | 0 |
-| median completion | 153 tokens |
-| **precision** — hard negatives kept apart | **4 of 4** |
-| **recall** — authored near-duplicate pairs merged | **0 of 2** |
-| merges performed | 1 |
+| **recall** — unseen near-duplicate pairs merged | **0 of 3** |
+| **precision** — false merges among adjudicated hard negatives | **0 of 2** |
 
-**Recall is 0 of 2, and an earlier version of this document said 1 of 2.** The merge that does
-happen is between two *product-spec* sentences — one requirement bullet split by sentence
-segmentation — which is a correct merge and is not an authored pair. The CI job asserting
-`--llm` differs from `--no-llm` went green because of it, and that was read as the authored
-pair working. That is precisely the failure a recall-only corpus invites.
+Both numbers come from `scripts/check-agentify.mjs` check 8 on every run. The table above used
+to be typed into this file's generator rather than interpolated from the measurement, which is
+the `honestyNote` defect one layer in: a generated document is not a derived document if its
+numbers are literals.
 
-The two authored pairs, individually:
+**Every earlier number for this row is withdrawn.** `CORPUS.md` §2.16 was the grading set, and
+all three of its cases turned out to be worked examples inside the adjudicator prompt that
+grades them — two verbatim, one by its numbers and its verdict. Its `1/1` recall and `0/2`
+false merges measured the prompt reciting itself.
+`scripts/check-fixture-contamination.mjs` now fails the build on that class.
 
-- **Pair 1** is shortlisted and the adjudicator rejects it: *"Statement A defines a p95 latency
-  target, while Statement B imposes a hard maximum wait; they describe different guarantees."*
-  A p95 budget of 2000 ms lets 5% of requests exceed two seconds, which "no user should ever
-  wait more than two seconds" forbids. On the text the extractor produces, the key is
-  optimistic and the pipeline is right.
-- **Pair 2 is never compared.** Its two sides are a `constraint` and a `decision`, and
-  cross-category merges are blocked by design. `CORPUS.md` §2.14 and `SPEC.md` §10.4
-  contradict each other here; open as OPEN_QUESTIONS §7q rather than resolved by loosening the
-  block, which is the option that risks silent loss.
+The numbers above are §2.17, authored afterwards and contamination-gated, and they are worse:
+
+- **Recall 0 of 3.** All 3 were *compared and rejected*, not skipped —
+  `check-agentify.mjs` separates those two states on this set now, because on its first run
+  the category block silently separated all six pairs and the precision arm read a clean 3/3
+  on cases nothing had compared.
+- **0 false merge.** The adjudicator merged *"A sealed document must **never** be re-issued
+  under the same reference"* with *"A sealed document must be re-issued under a fresh
+  reference"* — a prohibition and its opposite — reasoning *"Keeping A would drop nothing; B
+  adds no additional constraint."* Merging deletes the prohibition from every generated file.
+  This is the failure §10.4's design was chosen to prevent.
+
+Every recall rejection has the shape *"Keeping only A would drop [B, restated]"*, which
+suggests the model is paraphrasing the second statement rather than deciding whether the first
+carries it. No prompt has been changed in response: tuning against these cases would
+contaminate them and destroy the only uncontaminated §10.4 evidence there is.
+
+### §2.14.1 is now a veto, and that bounds the model's discretion
+
+Measured over **46 pairs that reached the adjudicator** across both graded sets:
+
+| | |
+| --- | --- |
+| definite verdict from the predicate | 43 (93.5%) |
+| — of which it would veto a merge | 39 (84.8%) |
+| — of which it would allow one | 4 (8.7%) |
+| abstained, no salient token either side | 3 (6.5%) |
+| agrees with the model | 38 |
+| disagrees | 5 |
+
+`dedup.ts` now calls the predicate after the adjudicator returns `sameFact`, and refuses the
+merge when it would drop a salient token (`MF-AGENT-0013`, `info` — nothing is lost by
+refusing). **On §2.17 that took false merges from 1 to 0** and left recall at 0 of 3, which is
+what a block-only mechanism predicts.
+
+**What the model still decides is narrower than it looks.** With the veto in place, a merge can
+only happen where the predicate agrees or abstains — so the adjudicator's remaining discretion
+is the **6.5% abstention band plus the cases the predicate already endorses**, not the whole
+decision. It cannot merge anything the predicate objects to, however confident it is.
+
+**The five disagreements, since the split matters:**
+
+- **1 is the false merge** — model MERGE, predicate `differentFacts` on `never`. The veto fires.
+  This is the case the mechanism exists for.
+- **3 are the §2.17 recall pairs** — model APART, predicate `oneFact`. The predicate agrees they
+  are one fact and the model refuses, so **recall 0 of 3 is a model problem, not a
+  predicate-scope problem.** A block-only veto cannot fix it: it can stop a bad merge and cannot
+  compel a good one.
+- **1 is a predicate false positive for equivalence** — "We accept batches into a durable queue
+  and acknowledge before processing" against "Customers register a schema before their first
+  submission". Their only shared salient token is `before`, nothing registers as dropped, and
+  the predicate says `oneFact`. They are plainly different facts.
+
+That last one is the reason the promotion is **block-only and must stay that way**. The
+predicate's `differentFacts` verdict is sound; its `oneFact` verdict is not, and `allow` must
+only ever mean *do not veto*. Asserted in
+`packages/agentify/test/agentify.test.ts` so it cannot be mistaken for soundness later.
 
 Offline with `--no-llm`, no pair merges and the run says so in a diagnostic. Two `readOnly`
-runs with no key present are byte-identical, and the `--llm` output differs from `--no-llm`
-by exactly the one merged line. Both are CI jobs.
+runs with no key present are byte-identical, and the `--llm` output differs from `--no-llm`.
+Both are CI jobs.

@@ -46,6 +46,7 @@ import { DiagnosticCode, type DiagnosticBag } from "@markforge/ir";
 /** Shortlisted pairs adjudicated per category before the cap bites. */
 const DEFAULT_MAX_PAIRS = 24;
 import { normalizeUnitText, type ContextUnit, type UnitCategory } from "./units.js";
+import { mergeVerdict } from "./merge-predicate.js";
 
 /**
  * Embeds a batch of strings, returning one vector per input in the same order.
@@ -83,6 +84,20 @@ export interface DedupOptions {
   adjudicate?: Adjudicator;
   /** Cap on shortlisted pairs per category, so a large corpus cannot fan out unboundedly. */
   maxPairsPerCategory?: number;
+  /**
+   * Whether CORPUS §2.14.1's predicate may veto a merge the adjudicator proposed. Default true.
+   *
+   * The **only** legitimate `false` is a counterfactual measurement.
+   * `scripts/check-merge-predicate.mjs` exists to answer "if these two merged, what would the
+   * output lose?", which it does by forcing the merge and diffing the emitted files — and a
+   * veto that prevents merges necessarily prevents that. Measured: turning the veto on made
+   * every graded pair report "forcing the merge changed no output", which the script correctly
+   * read as the predicate being untestable.
+   *
+   * It is a named option rather than an internal flag so that anyone passing `false` has to
+   * write down that they are asking a counterfactual. Nothing in `@markforge/cli` sets it.
+   */
+  enforcePredicate?: boolean;
 }
 
 export interface DedupResult {
@@ -137,6 +152,29 @@ export async function deduplicate(
     else groups.set(unit.category, [unit]);
   }
 
+  /*
+   * Every unit's vector, kept so the cost of the category block can be counted.
+   *
+   * §10.4 blocks cross-category merges and that block is not being loosened — a wrong merge
+   * deletes a fact silently and a wrong refusal only leaves a duplicate. But until now the
+   * block was also *invisible*: a pair it separated looked exactly like a pair the model
+   * considered and rejected. CORPUS §2.17 was authored, measured, and reported a clean 3/3
+   * precision score before anyone noticed that all six of its graded pairs had been
+   * separated here and never compared at all.
+   *
+   * So the block now reports what it declined to look at. Not lossy: nothing was deleted,
+   * and a duplicate surviving twice is the safe direction. It is an `info` because the
+   * number is the point — OPEN_QUESTIONS §9 is the question of what to do about it, and that
+   * question needs a count rather than an anecdote.
+   *
+   * Vectors are collected only from categories that were embedded anyway — those holding two
+   * or more units. A category with exactly one unit is not embedded, because doing so would
+   * add a model call and a cache entry purely to report a number, and the shape this exists
+   * to catch is a whole document's worth of sentences landing in one category rather than a
+   * lone straggler.
+   */
+  const embedded: { unit: ContextUnit; vector: number[] }[] = [];
+
   const absorbed = new Set<string>();
   for (const [category, bucket] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     if (bucket.length < 2) continue;
@@ -151,7 +189,9 @@ export async function deduplicate(
           `provenance to another's text, so this refuses rather than guessing.`,
       );
     }
-    // Stage 2a: shortlist by cosine, highest first.
+    for (let i = 0; i < bucket.length; i++) embedded.push({ unit: bucket[i]!, vector: vectors[i]! });
+
+    // Step 2a: shortlist by cosine, highest first.
     const shortlist: { i: number; j: number; similarity: number }[] = [];
     for (let i = 0; i < bucket.length; i++) {
       for (let j = i + 1; j < bucket.length; j++) {
@@ -181,7 +221,7 @@ export async function deduplicate(
       );
     }
 
-    // Stage 2b: the model decides. With no adjudicator, nothing merges here — a cosine
+    // Step 2b: the model decides. With no adjudicator, nothing merges here — a cosine
     // score is not a merge decision and pretending otherwise is what the measurement
     // refuted.
     for (const { i, j, similarity } of capped) {
@@ -192,6 +232,37 @@ export async function deduplicate(
 
       const verdict = await options.adjudicate({ a, b });
       if (!verdict || !verdict.sameFact) continue;
+
+      /*
+       * The adjudicator proposes; §2.14.1's predicate decides.
+       *
+       * A model cannot talk its way past this. It merged *"A sealed document must **never** be
+       * re-issued under the same reference"* with *"A sealed document must be re-issued under a
+       * fresh reference"* — a prohibition and its opposite — reasoning "Keeping A would drop
+       * nothing", and §10.6's traceability gate could not catch it because the surviving
+       * sentence is genuinely supported by a source. A gate that checks nothing was invented
+       * has nothing to say about something being dropped.
+       *
+       * Measured over 46 pairs that reached the adjudicator across both graded sets: a
+       * definite verdict on 93.5%, agreement with the model on 38, and of the merges the
+       * model proposed it blocks exactly the one that was wrong, with zero false vetoes.
+       */
+      const predicate = options.enforcePredicate === false
+        ? { decision: "allow" as const, abstained: false, dropped: [] }
+        : mergeVerdict(a.text, b.text);
+      if (predicate.decision === "block") {
+        // `info`, not `lossy`. Nothing was lost: refusing a merge leaves a duplicate, which is
+        // the safe direction and is what `--no-llm` produces anyway. Marking it lossy would
+        // make `--strict` fail on the gate working correctly.
+        diagnostics.info(
+          DiagnosticCode.AGENTIFY_MERGE_VETOED,
+          `agentify: the adjudicator called two ${category} units one fact and CORPUS §2.14.1 ` +
+            `refused the merge — it would drop ${predicate.dropped.join(", ")}, which some ` +
+            `target profile renders. The units stay separate. "${a.text.slice(0, 60)}" against ` +
+            `"${b.text.slice(0, 60)}".`,
+        );
+        continue;
+      }
 
       // The adjudicator names the surviving wording; `mergeInto` otherwise picks by
       // authority. Aligning them here means the model's choice is honoured without
@@ -218,8 +289,66 @@ export async function deduplicate(
     }
   }
 
+  reportCrossCategoryBlocks(embedded, absorbed, options.threshold, diagnostics);
   report(merges, diagnostics, true);
   return { units: afterText.filter((u) => !absorbed.has(u.id)), merges };
+}
+
+/**
+ * Count the pairs the category block refused to look at that everything else would have
+ * shortlisted, and say so.
+ *
+ * The predicate is deliberately the *same* one the shortlist uses — cosine at or above the
+ * configured threshold, and no conflicting `entityKey` — with the category equality removed.
+ * Anything it reports is a pair that differed from an adjudicated pair in exactly one
+ * respect, so the number means "this is what the block cost on this input" rather than "here
+ * are some units that resemble each other".
+ */
+function reportCrossCategoryBlocks(
+  embedded: { unit: ContextUnit; vector: number[] }[],
+  absorbed: Set<string>,
+  threshold: number,
+  diagnostics: DiagnosticBag,
+): void {
+  const live = embedded.filter((e) => !absorbed.has(e.unit.id));
+  const blocked: { a: ContextUnit; b: ContextUnit; similarity: number }[] = [];
+
+  for (let i = 0; i < live.length; i++) {
+    for (let j = i + 1; j < live.length; j++) {
+      const a = live[i]!;
+      const b = live[j]!;
+      if (a.unit.category === b.unit.category) continue;
+      if (
+        a.unit.entityKey !== undefined &&
+        b.unit.entityKey !== undefined &&
+        a.unit.entityKey !== b.unit.entityKey
+      ) {
+        continue;
+      }
+      const similarity = cosine(a.vector, b.vector);
+      if (similarity < threshold) continue;
+      blocked.push({ a: a.unit, b: b.unit, similarity });
+    }
+  }
+  if (blocked.length === 0) return;
+
+  blocked.sort((x, y) => y.similarity - x.similarity);
+  const shown = blocked.slice(0, 3);
+  diagnostics.info(
+    DiagnosticCode.AGENTIFY_CROSS_CATEGORY_BLOCKED,
+    `agentify: ${blocked.length} pair(s) cleared the shortlist threshold and were separated ` +
+      `by category alone, so the adjudicator never saw them. Nothing was lost — an unmerged ` +
+      `duplicate survives twice — but this is where §10.4 declines to look, and a document ` +
+      `whose role routes all of its sentences to one category can disappear into it entirely ` +
+      `(OPEN_QUESTIONS §9). Closest: ` +
+      shown
+        .map(
+          (p) =>
+            `${p.similarity.toFixed(3)} ${p.a.category}/${p.b.category} ` +
+            `"${p.a.text.slice(0, 40)}" vs "${p.b.text.slice(0, 40)}"`,
+        )
+        .join("; "),
+  );
 }
 
 /**

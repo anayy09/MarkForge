@@ -29,6 +29,8 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `check-target-docs.mjs` | none | `docs/TARGETS.md`'s tables are generated from `targets/*.json`, and each `honestyNote` is validated against the profile it describes |
 | `check-degradation.mjs` | none | Every `catch` block in every package declares what it does with the failure. An unannotated one fails |
 | `check-merge-predicate.mjs` | built packages | CORPUS §2.14.1's merge predicate, applied to every pair a corpus key makes a claim about |
+| `check-test-collection.mjs` | none | Every test file is reachable by the runner's include pattern, none reads the filesystem at module scope, and every conditional skip is declared with its reason |
+| `check-fixture-contamination.mjs` | none | No graded fixture sentence appears in a prompt that grades it — verbatim, by shared six-word run, or by its distinctive tokens |
 | `check-surface-parity.mjs` | `esbuild`, built packages | **The surface-parity gate.** Every corpus fixture through the CLI, the HTTP API, the MCP server, and the browser build, compared byte for byte, with `MODEL_API_KEY` unset |
 | `lib/browser-bundle.mjs` | `esbuild` | Not a check — the shared browser build and its web-platform-only sandbox, so the two gates above are talking about the same artifact |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |

@@ -19,6 +19,21 @@
  * distinguishable from noise.* Until then the rules stand and report `unknown` when they have
  * no opinion, which is at least honest.
  *
+ * **The 10/10 is withdrawn, 2026-08-01, and the hold is narrower than it was.** Half of the
+ * argument for holding this task was that the rules were already good enough. That half is
+ * gone: the 10/10 is the same defect class as `CORPUS.md` §2.16 — rules scored on documents
+ * whose filenames were written alongside the rules. `CORPUS.md` §2.17 showed what it could
+ * not catch: one filename, `custody-handbook.md`, matched a `handbook` regex, routed **every
+ * paragraph in that document** to a different unit category, and silently blocked all six
+ * graded merge pairs (`OPEN_QUESTIONS` §9). No in-distribution score could have surfaced
+ * that, because the filenames were chosen by the same hand as the regexes.
+ *
+ * **The hold now rests only on the absence of an independent grading key**, not on the rules
+ * being adequate — they are measurably not. That is a weaker reason to hold and it is still
+ * sufficient: shipping an ungraded model classifier in place of measurably-weak rules trades
+ * a known bad number for an unknown one. Do not read this paragraph as a reason to build the
+ * task; read it as the reason the hold must not be cited as confidence in the rules.
+ *
  * **`context-unit-extraction`.** The blocker is the key, not the prompt. `expected-units.json`
  * was authored by the same person who wrote the extractor; grading a *second* extractor
  * against it measures agreement with the first one's idea of a unit. *Condition: a unit key

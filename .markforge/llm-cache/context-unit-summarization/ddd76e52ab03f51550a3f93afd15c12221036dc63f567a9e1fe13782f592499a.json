@@ -1,0 +1,26 @@
+{
+  "key": "ddd76e52ab03f51550a3f93afd15c12221036dc63f567a9e1fe13782f592499a",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "650911aca851bb965e56c80101b7658e64f082b9b320b4a6cc3977762c462472",
+  "inputPreview": "Recipients must lose the right to act once 30 days have elapsed since dispatch. || A withdrawal of consent must be honoured inside 3 hours of receipt by the registrar.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the requirement that a withdrawal of consent be honoured within 3 hours of receipt by the registrar.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 617,
+      "completionTokens": 323,
+      "totalTokens": 940
+    }
+  }
+}

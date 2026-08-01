@@ -37,6 +37,34 @@ Two CI-enforced rules, because they encode architecture rather than style:
 2. The full test suite runs twice, once with network access blocked, to enforce brief §3.1's
    offline `--no-llm` guarantee.
 
+### What of this table is true, 2026-08-01
+
+Found by making `scripts/check-adr-enforcement.mjs` test whether a named check is *about* the
+ADR it is bound to, rather than only that the filename resolves. Four of the twelve rows name
+tools that are **not installed anywhere in this repository**, and one of the two CI-enforced
+rules does not exist. Enumerated rather than quietly corrected, because a decision record that
+lists a toolchain nobody can find is worse than one that admits a gap.
+
+| Row | State |
+| --- | --- |
+| pnpm workspaces | true — `pnpm-workspace.yaml`, `packageManager` pinned |
+| TypeScript strict + project references | true — `tsconfig.base.json`, `tsc -b` |
+| **Build: `tsdown`** | **false.** Not a dependency of the root or of any package. The build is `tsc -b`, and the browser bundle is `esbuild` (ADR-0015). `tsdown` was chosen for ESM+CJS+dts output "because packages ship to npm" — nothing ships to npm, so the requirement that selected it never arrived |
+| Test: `vitest` | true |
+| Property tests: `fast-check` | true — a root devDependency, seeds pinned in four property files |
+| Schema validation: `ajv` | true — root plus three packages |
+| Config validation: `zod` | true — `@markforge/core` |
+| Type generation: `json-schema-to-typescript` | true |
+| **Releases: `@changesets/cli`** | **false.** Not installed. Owed by the release gate (`docs/decisions/PUBLISHING.md`) |
+| CLI parsing: `commander` | true — `@markforge/cli` |
+| **Lint/format: ESLint + Prettier** | **false.** Neither is installed and neither has a configuration file. Source formatting is unenforced; `scripts/check-markdown-lint.mjs` governs *rendered Markdown* only, which is a different thing (ADR-0006) |
+| CI: GitHub Actions | true |
+| **Rule 2 — the suite runs twice, once with the network blocked** | **false.** CI unsets `MODEL_API_KEY` on the jobs that touch the LLM path, which makes a network attempt *fail* rather than making it *impossible*, and it is per-job rather than over the full suite. The guarantee brief §3.1 asks for is stronger than what is built |
+
+Rule 1 is real and is the clause this ADR is bound to: `scripts/check-docs.mjs` §14b and
+§14b-ii assert it on every run, over manifests and over source imports, because a manifest
+check alone would miss a stray deep import.
+
 ## Rejected alternatives
 
 **Nx or Turborepo.** Better caching and task orchestration at scale. Rejected for now: ~17

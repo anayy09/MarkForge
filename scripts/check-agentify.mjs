@@ -192,6 +192,10 @@ console.log("\n3. Editing one sentence produces a minimal diff (acceptance crite
       } else inRegion = false;
     }
     if (regions === 1 && changed === 1) {
+      // Enforces **ADR-0018**: unit ordering is diff-stable, so a one-word edit moves one
+      // row rather than three. SPEC §10.8's original `(sectionOrder, categoryOrder, id)`
+      // ordering contradicted its own goal because `id` is content-addressed; this is the
+      // amended order measured.
       ok(`one source edit changed ${changed} line in ${regions} region`);
     } else {
       fail(`one source edit changed ${changed} line(s) across ${regions} region(s); expected 1 and 1`);
@@ -370,6 +374,9 @@ console.log("\n8. Deduplication precision, from the committed cache (offline)");
     fail("the clean key authors no mustNotMerge pairs, so §10.4 is graded for recall only");
   }
 
+  // Enforces **ADR-0016**: a key is required unless the cache is `readOnly`, and `readOnly`
+  // means this run must not touch the network — a miss is a hard `CacheMissError`, never a
+  // quiet downgrade. Running this gate with no key present is that decision under test.
   // readOnly, no key: the recorded answers or nothing. A miss is a hard error rather than a
   // silent downgrade to the deterministic path, which is what makes this a real check.
   //
@@ -401,7 +408,7 @@ console.log("\n8. Deduplication precision, from the committed cache (offline)");
   // "0 of 2 merged" cannot distinguish *never compared* from *compared and rejected*, and
   // those are completely different states: one is a pipeline that never reached the
   // question, the other is a disagreement about meaning. That ambiguity is what let
-  // OPEN_QUESTIONS §7q stay unresolved for a phase — the number looked the same either way.
+  // OPEN_QUESTIONS §7q stay open as long as it did — the number looked the same either way.
   const adjudicated = [];
   const assist = {
     embed: (texts) => session.embed(texts),
@@ -508,32 +515,259 @@ console.log("\n8. Deduplication precision, from the committed cache (offline)");
         for (const side of ["a", "b"]) {
           if (!present(pair[side].text)) {
             fail(
-              `§2.16 grades nothing for "${pair[side].text.slice(0, 44)}" — it was never extracted ` +
+              `§2.17 grades nothing for "${pair[side].text.slice(0, 44)}" — it was never extracted ` +
                 `as a unit, so the pair cannot merge and cannot fail to merge`,
             );
           }
         }
       }
 
-      for (const pair of dedupKey.nearDuplicates ?? []) {
-        if (dedupTogether(pair.a.text, pair.b.text)) {
-          ok(`§2.16 recall: merged "${pair.a.text.slice(0, 40)}"`);
-        } else {
+      /*
+       * Was the pair actually put to the adjudicator?
+       *
+       * The clean set has had this separation since §7q, and this set did not — so its
+       * precision arm reported "kept apart" for pairs the pipeline never compared. Measured:
+       * on the first run of §2.17, `extractRoleImpliedUnits` had assigned every sentence in
+       * one of the two documents to `convention` because its filename said "handbook", the
+       * category block then separated all six graded pairs, and the arm read 3/3 clean. A
+       * negative that was never compared is the same defect as a sentence that was never
+       * extracted, one stage later.
+       */
+      const wasAsked = (x, y) => {
+        const nx = norm(x);
+        const ny = norm(y);
+        return adjudicated.some(
+          (p) => (contains1(p.a, nx) && contains1(p.b, ny)) || (contains1(p.a, ny) && contains1(p.b, nx)),
+        );
+      };
+
+      /*
+       * §2.17's claims about itself, checked here rather than typed into CORPUS.md.
+       *
+       * `build-agentify-corpus.mjs` asserts the same two properties for the clean set, and
+       * this set is hand-authored rather than generated, so it fell outside that gate — its
+       * Jaccard figures reached `docs/CORPUS.md` §2.17 as numbers somebody measured once. That
+       * is the defect this whole audit is about, committed while fixing it.
+       */
+      const JACCARD_MAX = 0.2;
+      const STOPWORDS = new Set(
+        ("the and for that with must from have has are was were will not any all each every " +
+          "once its their them they this those than then there these which while who whom why " +
+          "been being both such under until upon within without").split(" "),
+      );
+      const cw = (t) =>
+        new Set(
+          t.toLowerCase().replace(/[^a-z0-9_ ]+/g, " ").split(/\s+/)
+            .filter((w) => w.length > 2 && !STOPWORDS.has(w)),
+        );
+      const jaccard = (a, b) => {
+        const A = cw(a);
+        const B = cw(b);
+        const inter = [...A].filter((x) => B.has(x)).length;
+        return inter / (A.size + B.size - inter);
+      };
+      for (const [i, pair] of (dedupKey.nearDuplicates ?? []).entries()) {
+        const j = jaccard(pair.a.text, pair.b.text);
+        if (j >= JACCARD_MAX) {
           fail(
-            `§2.16 recall: "${pair.a.text.slice(0, 34)}" / "${pair.b.text.slice(0, 34)}" did NOT merge, ` +
-              `and §2.14.1 says they are one fact (merging drops nothing renderable)`,
+            `§2.17 recall pair ${i} scores Jaccard ${j.toFixed(3)} — a plain text threshold would ` +
+              `already merge it, so it proves nothing about needing embeddings (OPEN_QUESTIONS §7c)`,
           );
         }
       }
-      for (const pair of dedupKey.mustNotMerge ?? []) {
+      const negs = dedupKey.mustNotMerge ?? [];
+      const viaAdjudicator = negs.filter((p) => (p.blockedBy ?? "adjudicator") === "adjudicator").length;
+      if (negs.length > 0 && viaAdjudicator * 2 < negs.length) {
+        fail(
+          `§2.17: only ${viaAdjudicator} of ${negs.length} hard negatives reach the adjudicator, so the ` +
+            `precision arm measures structural blocking rather than the merge decision`,
+        );
+      } else if (negs.length > 0) {
+        ok(
+          `§2.17 is hard by its own measure: recall pairs at Jaccard ` +
+            `${(dedupKey.nearDuplicates ?? []).map((p) => jaccard(p.a.text, p.b.text).toFixed(3)).join(", ")}, ` +
+            `${viaAdjudicator} of ${negs.length} negatives reaching the adjudicator`,
+        );
+      }
+
+      const measured = { recallMerged: 0, recallTotal: 0, falseMerges: 0, negativesCompared: 0, vetoed: 0 };
+
+      for (const pair of dedupKey.nearDuplicates ?? []) {
+        measured.recallTotal += 1;
+        const asked = wasAsked(pair.a.text, pair.b.text);
         if (dedupTogether(pair.a.text, pair.b.text)) {
-          fail(`§2.16 FALSE MERGE: "${pair.a.text.slice(0, 34)}" with "${pair.b.text.slice(0, 34)}"`);
+          measured.recallMerged += 1;
+          ok(`§2.17 recall: merged "${pair.a.text.slice(0, 40)}"`);
+        } else if (!asked) {
+          fail(
+            `§2.17 recall: "${pair.a.text.slice(0, 34)}" / "${pair.b.text.slice(0, 34)}" was NEVER ` +
+              `COMPARED — the shortlist or the category block stopped it, so this measures ` +
+              `neither the model nor the predicate`,
+          );
         } else {
-          ok(`§2.16 kept apart: ${pair.a.text.slice(0, 34)} / ${pair.b.text.slice(0, 34)}`);
+          console.log(
+            `  miss  §2.17 recall: COMPARED and rejected — "${pair.a.text.slice(0, 34)}" / ` +
+              `"${pair.b.text.slice(0, 34)}"`,
+          );
         }
       }
+
+      for (const pair of dedupKey.mustNotMerge ?? []) {
+        const structural = (pair.blockedBy ?? "adjudicator") !== "adjudicator";
+        const asked = wasAsked(pair.a.text, pair.b.text);
+        if (dedupTogether(pair.a.text, pair.b.text)) {
+          measured.falseMerges += 1;
+          console.log(
+            `  miss  §2.17 FALSE MERGE: "${pair.a.text.slice(0, 34)}" with "${pair.b.text.slice(0, 34)}"`,
+          );
+        } else if (structural) {
+          // Declared as separated by the entity block, so it must NOT have been asked —
+          // if it was, the block did not fire and the key is describing something else.
+          if (asked) {
+            fail(
+              `§2.17: "${pair.a.text.slice(0, 30)}" is keyed \`blockedBy: ${pair.blockedBy}\` but ` +
+                `reached the adjudicator, so the structural block it documents did not fire`,
+            );
+          } else {
+            ok(`§2.17 kept apart by the ${pair.blockedBy} block, before any prompt: ${pair.a.text.slice(0, 28)}`);
+          }
+        } else if (!asked) {
+          fail(
+            `§2.17: "${pair.a.text.slice(0, 30)}" / "${pair.b.text.slice(0, 30)}" is keyed as an ` +
+              `adjudicator case and was NEVER COMPARED, so "kept apart" measures its own absence`,
+          );
+        } else {
+          measured.negativesCompared += 1;
+          /*
+           * "Kept apart" is three different outcomes and they are not interchangeable. The
+           * model may have rejected the pair; or the model may have proposed the merge and
+           * CORPUS §2.14.1's predicate vetoed it (MF-AGENT-0013); or it never got that far.
+           * Reporting the middle case as "the model rejected it" would hide that the model
+           * still wants a merge that deletes a prohibition — which is the whole reason the
+           * veto exists, and exactly the conflation that let a vacuous 3/3 stand.
+           */
+          // `compile` returns `diagnostics` already flattened by `.all()`, so it is an array.
+          const vetoed = (dedupRun.diagnostics ?? []).some(
+            (d) => d.code === "MF-AGENT-0013" && d.message.includes(pair.a.text.slice(0, 40)),
+          );
+          if (vetoed) {
+            measured.vetoed += 1;
+            ok(`§2.17 VETOED by §2.14.1 after the model proposed the merge: ${pair.a.text.slice(0, 30)}`);
+          } else {
+            ok(`§2.17 kept apart, the model rejected it: ${pair.a.text.slice(0, 30)}`);
+          }
+        }
+      }
+
+      /*
+       * Gated on regression, not on value — the same rule the role-classification holdout
+       * uses, and for the same reason. Recall 0/3 and one false merge are the finding; a
+       * gate set at "recall must be 3/3" would fail every run and a gate asserting today's
+       * numbers are *acceptable* would bless a false merge. What must not happen silently is
+       * the numbers getting worse.
+       */
+      // Tightened from 1 to 0 when §2.14.1 became a veto in `dedup.ts` rather than only a
+      // grading instrument. A false merge here now means the veto stopped firing, which is a
+      // different and worse failure than the model being wrong — the model is *expected* to
+      // be wrong about this pair and is, on every run.
+      const BASELINE = { recallMerged: 0, maxFalseMerges: 0 };
+      if (measured.recallMerged < BASELINE.recallMerged) {
+        fail(`§2.17 recall regressed: ${measured.recallMerged}/${measured.recallTotal}, baseline ${BASELINE.recallMerged}`);
+      }
+      if (measured.falseMerges > BASELINE.maxFalseMerges) {
+        fail(`§2.17 false merges rose to ${measured.falseMerges}, baseline ${BASELINE.maxFalseMerges}`);
+      }
+      console.log(
+        `  info  §2.17 on unseen pairs: recall ${measured.recallMerged}/${measured.recallTotal}, ` +
+          `${measured.falseMerges} false merge(s) and ${measured.vetoed} predicate veto(es) across `+
+          `${measured.negativesCompared} adjudicated negative(s). ` +
+          `Both are defects (docs/CORPUS.md §2.17), gated against regression rather than blessed.`,
+      );
+      notes.push({ dedup217: measured });
+
+      /*
+       * ---------------------------------------------------- the committed `--llm` diff
+       *
+       * What `--llm` changes about the output, asserted against a committed file rather than
+       * printed for somebody to read.
+       *
+       * Three CI jobs in a row asserted "`--llm` differs from `--no-llm`" and went green on a
+       * merge nobody had inspected: first a sentence-split merge read as an authored pair
+       * working, then the job pointed at the wrong fixture set, then a **false merge** that
+       * deleted "A sealed document must never be re-issued under the same reference". Printing
+       * the diff and narrowing the claim did not fix that, because nobody reads printed output
+       * either.
+       *
+       * So the diff is data. It is currently **empty**: §2.14.1's veto blocks the one merge the
+       * adjudicator proposes, so the assisted and deterministic outputs are byte-identical. That
+       * is the correct behaviour and it is also the sharpest available statement of why the
+       * adjudicated stage ships disabled — with the veto on, it is a no-op on every fixture
+       * there is. If it ever stops being a no-op, this fails and somebody has to look.
+       */
+      const deterministic = await agentify.compile(await readSet(dedupDir), {
+        registry, targets: ["claude-md"],
+      });
+      const fileOf = (r) => r.results[0]?.files?.find((f) => f.path === "CLAUDE.md")?.content ?? "";
+      const assistedText = fileOf(dedupRun);
+      const plainText = fileOf(deterministic);
+      const diffLines = [];
+      {
+        const A = plainText.split("\n");
+        const B = assistedText.split("\n");
+        const inB = new Set(B);
+        const inA = new Set(A);
+        for (const line of A) if (!inB.has(line) && line.trim()) diffLines.push(`-${line}`);
+        for (const line of B) if (!inA.has(line) && line.trim()) diffLines.push(`+${line}`);
+      }
+      /*
+       * Liveness, asserted **here** rather than only in CI, because an empty expected diff has
+       * two causes and only one of them is correct.
+       *
+       * The diff is empty because the veto blocks the merge. It would be equally empty if the
+       * assisted path silently stopped running at all — no adjudication, no merge, no
+       * difference — and the diff assertion cannot tell those apart. The CI job checks
+       * `llm.calls > 0` on the CLI, which is the same property, but a check in another file is
+       * a check that can be deleted separately: `pnpm verify` does not run the workflow, and
+       * STATUS.md records one stale assertion surviving in exactly that gap.
+       */
+      if (adjudicated.length === 0) {
+        fail(
+          "the assisted dedup run adjudicated 0 pairs, so the empty --llm diff below proves " +
+            "nothing — an inert model path and a working veto produce the same empty diff",
+        );
+      } else {
+        ok(`the assisted path is live: ${adjudicated.length} pair(s) adjudicated from the committed cache`);
+      }
+
+      const DIFF_FILE = join(REPO, "fixtures/expected/agentify-llm-diff.txt");
+      const header =
+        "# What `--llm` changes about fixtures/agentify/dedup -> claude-md, one line per change.\n" +
+        "#\n" +
+        "# Regenerate with `node scripts/check-agentify.mjs --update`. Asserted on every run by\n" +
+        "# check 8, because three CI jobs in a row asserted only that a difference *existed* and\n" +
+        "# went green on a merge nobody had inspected — the last of which deleted a prohibition.\n" +
+        "#\n" +
+        "# Empty is the expected state: CORPUS §2.14.1's veto blocks the one merge the adjudicator\n" +
+        "# proposes, so the assisted and deterministic outputs are byte-identical. That is also why\n" +
+        "# the adjudicated stage ships disabled — with the veto on it is a no-op (docs/ROADMAP.md).\n";
+      const body = header + diffLines.join("\n") + (diffLines.length ? "\n" : "");
+      if (UPDATE) {
+        writeFileSync(DIFF_FILE, body);
+        ok(`committed the --llm diff: ${diffLines.length} line(s)`);
+      } else if (!existsSync(DIFF_FILE)) {
+        fail("fixtures/expected/agentify-llm-diff.txt is absent, so what --llm changes is unasserted");
+      } else if (readFileSync(DIFF_FILE, "utf8") !== body) {
+        fail(
+          `what --llm changes about the output has drifted from ` +
+            `fixtures/expected/agentify-llm-diff.txt (${diffLines.length} line(s) now). Run ` +
+            `\`node scripts/check-agentify.mjs --update\`, read the diff, and commit it only if ` +
+            `the change is one you meant.`,
+        );
+      } else {
+        ok(`what --llm changes matches its committed diff (${diffLines.length} line(s))`);
+      }
     } else {
-      fail("fixtures/agentify/dedup/ is absent, so §10.4 has no live grading set (CORPUS §2.16)");
+      fail("fixtures/agentify/dedup/ is absent, so §10.4 has no live grading set (CORPUS §2.17)");
     }
 
     console.log(`  info  clean-set merges performed: ${run.merges.length} — ${run.merges.map((m) => m.text.slice(0, 46)).join(" | ") || "(none)"}`);
@@ -692,6 +926,11 @@ function writeDoc(current, run) {
 
   const diff = current.notes.find((n) => n.diffRegions !== undefined) ?? {};
   const conflict = current.notes.find((n) => n.conflictRecall !== undefined) ?? {};
+  // §2.17's measurement, interpolated rather than typed. The rows below used to be literals
+  // in this template, so the document was generated and its numbers were still hand-written.
+  const d217 = (current.notes.find((n) => n.dedup217 !== undefined) ?? {}).dedup217 ?? {
+    recallMerged: 0, recallTotal: 0, falseMerges: 0, negativesCompared: 0,
+  };
 
   const body = `# Agentify — measured
 
@@ -827,34 +1066,81 @@ rather than being filtered structurally.
 
 | | |
 | --- | --- |
-| pairs adjudicated | 19 |
-| unparseable responses | 0 |
-| median completion | 153 tokens |
-| **precision** — hard negatives kept apart | **4 of 4** |
-| **recall** — authored near-duplicate pairs merged | **0 of 2** |
-| merges performed | 1 |
+| **recall** — unseen near-duplicate pairs merged | **${d217.recallMerged} of ${d217.recallTotal}** |
+| **precision** — false merges among adjudicated hard negatives | **${d217.falseMerges} of ${d217.negativesCompared + d217.falseMerges}** |
 
-**Recall is 0 of 2, and an earlier version of this document said 1 of 2.** The merge that does
-happen is between two *product-spec* sentences — one requirement bullet split by sentence
-segmentation — which is a correct merge and is not an authored pair. The CI job asserting
-\`--llm\` differs from \`--no-llm\` went green because of it, and that was read as the authored
-pair working. That is precisely the failure a recall-only corpus invites.
+Both numbers come from \`scripts/check-agentify.mjs\` check 8 on every run. The table above used
+to be typed into this file's generator rather than interpolated from the measurement, which is
+the \`honestyNote\` defect one layer in: a generated document is not a derived document if its
+numbers are literals.
 
-The two authored pairs, individually:
+**Every earlier number for this row is withdrawn.** \`CORPUS.md\` §2.16 was the grading set, and
+all three of its cases turned out to be worked examples inside the adjudicator prompt that
+grades them — two verbatim, one by its numbers and its verdict. Its \`1/1\` recall and \`0/2\`
+false merges measured the prompt reciting itself.
+\`scripts/check-fixture-contamination.mjs\` now fails the build on that class.
 
-- **Pair 1** is shortlisted and the adjudicator rejects it: *"Statement A defines a p95 latency
-  target, while Statement B imposes a hard maximum wait; they describe different guarantees."*
-  A p95 budget of 2000 ms lets 5% of requests exceed two seconds, which "no user should ever
-  wait more than two seconds" forbids. On the text the extractor produces, the key is
-  optimistic and the pipeline is right.
-- **Pair 2 is never compared.** Its two sides are a \`constraint\` and a \`decision\`, and
-  cross-category merges are blocked by design. \`CORPUS.md\` §2.14 and \`SPEC.md\` §10.4
-  contradict each other here; open as OPEN_QUESTIONS §7q rather than resolved by loosening the
-  block, which is the option that risks silent loss.
+The numbers above are §2.17, authored afterwards and contamination-gated, and they are worse:
+
+- **Recall ${d217.recallMerged} of ${d217.recallTotal}.** All ${d217.recallTotal} were *compared and rejected*, not skipped —
+  \`check-agentify.mjs\` separates those two states on this set now, because on its first run
+  the category block silently separated all six pairs and the precision arm read a clean 3/3
+  on cases nothing had compared.
+- **${d217.falseMerges} false merge.** The adjudicator merged *"A sealed document must **never** be re-issued
+  under the same reference"* with *"A sealed document must be re-issued under a fresh
+  reference"* — a prohibition and its opposite — reasoning *"Keeping A would drop nothing; B
+  adds no additional constraint."* Merging deletes the prohibition from every generated file.
+  This is the failure §10.4's design was chosen to prevent.
+
+Every recall rejection has the shape *"Keeping only A would drop [B, restated]"*, which
+suggests the model is paraphrasing the second statement rather than deciding whether the first
+carries it. No prompt has been changed in response: tuning against these cases would
+contaminate them and destroy the only uncontaminated §10.4 evidence there is.
+
+### §2.14.1 is now a veto, and that bounds the model's discretion
+
+Measured over **46 pairs that reached the adjudicator** across both graded sets:
+
+| | |
+| --- | --- |
+| definite verdict from the predicate | 43 (93.5%) |
+| — of which it would veto a merge | 39 (84.8%) |
+| — of which it would allow one | 4 (8.7%) |
+| abstained, no salient token either side | 3 (6.5%) |
+| agrees with the model | 38 |
+| disagrees | 5 |
+
+\`dedup.ts\` now calls the predicate after the adjudicator returns \`sameFact\`, and refuses the
+merge when it would drop a salient token (\`MF-AGENT-0013\`, \`info\` — nothing is lost by
+refusing). **On §2.17 that took false merges from 1 to 0** and left recall at 0 of 3, which is
+what a block-only mechanism predicts.
+
+**What the model still decides is narrower than it looks.** With the veto in place, a merge can
+only happen where the predicate agrees or abstains — so the adjudicator's remaining discretion
+is the **6.5% abstention band plus the cases the predicate already endorses**, not the whole
+decision. It cannot merge anything the predicate objects to, however confident it is.
+
+**The five disagreements, since the split matters:**
+
+- **1 is the false merge** — model MERGE, predicate \`differentFacts\` on \`never\`. The veto fires.
+  This is the case the mechanism exists for.
+- **3 are the §2.17 recall pairs** — model APART, predicate \`oneFact\`. The predicate agrees they
+  are one fact and the model refuses, so **recall 0 of 3 is a model problem, not a
+  predicate-scope problem.** A block-only veto cannot fix it: it can stop a bad merge and cannot
+  compel a good one.
+- **1 is a predicate false positive for equivalence** — "We accept batches into a durable queue
+  and acknowledge before processing" against "Customers register a schema before their first
+  submission". Their only shared salient token is \`before\`, nothing registers as dropped, and
+  the predicate says \`oneFact\`. They are plainly different facts.
+
+That last one is the reason the promotion is **block-only and must stay that way**. The
+predicate's \`differentFacts\` verdict is sound; its \`oneFact\` verdict is not, and \`allow\` must
+only ever mean *do not veto*. Asserted in
+\`packages/agentify/test/agentify.test.ts\` so it cannot be mistaken for soundness later.
 
 Offline with \`--no-llm\`, no pair merges and the run says so in a diagnostic. Two \`readOnly\`
-runs with no key present are byte-identical, and the \`--llm\` output differs from \`--no-llm\`
-by exactly the one merged line. Both are CI jobs.
+runs with no key present are byte-identical, and the \`--llm\` output differs from \`--no-llm\`.
+Both are CI jobs.
 `;
   writeFileSync(DOC, body);
 }

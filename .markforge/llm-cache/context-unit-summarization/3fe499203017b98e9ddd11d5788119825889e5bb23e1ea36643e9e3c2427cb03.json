@@ -1,0 +1,26 @@
+{
+  "key": "3fe499203017b98e9ddd11d5788119825889e5bb23e1ea36643e9e3c2427cb03",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "12417506116a153033c584e9c9640d34eb454e5f29b591f5fe60c2e9eb1df214",
+  "inputPreview": "A signing request must lapse 30 days from issue. || The audit trail for a sealed document must be preserved for 90 days.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the requirement that the audit trail for a sealed document be preserved for 90 days.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 610,
+      "completionTokens": 171,
+      "totalTokens": 781
+    }
+  }
+}

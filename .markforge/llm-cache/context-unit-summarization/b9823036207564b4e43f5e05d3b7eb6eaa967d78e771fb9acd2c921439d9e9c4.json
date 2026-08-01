@@ -1,0 +1,26 @@
+{
+  "key": "b9823036207564b4e43f5e05d3b7eb6eaa967d78e771fb9acd2c921439d9e9c4",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "0901ddb52a53168104b5f2b9e770b74a2c21187888d080dbb4dbafdb47f0045a",
+  "inputPreview": "A reminder must be dispatched 21 days ahead of expiry. || A revocation must take effect within 3 hours of the instruction.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the revocation timing constraint that a revocation must take effect within 3 hours of the instruction.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 608,
+      "completionTokens": 165,
+      "totalTokens": 773
+    }
+  }
+}

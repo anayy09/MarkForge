@@ -1,0 +1,26 @@
+{
+  "key": "fd1f50ccf66752caf0d39064704e794a0755c35058c69aa3272c39e2cfc4cbca",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "d5b61c9bfcb34339ecb50d293b91ba1260211b2d04b68c0ea31ee1d1431caa6b",
+  "inputPreview": "A withdrawal of consent must be honoured inside 3 hours of receipt by the registrar. || A reminder must be dispatched 21 days ahead of expiry.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the obligation to dispatch a reminder 21 days before expiry.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 612,
+      "completionTokens": 351,
+      "totalTokens": 963
+    }
+  }
+}

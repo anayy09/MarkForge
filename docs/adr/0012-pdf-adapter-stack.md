@@ -1,9 +1,10 @@
 # ADR-0012: PDF adapter — pdfjs-dist plus our own layout analysis
 
-- Status: Proposed
+- Status: **Accepted, amended 2026-08-01** — the three-layer decision stands; four clauses of
+  it are unbuilt and are now marked as such rather than reading as delivered
 - Date: 2026-07-29
 - Relates to: brief §5.2, §7.1; `SPEC.md` §3.3
-- Enforced by: scripts/check-degradation.mjs
+- Enforced by: packages/adapters-pdf/test/pdf.test.ts
 
 ## Context
 
@@ -37,6 +38,31 @@ enabled — a vision model. Confidence is recorded per table and low-confidence 
 diagnosed. This escalation shape is copied deliberately from marker's architecture, which does
 CPU heuristics first and falls back to its VLM only on low confidence; it is brief §3.1's
 deterministic-core principle validated by someone else's production system.
+
+### What of this is built, 2026-08-01
+
+The decision above was written as though every clause of it would land together, and four did
+not. Enumerated here rather than left to be inferred from the absence of a test, because that
+is exactly how ADR-0015 sat at `Accepted` for four phases while being wrong about all ten
+packages it named.
+
+| Clause | State | Asserted by |
+| --- | --- | --- |
+| `pdfjs-dist` extraction | built | `packages/adapters-pdf/test/pdf.test.ts` — "extracts text and validates against the schema" |
+| Line and block assembly | built | same file — `describe("line grouping")`, 6 cases |
+| Column detection and per-column reading order | built | same file — `describe("column detection")`, 5 cases, plus "reads multi-column pages column by column, not interleaved" |
+| Hyphenation repair | built | same file — `describe("hyphenation repair")`, 3 cases |
+| Missing text layer detected and routed, recorded as `info` | built | same file — "reports a scan as a scan through readPdf, with a diagnostic naming the decision" |
+| Page raster extraction, and its failure reported | built | same file — "a page whose raster cannot be fetched degrades with a diagnostic" |
+| **Header/footer detection routed to `furniture`** | **not built** — no cross-page repetition pass exists | nothing; the adapter never writes `furniture` |
+| **Ligature repair** | **not built** — hyphenation is repaired, ligatures are not | nothing |
+| **Figure and caption binding** | **not built** in the PDF adapter | nothing; `NORM_FIGURE_BOUND` is a normaliser concern and does not run on PDF geometry |
+| **Table recovery and its confidence-gated escalation** | **not built** — no ruling-line detection, no whitespace-column alignment, no vision escalation | nothing. A whitespace-aligned table is diagnosed as *possibly present* and emitted as prose |
+
+The four unbuilt clauses are not withdrawn — the design is still the one intended — but they
+are promises, not descriptions, and `docs/ROADMAP.md` carries them as such. `SPEC.md` §3.3 and
+brief §5.2 both ask for them, so removing them from this record would lose the requirement
+rather than the overstatement.
 
 **Missing text layer**: detected by absent or below-threshold glyph coverage, routed to
 `tesseract.js` (7.0.0, Apache-2.0) with per-word confidence propagated into

@@ -1,0 +1,124 @@
+{
+  "note": "Every conditional skip in the test suite, declared. Regenerate with `node scripts/check-test-collection.mjs --update`. A skip is visible in the runner's output; a file that never loads is not, and neither is countable across machines unless it is written down here. Measured: 611 tests on a development machine, 606 on a clean clone — 7 reported skipped and 5 that left the total unannounced. Measured on this machine vs a clean clone: of 17 conditional skips, 15 never skip (their fixtures are committed or the build has run), and 2 files account for all 7 reported skips plus the 5 uncollected tests.",
+  "skips": [
+    {
+      "file": "packages/adapters-docx/test/messy-corpus.test.ts",
+      "line": 54,
+      "source": "describe.skipIf(!has(\"messy-combined.docx\"))(\"every messy fixture converts\", () => {",
+      "reason": "Guards a committed CORPUS §2.3/§2.15 fixture under fixtures/docx/. Present in every clone, so this never actually skips — the guard exists so a deleted fixture fails loudly at the generator check rather than producing a silently smaller run here.",
+      "wouldRunIf": "Always runs. `scripts/build-messy-fixtures.mjs --check` fails first if the fixture is gone."
+    },
+    {
+      "file": "packages/adapters-docx/test/messy-corpus.test.ts",
+      "line": 81,
+      "source": "describe.skipIf(!has(\"messy-direct-formatting.docx\"))(\"§2.3 direct formatting instead of styles\", ()",
+      "reason": "Guards a committed CORPUS §2.3/§2.15 fixture under fixtures/docx/. Present in every clone, so this never actually skips — the guard exists so a deleted fixture fails loudly at the generator check rather than producing a silently smaller run here.",
+      "wouldRunIf": "Always runs. `scripts/build-messy-fixtures.mjs --check` fails first if the fixture is gone."
+    },
+    {
+      "file": "packages/adapters-docx/test/messy-corpus.test.ts",
+      "line": 117,
+      "source": "describe.skipIf(!has(\"messy-whitespace-as-structure.docx\"))(\"§2.3 whitespace as structure\", () => {",
+      "reason": "Guards a committed CORPUS §2.3/§2.15 fixture under fixtures/docx/. Present in every clone, so this never actually skips — the guard exists so a deleted fixture fails loudly at the generator check rather than producing a silently smaller run here.",
+      "wouldRunIf": "Always runs. `scripts/build-messy-fixtures.mjs --check` fails first if the fixture is gone."
+    },
+    {
+      "file": "packages/adapters-docx/test/messy-corpus.test.ts",
+      "line": 144,
+      "source": "describe.skipIf(!has(\"messy-manual-numbering.docx\"))(\"§2.3 manual numbering typed as text\", () => {",
+      "reason": "Guards a committed CORPUS §2.3/§2.15 fixture under fixtures/docx/. Present in every clone, so this never actually skips — the guard exists so a deleted fixture fails loudly at the generator check rather than producing a silently smaller run here.",
+      "wouldRunIf": "Always runs. `scripts/build-messy-fixtures.mjs --check` fails first if the fixture is gone."
+    },
+    {
+      "file": "packages/adapters-docx/test/messy-corpus.test.ts",
+      "line": 172,
+      "source": "describe.skipIf(!has(\"messy-inconsistent-cascade.docx\"))(\"§2.3 inconsistent style cascade\", () => {",
+      "reason": "Guards a committed CORPUS §2.3/§2.15 fixture under fixtures/docx/. Present in every clone, so this never actually skips — the guard exists so a deleted fixture fails loudly at the generator check rather than producing a silently smaller run here.",
+      "wouldRunIf": "Always runs. `scripts/build-messy-fixtures.mjs --check` fails first if the fixture is gone."
+    },
+    {
+      "file": "packages/adapters-docx/test/messy-corpus.test.ts",
+      "line": 204,
+      "source": "describe.skipIf(!has(\"messy-mixed-fonts.docx\"))(\"§2.3 mixed theme and explicit fonts\", () => {",
+      "reason": "Guards a committed CORPUS §2.3/§2.15 fixture under fixtures/docx/. Present in every clone, so this never actually skips — the guard exists so a deleted fixture fails loudly at the generator check rather than producing a silently smaller run here.",
+      "wouldRunIf": "Always runs. `scripts/build-messy-fixtures.mjs --check` fails first if the fixture is gone."
+    },
+    {
+      "file": "packages/adapters-docx/test/messy-corpus.test.ts",
+      "line": 223,
+      "source": "describe.skipIf(!has(\"messy-combined.docx\"))(\"§2.3 all defects at once\", () => {",
+      "reason": "Guards a committed CORPUS §2.3/§2.15 fixture under fixtures/docx/. Present in every clone, so this never actually skips — the guard exists so a deleted fixture fails loudly at the generator check rather than producing a silently smaller run here.",
+      "wouldRunIf": "Always runs. `scripts/build-messy-fixtures.mjs --check` fails first if the fixture is gone."
+    },
+    {
+      "file": "packages/adapters-docx/test/messy-corpus.test.ts",
+      "line": 251,
+      "source": "describe.skipIf(!has(\"generated-no-theme.docx\"))(\"§2.15 library-generated documents\", () => {",
+      "reason": "Guards a committed CORPUS §2.3/§2.15 fixture under fixtures/docx/. Present in every clone, so this never actually skips — the guard exists so a deleted fixture fails loudly at the generator check rather than producing a silently smaller run here.",
+      "wouldRunIf": "Always runs. `scripts/build-messy-fixtures.mjs --check` fails first if the fixture is gone."
+    },
+    {
+      "file": "packages/adapters-docx/test/messy-corpus.test.ts",
+      "line": 284,
+      "source": "describe.skipIf(!has(\"generated-run-per-word.docx\"))(\"§2.15 one run per word\", () => {",
+      "reason": "Guards a committed CORPUS §2.3/§2.15 fixture under fixtures/docx/. Present in every clone, so this never actually skips — the guard exists so a deleted fixture fails loudly at the generator check rather than producing a silently smaller run here.",
+      "wouldRunIf": "Always runs. `scripts/build-messy-fixtures.mjs --check` fails first if the fixture is gone."
+    },
+    {
+      "file": "packages/adapters-ocr/test/ocr.test.ts",
+      "line": 242,
+      "source": ": describe.skip;",
+      "reason": "Needs Tesseract language data at fixtures/local/tessdata/eng.traineddata, which is gitignored: ~15 MB of third-party data that CORPUS §4 forbids committing. Skips on a clean clone and in CI. This is the OCR suite Gate 5 is about.",
+      "wouldRunIf": "`node scripts/fetch-ocr-assets.mjs` populates fixtures/local/tessdata."
+    },
+    {
+      "file": "packages/adapters-ocr/test/ocr.test.ts",
+      "line": 306,
+      "source": "const describeIfFoundScan = existsSync(FOUND_SCAN) ? describe : describe.skip;",
+      "reason": "Needs a found scan under fixtures/local/found-scans/, fetched on demand rather than committed. Skips on a clean clone.",
+      "wouldRunIf": "The fetch script retrieves the scan; CORPUS §2.7 records why no committable one exists."
+    },
+    {
+      "file": "packages/cli/test/cli.test.ts",
+      "line": 26,
+      "source": "describe.skipIf(!built)(\"markforge CLI\", () => {",
+      "reason": "Guards on the CLI having been built. `pnpm verify` runs the build before the tests, and CI runs `pnpm run build` before `pnpm test`, so this does not skip in either. It exists so `pnpm test` alone on a fresh clone reports skipped rather than 20 confusing failures.",
+      "wouldRunIf": "Always runs under `pnpm verify` and in CI. Run `pnpm build` first for a bare `pnpm test`."
+    },
+    {
+      "file": "packages/cli/test/cli.test.ts",
+      "line": 90,
+      "source": "describe.skipIf(!built)(\"markforge fmt\", () => {",
+      "reason": "Guards on the CLI having been built. `pnpm verify` runs the build before the tests, and CI runs `pnpm run build` before `pnpm test`, so this does not skip in either. It exists so `pnpm test` alone on a fresh clone reports skipped rather than 20 confusing failures.",
+      "wouldRunIf": "Always runs under `pnpm verify` and in CI. Run `pnpm build` first for a bare `pnpm test`."
+    },
+    {
+      "file": "packages/cli/test/cli.test.ts",
+      "line": 132,
+      "source": "describe.skipIf(!built)(\"unimplemented subcommands\", () => {",
+      "reason": "Guards on the CLI having been built. `pnpm verify` runs the build before the tests, and CI runs `pnpm run build` before `pnpm test`, so this does not skip in either. It exists so `pnpm test` alone on a fresh clone reports skipped rather than 20 confusing failures.",
+      "wouldRunIf": "Always runs under `pnpm verify` and in CI. Run `pnpm build` first for a bare `pnpm test`."
+    },
+    {
+      "file": "packages/core/test/assist.test.ts",
+      "line": 52,
+      "source": "const describeIfFixture = existsSync(AMBIGUOUS) ? describe : describe.skip;",
+      "reason": "Guards fixtures/docx/messy-ambiguous-headings.docx, which is committed. Does not skip.",
+      "wouldRunIf": "Always runs."
+    },
+    {
+      "file": "packages/core/test/assist.test.ts",
+      "line": 174,
+      "source": "const describeIfScan = existsSync(SCAN) ? describe : describe.skip;",
+      "reason": "Guards fixtures/pdf/scanned-150dpi.pdf, which is committed. Does not skip.",
+      "wouldRunIf": "Always runs."
+    },
+    {
+      "file": "packages/ooxml/test/real-docx.test.ts",
+      "line": 31,
+      "source": "describe.skip(`${name} — skipped, ${path} not present`, () => {",
+      "reason": "The only skip that removes tests from the total rather than marking them: two real specimens in fixtures/local/ that cannot be redistributed — an IEEE template (no redistribution right) and a document with personal data. 2 tests skip on a clean clone.",
+      "wouldRunIf": "Nothing, deliberately. CORPUS §1 rule 5 forbids committing either. The defects they found are covered by authored equivalents in messy-corpus.test.ts."
+    }
+  ]
+}

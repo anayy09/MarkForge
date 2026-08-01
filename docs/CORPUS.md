@@ -482,7 +482,8 @@ already believe they are the same design, which is the assumption the corpus was
 **Both pairs are now retired as graded cases.** Each has informed either the fixture or the
 prompt, so neither can grade §10.4 again without grading the correction that came out of it.
 They stay in the corpus as documentation of the disagreement, marked `retired`, and §10.4's
-grading moves to a fresh set authored afterwards — §2.16.
+grading moved to a fresh set authored afterwards — §2.16, which is itself now retired for the
+same reason one level down (§2.16.1). The live grading set is §2.17.
 
 **A fourth set was added after Phase 4 shipped: `classification/`, a role holdout.** The 10/10
 the rules score on sets (a)–(c) measured nothing — `classify.ts` and those documents were
@@ -541,6 +542,124 @@ cascade-resolution fallbacks, so a failure here is a cascade bug rather than an 
 
 A real specimen of this class is `fixtures/local/sample001.docx` (§2.3), which is how the category
 was identified — it was not in the original plan, and inspecting a real document put it there.
+
+### 2.16 The first replacement dedup set — *authored, and retired unmeasured*
+
+**This section existed only as a forward reference until 2026-08-01.** It was cited from
+§2.14.2, from `STATUS.md`, from two CI steps, from `fixtures/LICENSES.md`, from the fixture's
+own answer key, and from five places in `scripts/` — and it was never written. A grading set
+whose specification is a cross-reference to nothing cannot be wrong, which is a different
+thing from being right.
+
+**What it was.** Two documents on archive retention — `retention-policy.md` and
+`platform-guide.md` — authored after §2.14.1 and after both original pairs were retired, with
+one near-duplicate pair and two hard negatives. It reported **1/1 recall and 0 false merges**,
+and those numbers appeared in `STATUS.md` and `AGENTIFY.md`.
+
+#### 2.16.1 Every one of its three cases was inside the prompt that grades it
+
+Retired wholesale, 2026-08-01, unmeasured. Not one of its numbers survives.
+
+| Case | How the prompt gave it away |
+| --- | --- |
+| Recall pair | **Both sentences verbatim** in `context-unit-summarization/v2.md`, with the answer attached: *"…share almost no words and are one fact"* |
+| Ordering hard negative | Side A **verbatim** in the same prompt's changelog, as the case v1 got wrong; the `before/after/until → different facts` rule was written in response to it |
+| Retention hard negative | Neither sentence appears, but **its numbers and its verdict do**: *"24 hours and 7 days are different facts"* |
+
+So `1/1` and `0/2` measured the model reading its own instructions back. The rule that
+retired §2.14's pairs — *a graded case that has already taught the thing it grades is not a
+graded case* — was applied by hand to the two pairs someone was looking at, and its
+replacement violated it in all three of its own cases.
+
+**The rule is now a gate.** `scripts/check-fixture-contamination.mjs` fails the build when a
+graded sentence appears in any prompt, by three predicates: verbatim containment, a shared run
+of six content words, and — the one that caught the retention pair — every distinctive number,
+unit, and identifier in the sentence appearing in the prompt. A case can be given away by its
+answer without any of its words appearing, and that is the predicate for it.
+
+A prompt may of course carry worked examples. What it may not carry is a worked example that
+is also a graded case, and the fix is always to change the fixture: the prompt is allowed to
+teach, and the corpus is what checks whether the teaching worked.
+
+**Scoped to cases the model decides.** A `mustNotMerge` pair keyed `blockedBy: entityKey` is
+separated in `dedup.ts` before any shortlist is built and before any prompt is read, so what a
+prompt contains cannot influence it; the gate reports it and does not fail. That scoping is
+bounded from two directions — the generator already fails a precision arm where fewer than
+half the negatives reach the adjudicator, and the contamination gate fails a set where *every*
+contaminated negative claims the exemption — so a pair cannot dodge the gate by relabelling
+itself without also weakening the arm it sits in. One case currently claims it:
+`clean/mustNotMerge[2]`, the `NIMBUS_*` pair, which is verbatim in prompt v1.
+
+### 2.17 The live dedup grading set — *authored 2026-08-01, contamination-gated*
+
+**Catches:** §10.4 in both directions, on cases no prompt has seen. Three near-duplicate pairs
+that must merge, three hard negatives that must not, across `signing-policy.md` and
+`sealing-operations.md`. The subject matter — electronic document sealing — deliberately
+overlaps neither the clean set's NIMBUS batch ingestion nor §2.16's archive retention, so no
+unit here can be confused with one there.
+
+**What the set asserts about itself**, so that a pass means something:
+
+- **Beyond lexical reach.** Content-word Jaccard on all three recall pairs is under the 0.2
+  the corpus requires, so a text threshold merges none of them. The figures are printed by
+  `scripts/check-agentify.mjs` check 8 on every run and are deliberately **not** copied here:
+  the first draft of this section quoted three numbers measured by a throwaway script, and
+  when the assertion was added to the gate it produced different ones — two tokenizers, one
+  claim, and a document that would have been wrong the moment either changed.
+- **Decidable under §2.14.1.** Each recall pair's two sides carry identical salient token sets
+  (`{30, day}`, `{90, day}`, `{3, hour}`), so the normative predicate says *one fact*; each
+  negative's sides differ, so it says *different facts*.
+- **Genuinely hard.** Two of the three negatives reach the adjudicator; the third documents the
+  entity block. The second negative differs from its partner by the single word `never` and
+  says the opposite thing.
+- **Uncontaminated**, by the gate above rather than by assertion.
+
+#### 2.17.1 What it measured, first run, and it is not good
+
+Recorded before any prompt was changed, and no prompt has been changed since. Tuning the
+adjudicator against these cases would contaminate them and destroy the only uncontaminated
+§10.4 evidence this project has.
+
+| Arm | Result |
+| --- | --- |
+| Recall | **0 of 3.** All three were compared and rejected, not skipped |
+| Precision | **1 false merge of 2 adjudicated negatives** |
+
+**The false merge is the serious half.** The adjudicator merged *"A sealed document must
+**never** be re-issued under the same reference"* with *"A sealed document must be re-issued
+under a fresh reference"* — a prohibition and its opposite — with the rationale *"Keeping A
+would drop nothing; B adds no additional constraint."* Merging deletes the prohibition from
+every generated file, and a merged unit looks exactly like a unit. This is the precise failure
+mode §10.4's design was chosen to prevent, and §2.16 reported zero of them.
+
+**The recall rationales show a mechanism.** Every rejection has the shape *"Keeping only A
+would drop [B, restated]"*. The model is paraphrasing the second statement rather than
+deciding whether the first carries it, which would produce *different facts* for any pair
+whose two sides are worded differently — which is every pair this arm exists to judge.
+
+Both numbers are gated **against regression, not blessed** (`scripts/check-agentify.mjs`
+check 8), the same way the classification holdout is: a gate demanding 3/3 would fail every
+run, and a gate asserting today's numbers are acceptable would bless a false merge.
+
+#### 2.17.2 The set found a limitation before it graded anything
+
+On its first run all six pairs were separated by the **category block** and none reached the
+adjudicator — the precision arm read a clean 3/3 on cases the pipeline never compared.
+
+The cause is a real property of the system, not of the fixture. `sealing-operations.md` was
+first called `custody-handbook.md`; `handbook` matches the `codingConventions` filename and
+heading signals, and `extractRoleImpliedUnits` fires for that role and turns **every**
+paragraph in the document into a `convention`, claiming each sentence before the constraint
+pass sees it. §10.4 then blocks cross-category merges by design. So: **two documents that state
+the same fact cannot be deduplicated against each other whenever the classifier gives them
+roles that route their sentences to different categories** — one filename decides it, for the
+whole document. That is `OPEN_QUESTIONS` §7q recurring at document scope rather than at the
+level of a single ADR statement, and it is open as §7v.
+
+The fixture was renamed to get a working recall arm. The finding is recorded rather than
+renamed away, and `check-agentify.mjs` now separates *compared and rejected* from *never
+compared* on this set — a separation the clean set has had since §7q and this one did not,
+which is why the vacuous 3/3 was reportable at all.
 
 ## 3. Competitor scoreboard runs
 

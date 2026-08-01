@@ -1,46 +1,72 @@
 {
   "set": "dedup",
-  "note": "CORPUS.md §2.16. The fresh §10.4 grading set, authored 2026-08-01, AFTER the §2.14.1 merge predicate was written and after both original near-duplicate pairs were retired. Nothing here informed the predicate, the adjudicator prompt, or any fixture correction — which is the whole point: §2.14's pairs were spent by the process that resolved them, and a graded case that has already taught the thing it grades is not a graded case. These documents deliberately do not overlap the clean set's subject matter (NIMBUS batch ingestion) so that no unit here can be confused with one there. Every sentence here carries a deontic modal, because the first draft did not and three of the four were never extracted at all — which made two hard negatives pass on the strength of their own absence. check-agentify.mjs now asserts both sides of every graded pair exist as units.",
+  "note": "CORPUS.md §2.17. The live §10.4 grading set, authored 2026-08-01 AFTER the §2.16 set was retired wholesale for contamination. §2.16's three graded cases were all worked examples inside the adjudicator prompt that grades them — two sentence pairs verbatim, one by its numbers and its answer — so `1/1` recall and `0/2` false merges measured the prompt reciting itself. Nothing here appears in any prompt, and that is no longer a promise: scripts/check-fixture-contamination.mjs fails the build on verbatim overlap, on a shared six-content-word run, and on a sentence whose every distinctive number, unit, and identifier appears in a prompt. The subject matter (electronic document sealing) deliberately overlaps neither the clean set's NIMBUS batch ingestion nor §2.16's archive retention, so no unit here can be confused with one there. Every graded sentence carries a deontic modal, because §2.16's first draft did not and three of four sentences were never extracted at all, which made two hard negatives pass on the strength of their own absence.",
   "nearDuplicates": [
     {
-      "why": "One fact under §2.14.1: merging drops nothing renderable. Both state a 64 MB upload ceiling; the salient tokens are `64` and `mb` and both carry them. Every other word differs — refuse/reject, submission/upload, service/platform, exceeding/larger — which is exactly the lexical variation §7c said dedup must reach and which the FIRST implementation of the predicate wrongly counted as lost content. Expected: MERGE.",
-      "a": {
-        "source": "platform-guide.md",
-        "text": "The service must refuse any submission exceeding 64 MB."
-      },
-      "b": {
-        "source": "retention-policy.md",
-        "text": "Uploads larger than 64 MB must be rejected by the platform."
-      },
+      "why": "One fact under §2.14.1: both fix the same 30-day validity window, the salient tokens are `30` and `day`, and both sides carry them. Every other word differs — lapse/lose, request/recipients, issue/dispatch — which is the lexical variation §7c said dedup must reach and which no text threshold can. Expected: MERGE.",
+      "a": { "source": "signing-policy.md", "text": "A signing request must lapse 30 days from issue." },
+      "b": { "source": "sealing-operations.md", "text": "Recipients must lose the right to act once 30 days have elapsed since dispatch." },
+      "category": "constraint"
+    },
+    {
+      "why": "One fact: a 90-day retention window stated as preservation and as queryability. Salient tokens `90` and `day` on both sides; audit trail/completion records and preserved/queryable are pure restatement. Expected: MERGE.",
+      "a": { "source": "signing-policy.md", "text": "The audit trail for a sealed document must be preserved for 90 days." },
+      "b": { "source": "sealing-operations.md", "text": "Completion records must stay queryable throughout a 90 day window." },
+      "category": "constraint"
+    },
+    {
+      "why": "One fact: a 3-hour ceiling on undoing a signature, called revocation in one document and withdrawal of consent in the other. Salient `3` and `hour` on both sides. This is the pair most likely to be wrongly split, because the two documents name the operation differently and a reader has to notice they are the same operation. Expected: MERGE.",
+      "a": { "source": "signing-policy.md", "text": "A revocation must take effect within 3 hours of the instruction." },
+      "b": { "source": "sealing-operations.md", "text": "A withdrawal of consent must be honoured inside 3 hours of receipt by the registrar." },
       "category": "constraint"
     }
   ],
   "mustNotMerge": [
     {
-      "why": "Different facts under §2.14.1, and the difference is an ORDERING obligation carried by `before` against `within one hour of`: one requires two zones as a precondition of acknowledgement, the other permits acknowledgement first and replication up to an hour later. A system can satisfy either while violating the other. Maximally confusable — the two sentences differ in four words out of fourteen — which is what makes it hard. REPLACED an earlier version of this pair (\"An acknowledged write must have reached at least two zones\") that was too marginal to grade anything: the adjudicator kept the more specific sentence and argued it carried the other, which is defensible, and the predicate objected only on the single token `least`. A graded case that turns on one word grades the fixture author, not the system. Expected: KEEP APART.",
-      "a": {
-        "source": "retention-policy.md",
-        "text": "Every archive must be written to two availability zones before the write is acknowledged."
-      },
-      "b": {
-        "source": "platform-guide.md",
-        "text": "Every archive must be written to two availability zones within one hour of acknowledgement."
-      },
+      "why": "Different facts on two axes at once: 21 days against 45, and ahead-of-expiry against from-issue. Identical sentence frame — `must be dispatched N days …` — so this is maximally confusable for anything scoring topical similarity, and §2.14.1 rejects it on the qualifier arm without needing to read it. Expected: KEEP APART.",
+      "a": { "source": "signing-policy.md", "text": "A reminder must be dispatched 21 days ahead of expiry." },
+      "b": { "source": "sealing-operations.md", "text": "An escalation notice must be dispatched 45 days from issue." },
       "category": "constraint",
       "blockedBy": "adjudicator"
     },
     {
-      "why": "Different facts, and the numbers are the whole difference: 24 hours against 7 days for the same operation under two names (deletion/purge). The salient tokens `24`/`hour` and `7`/`day` are disjoint, so §2.14.1 rejects the merge on the qualifier arm without needing to read the sentences. This is the case a purely topical similarity gets most confidently wrong. Expected: KEEP APART.",
-      "a": {
-        "source": "retention-policy.md",
-        "text": "Deletion requests must be honoured within 24 hours."
-      },
-      "b": {
-        "source": "platform-guide.md",
-        "text": "Purge requests must be processed within 7 days."
-      },
+      "why": "The hardest of the three: the two sentences differ by one word, `never`, and say opposite things. One forbids re-issuance under the same reference; the other requires re-issuance under a fresh one. A method that merges on lexical or embedding closeness merges these, and merging deletes a prohibition. This is the scope arm of §2.14.1 with nothing else to go on. Expected: KEEP APART.",
+      "a": { "source": "signing-policy.md", "text": "A sealed document must never be re-issued under the same reference." },
+      "b": { "source": "sealing-operations.md", "text": "A sealed document must be re-issued under a fresh reference." },
       "category": "constraint",
       "blockedBy": "adjudicator"
+    },
+    {
+      "why": "Two settings of one subsystem, sharing a prefix and a document and a code fence. Different identifiers, so §10.4's entity block separates them before the adjudicator is asked — recorded here as a REQUIREMENT rather than left as an accident: remove the block and two unrelated knobs with a common prefix are a merge candidate. Expected: KEEP APART.",
+      "a": { "source": "sealing-operations.md", "text": "SEAL_GRACE_MINUTES=15" },
+      "b": { "source": "sealing-operations.md", "text": "SEAL_RETRY_LIMIT=5" },
+      "category": "environmentVariable",
+      "blockedBy": "entityKey"
+    }
+  ],
+  "retiredNearDuplicates": [
+    {
+      "retired": "2026-08-01",
+      "verdict": "contaminated",
+      "why": "CORPUS.md §2.16's recall pair, retired the day it was measured. Both sentences are a verbatim worked example in packages/llm/prompts/context-unit-summarization/v2.md, together with the answer — the prompt says they \"share almost no words and are one fact\". The reported 1/1 recall was the model reading its own instructions back. Kept here as documentation of what §2.16 meant.",
+      "a": { "source": "platform-guide.md", "text": "The service must refuse any submission exceeding 64 MB." },
+      "b": { "source": "retention-policy.md", "text": "Uploads larger than 64 MB must be rejected by the platform." }
+    }
+  ],
+  "retiredMustNotMerge": [
+    {
+      "retired": "2026-08-01",
+      "verdict": "contaminated",
+      "why": "CORPUS.md §2.16's ordering hard negative. Side A is quoted verbatim in the adjudicator prompt's own changelog as the case v1 got wrong, and the `before/after/until → different facts` rule was written in response to it. Grading v2 on it grades the correction that produced v2.",
+      "a": { "source": "retention-policy.md", "text": "Every archive must be written to two availability zones before the write is acknowledged." },
+      "b": { "source": "platform-guide.md", "text": "Every archive must be written to two availability zones within one hour of acknowledgement." }
+    },
+    {
+      "retired": "2026-08-01",
+      "verdict": "contaminated",
+      "why": "CORPUS.md §2.16's retention hard negative. Neither sentence is in the prompt, but its numbers and its verdict both are: \"24 hours and 7 days are different facts\". Caught by the signature predicate rather than by verbatim matching, which is the reason that predicate exists — a case can be given away by its answer without any of its words appearing.",
+      "a": { "source": "retention-policy.md", "text": "Deletion requests must be honoured within 24 hours." },
+      "b": { "source": "platform-guide.md", "text": "Purge requests must be processed within 7 days." }
     }
   ]
 }

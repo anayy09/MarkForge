@@ -41,6 +41,8 @@ export { extractUnits, splitSentences, authorityOf } from "./extract.js";
 export type { SourceDocument } from "./extract.js";
 
 export { deduplicate, cosine } from "./dedup.js";
+export { mergeVerdict, salientTokens } from "./merge-predicate.js";
+export type { MergeVerdict } from "./merge-predicate.js";
 export type { DedupOptions, DedupResult, Embedder } from "./dedup.js";
 
 export { detectConflicts, renderConflictReport } from "./conflicts.js";

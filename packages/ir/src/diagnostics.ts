@@ -98,6 +98,15 @@ export const DiagnosticCode = {
   AGENTIFY_TRACEABILITY_FAILED: "MF-AGENT-0009",
   AGENTIFY_TOKENIZER_UNAVAILABLE: "MF-AGENT-0010",
   AGENTIFY_SOURCE_UNCHANGED: "MF-AGENT-0011",
+  // A pair the category block separated that would otherwise have been adjudicated. Not
+  // lossy — nothing was deleted — but it is the one place §10.4 declines to look, and
+  // CORPUS §2.17 measured a whole grading set disappearing into it silently.
+  AGENTIFY_CROSS_CATEGORY_BLOCKED: "MF-AGENT-0012",
+  // A merge the adjudicator proposed and CORPUS §2.14.1's predicate refused. **Not lossy**:
+  // the units stay separate, which is the conservative outcome and exactly what a run with no
+  // model produces. It is `info` because what it records is a *disagreement* between the model
+  // and the predicate, which is worth surfacing without failing a build over.
+  AGENTIFY_MERGE_VETOED: "MF-AGENT-0013",
 
   // --- IR -----------------------------------------------------------------
   IR_SCHEMA_INVALID: "MF-IR-0001",

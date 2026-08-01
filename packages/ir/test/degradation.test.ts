@@ -2,8 +2,8 @@
  * The invariant SPEC §1.3 states and `--strict` is supposed to enforce: every degradation
  * is visible, and something can fail on it.
  *
- * This file exists because the invariant was broken for a whole phase in a way no test
- * could have caught, because `--strict` keyed on `lossy` alone. A model that was asked for
+ * This file exists because the invariant was broken from the start in a way no test could
+ * have caught, because `--strict` keyed on `lossy` alone. A model that was asked for
  * and never reached lost nothing — the deterministic answer is the right answer — so no
  * `lossy` diagnostic was appropriate, and therefore no exit code could ever reflect it.
  * The degradation was invisible to the flag whose entire purpose is to catch degradation,

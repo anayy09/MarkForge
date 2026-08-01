@@ -173,13 +173,20 @@ describe("deduplication (SPEC §10.4, OPEN_QUESTIONS §7c)", () => {
   });
 
   it("shortlists by embedding and merges only what the adjudicator confirms", async () => {
-    // The corpus's first near-duplicate pair, verbatim. Content-word Jaccard is 0.000, which
-    // `scripts/build-agentify-corpus.mjs` asserts on every run, so no text threshold reaches
-    // it. Cosine alone does not reach it either — see the module header — so the embedding
-    // shortlists and the adjudicator decides.
-    const prd = unit({ text: "No user should ever wait more than two seconds for a batch to be acknowledged." });
-    const adr = unit({
-      text: "The p95 acknowledgement budget for a single submission is 2000 milliseconds.",
+    // A restatement the §2.14.1 predicate agrees is one fact: identical salient tokens
+    // (`64`, `mb`) and almost no shared vocabulary otherwise, which is the case §10.4 exists
+    // for and the case no text threshold reaches.
+    //
+    // This used to use the corpus's first authored near-duplicate pair — "no user should ever
+    // wait more than two seconds" against "the p95 acknowledgement budget … is 2000
+    // milliseconds" — and asserted that they merged. CORPUS §2.14.2 retired that pair as
+    // **wrong**: a p95 budget is not a per-user ceiling, and merging drops `more` and
+    // `second`. The test encoded the belief the corpus had already withdrawn, and it only
+    // surfaced when the predicate became a veto and refused the merge the stub demanded. The
+    // pair is now the veto's regression guard in the test below.
+    const a = unit({ text: "The service must reject uploads above 64 MB." });
+    const b = unit({
+      text: "Submissions larger than 64 MB are refused.",
       source: { sourceId: "s1", nodeIds: [], locator: { kind: "text", startOffset: 0, endOffset: 1 }, order: 0, path: "b.md" },
     });
     const unrelated = unit({
@@ -192,26 +199,107 @@ describe("deduplication (SPEC §10.4, OPEN_QUESTIONS §7c)", () => {
     // the whole point of the two-stage design: on real vectors the decoys outrank the true
     // pairs, so a test where cosine already sorts them correctly would prove nothing.
     const vectors: Record<string, number[]> = {
-      [prd.text]: [1, 0, 0],
-      [adr.text]: [0.97, 0.24, 0],
+      [a.text]: [1, 0, 0],
+      [b.text]: [0.97, 0.24, 0],
       [unrelated.text]: [0.95, 0.31, 0],
     };
     const embed = async (texts: string[]) => texts.map((t) => vectors[t] ?? [0, 1, 0]);
     const asked: string[][] = [];
-    const adjudicate = async ({ a, b }: { a: ContextUnit; b: ContextUnit }) => {
-      asked.push([a.text, b.text]);
-      const sameFact = [a.text, b.text].every((t) => t === prd.text || t === adr.text);
-      return { sameFact, survivingText: sameFact ? adr.text : a.text };
+    const adjudicate = async ({ a: x, b: y }: { a: ContextUnit; b: ContextUnit }) => {
+      asked.push([x.text, y.text]);
+      const sameFact = [x.text, y.text].every((t) => t === a.text || t === b.text);
+      return { sameFact, survivingText: sameFact ? b.text : x.text };
     };
 
-    const result = await deduplicate([prd, adr, unrelated], { threshold: 0.9, embed, adjudicate }, bag());
+    const result = await deduplicate([a, b, unrelated], { threshold: 0.9, embed, adjudicate }, bag());
     expect(asked.length).toBeGreaterThan(1); // the decoy was shortlisted too
     expect(result.units).toHaveLength(2);
     const merged = result.units.find((u) => u.sources.length === 2);
     expect(merged?.sources.map((s) => s.path).sort()).toEqual(["a.md", "b.md"]);
     // The adjudicator named B's wording, so B's text survives even though A came first.
-    expect(merged?.text).toBe(adr.text);
+    expect(merged?.text).toBe(b.text);
     expect(result.merges[0]!.method).toBe("embedding");
+  });
+
+  /**
+   * The veto: a merge the adjudicator wants and CORPUS §2.14.1 refuses.
+   *
+   * Measured on §2.17, the adjudicator merged "A sealed document must **never** be re-issued
+   * under the same reference" with "A sealed document must be re-issued under a fresh
+   * reference" — a prohibition and its opposite — reasoning that keeping one would drop
+   * nothing. §10.6's traceability gate cannot catch that, because the surviving sentence *is*
+   * supported by a source. A gate that checks nothing was invented has nothing to say about
+   * something being dropped.
+   *
+   * The stub adjudicator here says `sameFact: true` unconditionally, which is the worst case:
+   * a model that merges everything. The predicate must still refuse.
+   */
+  it("refuses a merge that drops a scope word, however confident the adjudicator is", async () => {
+    const forbid = unit({ text: "A sealed document must never be re-issued under the same reference." });
+    const permit = unit({
+      text: "A sealed document must be re-issued under a fresh reference.",
+      source: { sourceId: "s1", nodeIds: [], locator: { kind: "text", startOffset: 0, endOffset: 1 }, order: 0, path: "b.md" },
+    });
+    const embed = async (texts: string[]) => texts.map(() => [1, 0]);
+    const adjudicate = async ({ a }: { a: ContextUnit; b: ContextUnit }) =>
+      ({ sameFact: true, survivingText: a.text });
+
+    const diagnostics = bag();
+    const result = await deduplicate([forbid, permit], { threshold: 0.5, embed, adjudicate }, diagnostics);
+
+    expect(result.units).toHaveLength(2);
+    expect(result.merges).toHaveLength(0);
+    const vetoes = diagnostics.all().filter((d) => d.code === "MF-AGENT-0013");
+    expect(vetoes).toHaveLength(1);
+    expect(vetoes[0]!.message).toContain("never");
+    // Not lossy: refusing a merge leaves a duplicate, which is the safe direction and is what
+    // a run with no model produces anyway. Marking it lossy would fail `--strict` on the gate
+    // working correctly.
+    expect(vetoes[0]!.lossy).toBe(false);
+  });
+
+  /**
+   * The predicate's blind spot, asserted so it cannot be mistaken for soundness.
+   *
+   * Its `oneFact` verdict is **not** trustworthy as a positive signal. Measured over 46
+   * adjudicated pairs, it returned `oneFact` four times and one of those was wrong: two clean-set
+   * sentences whose only shared salient token is `before` — "We accept batches into a durable
+   * queue and acknowledge before processing" against "Customers register a schema before their
+   * first submission". Nothing else about them is salient, so nothing registers as dropped.
+   *
+   * This is exactly why the promotion is **block-only**. A `oneFact` verdict means "no veto",
+   * leaving the adjudicator's decision to stand, so a false `oneFact` costs nothing. Using the
+   * same predicate to *force* a merge would have deleted a fact here.
+   */
+  it("returns oneFact for two unrelated sentences sharing one scope word, so it must never force a merge", async () => {
+    const { mergeVerdict } = await import("../src/merge-predicate.js");
+    const verdict = mergeVerdict(
+      "We accept batches into a durable queue and acknowledge before processing.",
+      "Customers register a schema before their first submission.",
+    );
+    // The honest assertion: it says "allow", and "allow" must only ever mean "do not veto".
+    expect(verdict.decision).toBe("allow");
+    expect(verdict.abstained).toBe(false);
+    expect(verdict.dropped).toEqual([]);
+  });
+
+  it("vetoes the retired latency pair, which an earlier test asserted should merge", async () => {
+    // CORPUS §2.14.2: a p95 engineering budget is not a per-user ceiling, and merging drops
+    // `more` and `second`. The corpus withdrew this identity claim; this asserts the pipeline
+    // now enforces the withdrawal rather than merely recording it.
+    const prd = unit({ text: "No user should ever wait more than two seconds for a batch to be acknowledged." });
+    const adr = unit({
+      text: "The p95 acknowledgement budget for a single submission is 2000 milliseconds.",
+      source: { sourceId: "s1", nodeIds: [], locator: { kind: "text", startOffset: 0, endOffset: 1 }, order: 0, path: "b.md" },
+    });
+    const embed = async (texts: string[]) => texts.map(() => [1, 0]);
+    const adjudicate = async ({ a }: { a: ContextUnit; b: ContextUnit }) =>
+      ({ sameFact: true, survivingText: a.text });
+
+    const diagnostics = bag();
+    const result = await deduplicate([prd, adr], { threshold: 0.5, embed, adjudicate }, diagnostics);
+    expect(result.merges).toHaveLength(0);
+    expect(diagnostics.all().some((d) => d.code === "MF-AGENT-0013")).toBe(true);
   });
 
   it("merges nothing from the embedding pass when no adjudicator is supplied", async () => {

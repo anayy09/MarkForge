@@ -15,6 +15,9 @@
 // is the opposite of a gate. Authoring the OOXML by hand means the template can demand more
 // than the writer currently gives, and the round trip measures the difference.
 //
+// Enforces **ADR-0004**: the DOCX renderer maps to named styles and never writes direct
+// font properties (`docx.namedStylesOnly`). The zero-direct-formatting assertion below is
+// that decision made falsifiable on a real document.
 // **Zero direct formatting is the load-bearing property** (§2.1's last row). Everything is a
 // named style; the only `w:rPr` in the body is genuine inline semantics — `w:i` on a Latin
 // abbreviation, `w:vertAlign` on a footnote reference, and the `Verbatim Char` character

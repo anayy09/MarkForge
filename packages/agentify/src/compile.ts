@@ -48,6 +48,13 @@ export interface CompileOptions {
   targets: string[];
   traceabilityRequired?: number;
   dedupeThreshold?: number;
+  /**
+   * Allow a merge CORPUS §2.14.1 would veto. Default is to enforce the predicate.
+   *
+   * Only `scripts/check-merge-predicate.mjs` sets this, and only because its question is a
+   * counterfactual: what would the output lose if these two merged? See `DedupOptions`.
+   */
+  enforceMergePredicate?: boolean;
   conflicts?: "report" | "failOnConflict";
   /** `--budget`, overriding every target's primary budget. */
   budgetOverride?: number;
@@ -184,6 +191,8 @@ export async function compile(
       threshold,
       ...(options.assist?.embed ? { embed: options.assist.embed } : {}),
       ...(options.assist?.adjudicate ? { adjudicate: options.assist.adjudicate } : {}),
+      // Forwarded so a counterfactual measurement can reach it. See `DedupOptions`.
+      ...(options.enforceMergePredicate === false ? { enforcePredicate: false } : {}),
     },
     diagnostics,
   );

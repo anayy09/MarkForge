@@ -213,6 +213,9 @@ async function compileWith(sources, registry, targets, pair, merge) {
       return matches && merge ? { sameFact: true, survivingText: a.text } : { sameFact: false };
     },
   };
+  // Enforces **ADR-0020**: the embedding shortlists and the model decides. This file
+  // validates the predicate that decision is measured against — with the adjudicator
+  // replaced, so the question is what merging *costs*, not what a model thinks today.
   // A cosine of 1.0 for the target pair and 0 elsewhere: the shortlist is not what is
   // under test here, the consequence of merging is.
   assist.embed = (texts) => texts.map((t) => (sideOf(t) ? [1, 0] : [0, 1]));
@@ -238,7 +241,7 @@ async function compileWith(sources, registry, targets, pair, merge) {
     const norm = (s) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
     const t = norm(text);
     // Scored, not first-match. A 45-character prefix cannot separate two sentences that
-    // open identically — and the §2.16 ordering hard negative is exactly that pair, differing
+    // open identically — and the §2.16 ordering hard negative was exactly that pair, differing
     // only at "before the write is acknowledged" against "within one hour of acknowledgement".
     // With first-match both sides resolved to `a`, the forced merge never fired, and the
     // script reported "changed no output" as though the pipeline had declined it.
@@ -254,7 +257,17 @@ async function compileWith(sources, registry, targets, pair, merge) {
     return best?.side;
   }
 
-  return agentify.compile(sources, { registry, targets, assist });
+  /*
+   * `enforceMergePredicate: false` — the one place it is legitimate.
+   *
+   * §2.14.1 is now a **veto** inside `dedup.ts`, not only a grading instrument, and a veto
+   * that prevents merges prevents the forced merge this script depends on. Measured: with it
+   * on, every graded pair reported "forcing the merge changed no output", which this script
+   * correctly read as the predicate being untestable. The question here is a counterfactual —
+   * *if* these two merged, what would the output lose — so the thing that stops merges has to
+   * stand aside for it.
+   */
+  return agentify.compile(sources, { registry, targets, assist, enforceMergePredicate: false });
 }
 
 const registry = agentify.loadRegistry(join(REPO, "targets"));
@@ -264,7 +277,7 @@ const TARGETS = ["agents-md", "claude-md", "claude-skills", "claude-commands", "
 /*
  * Applied to **both** sets, for different reasons.
  *
- * `dedup` (CORPUS §2.16) is the live grading set: its key claims one pair is one fact and
+ * `dedup` (CORPUS §2.17) is the live grading set: its key claims one pair is one fact and
  * two are not, and §2.14.1 is the predicate those claims are claims *under*, so it must
  * agree with them. `clean`'s pairs are retired (§2.14.2) and are re-checked here because
  * retiring them was a conclusion this script produced — a retirement nothing re-derives is
@@ -272,8 +285,8 @@ const TARGETS = ["agents-md", "claude-md", "claude-skills", "claude-commands", "
  */
 
 const SETS = [
-  { name: "dedup §2.16", dir: "fixtures/agentify/dedup", field: "nearDuplicates", expect: "oneFact" },
-  { name: "dedup §2.16", dir: "fixtures/agentify/dedup", field: "mustNotMerge", expect: "differentFacts" },
+  { name: "dedup §2.17", dir: "fixtures/agentify/dedup", field: "nearDuplicates", expect: "oneFact" },
+  { name: "dedup §2.17", dir: "fixtures/agentify/dedup", field: "mustNotMerge", expect: "differentFacts" },
   { name: "clean §2.14.2 (retired)", dir: "fixtures/agentify/clean", field: "retiredNearDuplicates", expect: "differentFacts" },
 ];
 
@@ -283,6 +296,21 @@ for (const set of SETS) {
 const sources = await readSet(join(REPO, set.dir));
 const key = JSON.parse(readFileSync(join(REPO, set.dir, "expected-units.json"), "utf8"));
 for (const pair of key[set.field] ?? []) {
+  /*
+   * A pair the entity block removes cannot be measured here, and that is a property of the
+   * pipeline rather than a defect in the pair.
+   *
+   * This script works by *forcing* the merge and diffing the output. `dedup.ts` skips a pair
+   * whose two units carry different `entityKey`s before it builds a shortlist, so the forced
+   * adjudicator is never called and the forced run is identical to the blocked one — which
+   * this script correctly reports as "the predicate could not be applied". Excluding it is
+   * not weakening the gate: `check-agentify.mjs` asserts separately that such a pair really
+   * is blocked, and fails if it reaches the adjudicator after all.
+   */
+  if ((pair.blockedBy ?? "adjudicator") !== "adjudicator") {
+    info(`skipped ${set.name}/${set.field}: "${(pair.a.text ?? "").slice(0, 30)}" is separated by the ${pair.blockedBy} block before any merge could be forced`);
+    continue;
+  }
   // The **first sentence** of each side, because that is the unit extraction produces.
   const firstSentence = (t) => (/^[^.!?]+[.!?]/.exec(t.trim())?.[0] ?? t).trim();
   const spec = { a: firstSentence(pair.a.text), b: firstSentence(pair.b.text) };

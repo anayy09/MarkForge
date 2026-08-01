@@ -1,0 +1,26 @@
+{
+  "key": "1352604069a8279022f9ebf217e25129150a65bc1f10b53328f1637169ce7e59",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "2fcdab830279aff2a3e81d6edbdf1e4c574dde81ba98d3617755134d515abf61",
+  "inputPreview": "An escalation notice must be dispatched 45 days from issue. || A signing request must lapse 30 days from issue.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the requirement that a signing request must lapse 30 days from issue.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 608,
+      "completionTokens": 312,
+      "totalTokens": 920
+    }
+  }
+}

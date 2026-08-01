@@ -32,7 +32,7 @@
  * cached-LLM job in `ci.yml`.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -291,6 +291,122 @@ if (controlChecks === compared && compared > 0) {
 
     if (envelope.ok !== false) fail("`ok` was not false while every model call failed");
     else ok("`ok` is false when the requested model was never reached");
+  }
+
+  /*
+   * `--strict`, on a run where it is the only thing that can fail.
+   *
+   * Everything above asserts the *precondition* — a diagnostic carrying `degraded: true` —
+   * and stops one step short of the flag that consumes it. Adding `--strict` to the run
+   * above would look like closing that gap and would close nothing: with the endpoint
+   * unreachable, `llmTotallyFailed` exits 1 first, so the run exits 1 with the flag and 1
+   * without it. Measured, both. An assertion that holds identically with the flag removed
+   * is not an assertion about the flag.
+   *
+   * The discriminating case is a **partial** failure, which is also the common one: some
+   * calls answer and some do not. `llmTotallyFailed` is false, nothing was lost, the
+   * deterministic answer stands — and the only reason the run should fail is that the user
+   * asked for strictness. Built by seeding a cache with three of the fixture's four
+   * committed tie-break answers and running `readOnly` with no key, so the fourth is a
+   * `CacheMissError` and nothing touches the network. Both exit codes are asserted,
+   * because the pair is the claim.
+   */
+  const partialCache = join(work, "partial-cache", "heading-tiebreak");
+  mkdirSync(partialCache, { recursive: true });
+  const committed = readdirSync(join(REPO, ".markforge/llm-cache/heading-tiebreak")).sort();
+  if (committed.length < 2) {
+    fail(`only ${committed.length} committed tie-break answer(s); a partial-failure run cannot be built`);
+  } else {
+    for (const f of committed.slice(0, -1)) {
+      copyFileSync(join(REPO, ".markforge/llm-cache/heading-tiebreak", f), join(partialCache, f));
+    }
+
+    const strictRun = (strict) =>
+      spawnSync(
+        process.execPath,
+        [
+          CLI, "convert", join(REPO, "fixtures/docx/messy-ambiguous-headings.docx"),
+          "-o", join(work, `llm-${strict ? "strict" : "lax"}.md`),
+          "--llm", "--llm-cache-mode", "readOnly", "--llm-cache-dir", join(work, "partial-cache"),
+          ...(strict ? ["--strict"] : []), "--quiet",
+        ],
+        { env: OFFLINE_ENV, encoding: "utf8" },
+      );
+
+    const lax = strictRun(false);
+    const strict = strictRun(true);
+
+    if (lax.status !== 0) {
+      // Not a `--strict` failure — the run failed for some other reason, and the
+      // comparison below would be measuring that instead.
+      fail(`the partial-failure control exited ${lax.status} without --strict: ${(lax.stderr ?? "").slice(0, 160)}`);
+    } else if (strict.status === 0) {
+      fail(
+        `--strict exited 0 on a run with ${committed.length - 1} of ${committed.length} answers cached. ` +
+          `One tie-break degraded and nothing failed on it, which is the defect degraded:true exists to fix.`,
+      );
+    } else {
+      ok(`--strict turns a partial model failure into exit ${strict.status}; the same run without it exits 0`);
+    }
+  }
+}
+
+// -------------------------------------------------- 3b. the vision recogniser's own catch
+!JSON_OUT && console.log("\n3b. The vision recogniser degrades visibly too, not only the tie-breaker");
+
+{
+  /*
+   * `visionRecognizer` has the *other* `caller-diagnoses` catch in `@markforge/llm`, and
+   * until now nothing in the repository forced it. Section 3 exercises the heading
+   * tie-breaker, and the two are different code paths with different consequences: a
+   * tie-break failure loses nothing, because the deterministic answer stands, while a
+   * transcription failure on a page with no text layer loses the page — there is no
+   * deterministic answer to fall back to.
+   *
+   * So this arm asserts the stronger thing: a **lossy** diagnostic, and a non-zero exit.
+   * `scripts/check-degradation.mjs` classifies the site; this is what checks that the
+   * classification is true.
+   *
+   * `--strict` is deliberately **not** claimed here. Every transcription call fails, so
+   * `llmTotallyFailed` exits 1 before the flag is read and the exit code is 1 with or
+   * without it — measured. The flag's own contribution is isolated in section 3, on a
+   * partial failure, which is the only shape where it decides anything.
+   */
+  const out = join(work, "scan-strict.md");
+  const r = spawnSync(
+    process.execPath,
+    [
+      CLI, "convert", join(REPO, "fixtures/pdf/scanned-150dpi.pdf"),
+      "-o", out, "--llm", "--llm-base-url", "http://127.0.0.1:1/v1", "--json",
+    ],
+    { env: { ...OFFLINE_ENV, MODEL_API_KEY: "not-a-real-key" }, encoding: "utf8" },
+  );
+
+  if (r.status === 0) {
+    fail("a scan whose every transcription call failed converted with exit 0");
+  } else {
+    ok(`a failed page transcription exits ${r.status} rather than reporting success`);
+  }
+
+  let envelope;
+  try {
+    envelope = JSON.parse(r.stdout);
+  } catch {
+    envelope = null;
+  }
+  if (!envelope) {
+    fail("the scan run produced no JSON envelope, so its degradation is not machine-readable");
+  } else {
+    const diagnostics = envelope.diagnostics ?? [];
+    const llm = diagnostics.filter((d) => d.code === "MF-LLM-0001");
+    if (llm.length === 0) fail("no MF-LLM-0001 for a failed page transcription (llm/src/assist.ts:109)");
+    else ok(`the transcription failure carries ${llm.length} × MF-LLM-0001`);
+
+    // The page itself is lost, and that is a different and stronger claim than the
+    // tie-breaker's. If this ever stops being lossy, a scan is silently returning nothing.
+    const lossy = diagnostics.filter((d) => d.lossy === true);
+    if (lossy.length === 0) fail("a page that transcribed to nothing reported no lossy diagnostic");
+    else ok(`the untranscribed page is reported lost (${lossy.map((d) => d.code).join(", ")})`);
   }
 }
 

@@ -1,0 +1,26 @@
+{
+  "key": "03a96a882bda17950d41488d731e8a643546890484d3dafedf5621c67eb59531",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "fbb2f0f3306635eb4408225a18ddae5049720f4a94c9ce8c2a6e240f760d040a",
+  "inputPreview": "Recipients must lose the right to act once 30 days have elapsed since dispatch. || A signing request must lapse 30 days from issue.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping A would drop the requirement that a signing request must lapse 30 days from issue.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 612,
+      "completionTokens": 649,
+      "totalTokens": 1261
+    }
+  }
+}

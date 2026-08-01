@@ -1,0 +1,26 @@
+{
+  "key": "a7574f77d4ce45ab9808a928be2879522b850af5845f7c279d54abd9cc2fcee0",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "6dac62a7987a247f54f8ffef62d93ff4fc6e00b928ddd2c650af2c8dda59856a",
+  "inputPreview": "A signing request must lapse 30 days from issue. || A revocation must take effect within 3 hours of the instruction.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the revocation timing constraint that a revocation must take effect within 3 hours of the instruction.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 608,
+      "completionTokens": 192,
+      "totalTokens": 800
+    }
+  }
+}

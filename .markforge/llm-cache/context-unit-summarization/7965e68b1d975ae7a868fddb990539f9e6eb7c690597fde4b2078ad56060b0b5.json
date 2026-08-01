@@ -1,0 +1,26 @@
+{
+  "key": "7965e68b1d975ae7a868fddb990539f9e6eb7c690597fde4b2078ad56060b0b5",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "bc70c025872712fa1db0b22636bf53129c20f7ab394e045b20cc60bca229ad1b",
+  "inputPreview": "A sealed document must be re-issued under a fresh reference. || A signing request must lapse 30 days from issue.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the requirement that a signing request lapses 30 days after issue.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 607,
+      "completionTokens": 286,
+      "totalTokens": 893
+    }
+  }
+}

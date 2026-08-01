@@ -1,0 +1,26 @@
+{
+  "key": "302a97e57dc20169b0f1ae30fc32d8d912d1e380bbd0dc6f9beb6671daa917ba",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "a0396efa931105bb8195d98a6eb88ec2fc8a9af18238a78da858c50dcb3a1921",
+  "inputPreview": "Recipients must lose the right to act once 30 days have elapsed since dispatch. || A revocation must take effect within 3 hours of the instruction.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the requirement that a revocation must take effect within 3 hours of the instruction.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 613,
+      "completionTokens": 222,
+      "totalTokens": 835
+    }
+  }
+}

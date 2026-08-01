@@ -470,7 +470,7 @@ the prose categories §10.3 assigns to the model.
 
 ---
 
-## 8. Questions only Phase 1+ can answer
+## 8. Questions only Phase 1+ can answer — deferred to implementation
 
 Not open questions for the reviewer — recorded so they are not mistaken for oversights.
 
@@ -496,3 +496,37 @@ Not open questions for the reviewer — recorded so they are not mistaken for ov
   and would therefore destroy `restartsAt` — the field the IR carries precisely so a list
   starting at 7 survives a round trip. ADR-0006 is amended; a lint violation now means the
   stringify configuration has drifted, which is a better failure than a silent 9th iteration.
+
+---
+
+## 9. Document role decides unit category, and §10.4 then blocks the merge — open
+
+**Found 2026-08-01 by `CORPUS.md` §2.17, before it graded anything.**
+
+`extractRoleImpliedUnits` fires for the `codingConventions` and `testPolicy` roles and turns
+**every** paragraph in such a document into a `convention`, claiming each sentence before the
+constraint pass runs. §10.4 blocks cross-category merges by design. Together: two documents
+that state the same fact cannot be deduplicated against each other whenever the classifier
+gives them roles that route their sentences to different categories.
+
+The trigger is as thin as a filename. `custody-handbook.md` matched
+`/\b(convention|style|handbook|guideline|standard)/`, and that one word separated all six
+graded pairs in the set — the precision arm read a clean 3/3 on cases the pipeline never
+compared.
+
+This is §7q at document scope. §7q ruled that an ADR statement asserting a rule is filed as a
+`constraint` rather than a `decision`, which fixed one statement; this is the same collision
+between "role implies category" and "cross-category merges are blocked", reached from the
+other direction and affecting whole documents.
+
+**Blocks:** nothing shipping, but it caps §10.4's achievable recall on any realistic corpus,
+where a conventions document and a policy document restating one rule is the common case.
+
+**Not resolved by loosening the block**, which is the option that risks silent loss — and
+§2.17 has now measured one silent loss already. Options worth weighing: make the role-implied
+pass claim sentences only where no modal pass would fire; allow merges between `convention` and
+`constraint` specifically, since the distinction is about the document rather than the fact;
+or drop the role-implied pass and accept lower extraction recall.
+
+**Verified by:** `scripts/check-agentify.mjs` check 8 now fails a `mustNotMerge` pair keyed
+`blockedBy: adjudicator` that was never compared, so this cannot recur silently.

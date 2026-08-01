@@ -1,0 +1,368 @@
+{
+  "conflicts": [],
+  "files": [
+    {
+      "contentHash": "43be3c7952a070c01aa150f6794d6f5f9d8e47a49400d8341c07b65555bfba1c",
+      "path": "CLAUDE.md",
+      "role": "primary",
+      "sections": [
+        {
+          "heading": "Constraints and invariants",
+          "id": "constraints",
+          "sentences": [
+            {
+              "end": 113,
+              "start": 31,
+              "text": "- Recipients must lose the right to act once 30 days have elapsed since dispatch.",
+              "unitIds": [
+                "u_pszy5dpca73v52twldmw"
+              ]
+            },
+            {
+              "end": 175,
+              "start": 113,
+              "text": "- An escalation notice must be dispatched 45 days from issue.",
+              "unitIds": [
+                "u_elw3wmjwnrklcazjteof"
+              ]
+            },
+            {
+              "end": 238,
+              "start": 175,
+              "text": "- A sealed document must be re-issued under a fresh reference.",
+              "unitIds": [
+                "u_q2t2daesujuds7qhpwpt"
+              ]
+            },
+            {
+              "end": 307,
+              "start": 238,
+              "text": "- Completion records must stay queryable throughout a 90 day window.",
+              "unitIds": [
+                "u_2zrbghlwfhbg2yfbllj6"
+              ]
+            },
+            {
+              "end": 394,
+              "start": 307,
+              "text": "- A withdrawal of consent must be honoured inside 3 hours of receipt by the registrar.",
+              "unitIds": [
+                "u_fpqsm5s2sghttnylxcfb"
+              ]
+            },
+            {
+              "end": 445,
+              "start": 394,
+              "text": "- A signing request must lapse 30 days from issue.",
+              "unitIds": [
+                "u_3iud2hs7nrouyjlwdt57"
+              ]
+            },
+            {
+              "end": 502,
+              "start": 445,
+              "text": "- A reminder must be dispatched 21 days ahead of expiry.",
+              "unitIds": [
+                "u_7egv7gs2qu4gxbidisut"
+              ]
+            },
+            {
+              "end": 572,
+              "start": 502,
+              "text": "- A sealed document must never be re-issued under the same reference.",
+              "unitIds": [
+                "u_dkx4ujrz7pzhp6743gbo"
+              ]
+            },
+            {
+              "end": 643,
+              "start": 572,
+              "text": "- The audit trail for a sealed document must be preserved for 90 days.",
+              "unitIds": [
+                "u_vloyrxrdsfzisfohjdqx"
+              ]
+            },
+            {
+              "end": 710,
+              "start": 643,
+              "text": "- A revocation must take effect within 3 hours of the instruction.",
+              "unitIds": [
+                "u_6pp5jkdk5fm66pf2f5ia"
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Environment",
+          "id": "environment",
+          "sentences": [
+            {
+              "end": 753,
+              "start": 731,
+              "text": "SEAL_GRACE_MINUTES=15",
+              "unitIds": [
+                "u_poi4qfngguziiihoynca"
+              ]
+            },
+            {
+              "end": 772,
+              "start": 753,
+              "text": "SEAL_RETRY_LIMIT=5",
+              "unitIds": [
+                "u_mp67nmxkmhtgbh2tiqml"
+              ]
+            }
+          ]
+        }
+      ],
+      "target": "claude-md",
+      "tokens": 205
+    }
+  ],
+  "sources": [
+    {
+      "contentHash": "efd7ff36985bae32f270ca8bbfd479cea41b611899d61ee70cb57f3e3c2f0de7",
+      "path": "fixtures/agentify/dedup/sealing-operations.md",
+      "role": "runbook",
+      "units": 7
+    },
+    {
+      "contentHash": "9a126f039a67ed99a5f8a23675e8e97b35c84cbc1847a36d9a1f22186db8a760",
+      "path": "fixtures/agentify/dedup/signing-policy.md",
+      "role": "productSpec",
+      "units": 5
+    }
+  ],
+  "units": [
+    {
+      "category": "constraint",
+      "contentHash": "d662131d7629c26d60a15ad3ee65bc28237886ecc158e72897918e1d403f2fc3",
+      "id": "u_2zrbghlwfhbg2yfbllj6",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 356,
+            "kind": "text",
+            "startOffset": 290
+          },
+          "nodeIds": [
+            "n_eczg7pvjjhh4xhyfe5ye:0"
+          ],
+          "path": "fixtures/agentify/dedup/sealing-operations.md"
+        }
+      ],
+      "text": "Completion records must stay queryable throughout a 90 day window."
+    },
+    {
+      "category": "constraint",
+      "contentHash": "da283d1e5f6c5d4c25761cfbf4a4ca2322718c0a818708bc8e5e60f988c0d720",
+      "id": "u_3iud2hs7nrouyjlwdt57",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 189,
+            "kind": "text",
+            "startOffset": 141
+          },
+          "nodeIds": [
+            "n_4pmwl7krsgaeidxztmns:0"
+          ],
+          "path": "fixtures/agentify/dedup/signing-policy.md"
+        }
+      ],
+      "text": "A signing request must lapse 30 days from issue."
+    },
+    {
+      "category": "constraint",
+      "contentHash": "f3dfd4a86ae959ef3cba2f50014cad12e1c0250e24cd0742cdd973a483dc8a09",
+      "id": "u_6pp5jkdk5fm66pf2f5ia",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 477,
+            "kind": "text",
+            "startOffset": 413
+          },
+          "nodeIds": [
+            "n_75szhdyrtni7jtqei76a:0"
+          ],
+          "path": "fixtures/agentify/dedup/signing-policy.md"
+        }
+      ],
+      "text": "A revocation must take effect within 3 hours of the instruction."
+    },
+    {
+      "category": "constraint",
+      "contentHash": "f90d5f9a5a85386b850344a93997340691bc1fb157c923fe5153b37426c70624",
+      "id": "u_7egv7gs2qu4gxbidisut",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 245,
+            "kind": "text",
+            "startOffset": 191
+          },
+          "nodeIds": [
+            "n_zmicqndxjsvyujvkllow:0"
+          ],
+          "path": "fixtures/agentify/dedup/signing-policy.md"
+        }
+      ],
+      "text": "A reminder must be dispatched 21 days ahead of expiry."
+    },
+    {
+      "category": "constraint",
+      "contentHash": "1aafca2639fbf277fbfcd982eb9a392594b247945451b0a47afeae470f95128d",
+      "id": "u_dkx4ujrz7pzhp6743gbo",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 314,
+            "kind": "text",
+            "startOffset": 247
+          },
+          "nodeIds": [
+            "n_23p4setnfdttcqm6txo6:0"
+          ],
+          "path": "fixtures/agentify/dedup/signing-policy.md"
+        }
+      ],
+      "text": "A sealed document must never be re-issued under the same reference."
+    },
+    {
+      "category": "constraint",
+      "contentHash": "22edbb31366c54b10329991c52a56e43cab97ddb74f2095482c5137a760a0f60",
+      "id": "u_elw3wmjwnrklcazjteof",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 196,
+            "kind": "text",
+            "startOffset": 137
+          },
+          "nodeIds": [
+            "n_y4fypno2ymiqb6iekpnb:0"
+          ],
+          "path": "fixtures/agentify/dedup/sealing-operations.md"
+        }
+      ],
+      "text": "An escalation notice must be dispatched 45 days from issue."
+    },
+    {
+      "category": "constraint",
+      "contentHash": "2be126765a918f39b70bb88a1a16d34f2fbcb0589668415dc9207c7b2605269b",
+      "id": "u_fpqsm5s2sghttnylxcfb",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 454,
+            "kind": "text",
+            "startOffset": 370
+          },
+          "nodeIds": [
+            "n_rniwlaiworzcd2ngxukh:0"
+          ],
+          "path": "fixtures/agentify/dedup/sealing-operations.md"
+        }
+      ],
+      "text": "A withdrawal of consent must be honoured inside 3 hours of receipt by the registrar."
+    },
+    {
+      "category": "environmentVariable",
+      "contentHash": "63fdf6b2ea61e6609f534418b8031e256afbd240f27b0e23a27383f951641770",
+      "id": "u_mp67nmxkmhtgbh2tiqml",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 518,
+            "kind": "text",
+            "startOffset": 478
+          },
+          "nodeIds": [
+            "n_53n6gyjwicmosfvkihm2:0"
+          ],
+          "path": "fixtures/agentify/dedup/sealing-operations.md"
+        }
+      ],
+      "text": "SEAL_RETRY_LIMIT=5"
+    },
+    {
+      "category": "environmentVariable",
+      "contentHash": "7b91c815a635328420eec3440b7f2f921c33a6ebf72d406a6423ce1bfa06d7a7",
+      "id": "u_poi4qfngguziiihoynca",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 518,
+            "kind": "text",
+            "startOffset": 478
+          },
+          "nodeIds": [
+            "n_53n6gyjwicmosfvkihm2:0"
+          ],
+          "path": "fixtures/agentify/dedup/sealing-operations.md"
+        }
+      ],
+      "text": "SEAL_GRACE_MINUTES=15"
+    },
+    {
+      "category": "constraint",
+      "contentHash": "7cb38e8de207f75eea7658d96e3d502f335dba1f98f056a84bd3c1ce779a2663",
+      "id": "u_pszy5dpca73v52twldmw",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 135,
+            "kind": "text",
+            "startOffset": 56
+          },
+          "nodeIds": [
+            "n_fsnb3bigacrcw3n3dfxt:0"
+          ],
+          "path": "fixtures/agentify/dedup/sealing-operations.md"
+        }
+      ],
+      "text": "Recipients must lose the right to act once 30 days have elapsed since dispatch."
+    },
+    {
+      "category": "constraint",
+      "contentHash": "86a7a18092a268397e077d9f32d36b38d51619e7a854acaf5d5f39c528308a02",
+      "id": "u_q2t2daesujuds7qhpwpt",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 274,
+            "kind": "text",
+            "startOffset": 214
+          },
+          "nodeIds": [
+            "n_76ppzqzfqkcnf5sfm7ew:0"
+          ],
+          "path": "fixtures/agentify/dedup/sealing-operations.md"
+        }
+      ],
+      "text": "A sealed document must be re-issued under a fresh reference."
+    },
+    {
+      "category": "constraint",
+      "contentHash": "aadd88de2391728915c748e173e8faf9ec86c83be79e09602c8d6d2c0a9e66ce",
+      "id": "u_vloyrxrdsfzisfohjdqx",
+      "sources": [
+        {
+          "locator": {
+            "endOffset": 396,
+            "kind": "text",
+            "startOffset": 328
+          },
+          "nodeIds": [
+            "n_go6ccm67jtddd47c4pa4:0"
+          ],
+          "path": "fixtures/agentify/dedup/signing-policy.md"
+        }
+      ],
+      "text": "The audit trail for a sealed document must be preserved for 90 days."
+    }
+  ],
+  "version": 0
+}
+

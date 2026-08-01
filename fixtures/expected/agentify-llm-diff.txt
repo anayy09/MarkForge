@@ -1,0 +1,9 @@
+# What `--llm` changes about fixtures/agentify/dedup -> claude-md, one line per change.
+#
+# Regenerate with `node scripts/check-agentify.mjs --update`. Asserted on every run by
+# check 8, because three CI jobs in a row asserted only that a difference *existed* and
+# went green on a merge nobody had inspected — the last of which deleted a prohibition.
+#
+# Empty is the expected state: CORPUS §2.14.1's veto blocks the one merge the adjudicator
+# proposes, so the assisted and deterministic outputs are byte-identical. That is also why
+# the adjudicated stage ships disabled — with the veto on it is a no-op (docs/ROADMAP.md).

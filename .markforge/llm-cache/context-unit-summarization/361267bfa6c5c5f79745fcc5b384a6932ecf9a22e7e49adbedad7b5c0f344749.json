@@ -1,0 +1,26 @@
+{
+  "key": "361267bfa6c5c5f79745fcc5b384a6932ecf9a22e7e49adbedad7b5c0f344749",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "f79b9c4fe6ab118719c0fc0cb4bfa8cc25506fb1c5529d86ce7e9e12455a6491",
+  "inputPreview": "A withdrawal of consent must be honoured inside 3 hours of receipt by the registrar. || A signing request must lapse 30 days from issue.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the 30‑day lapse requirement for signing requests.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 612,
+      "completionTokens": 275,
+      "totalTokens": 887
+    }
+  }
+}

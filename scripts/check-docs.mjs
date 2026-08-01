@@ -14,6 +14,36 @@ import { fileURLToPath } from "node:url";
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const read = (p) => readFileSync(join(REPO, p), "utf8");
 
+/**
+ * Every file a reference could hide in: package sources, built output, and scripts.
+ *
+ * `dist/` is included deliberately. A source tree that never sets a flag and a shipped bundle
+ * that does are different facts, and the bundle is the one users run.
+ */
+function sourceTree() {
+  const out = [];
+  const walk = (rel) => {
+    const abs = join(REPO, rel);
+    if (!existsSync(abs)) return;
+    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+      const next = `${rel}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules" || entry.name === "test") continue;
+        walk(next);
+      } else if (/\.(ts|mjs|js)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        out.push(next);
+      }
+    }
+  };
+  for (const p of readdirSync(join(REPO, "packages"))) {
+    walk(`packages/${p}/src`);
+    walk(`packages/${p}/dist`);
+  }
+  walk("scripts");
+  return out;
+}
+
+
 let failures = 0;
 const fail = (m) => { failures++; console.log("FAIL " + m); };
 const ok = (m) => console.log("ok   " + m);
@@ -233,15 +263,15 @@ for (const t of ["LICENSES.md", "word-to-markdown-js", "Pandoc", "markitdown", "
 ok("CORPUS.md covers licensing enforcement, competitor scoreboard, and construct inventories");
 
 // --- 12. Every numbered open question must be either resolved or annotated with what it
-// blocks. Before review, all six were annotated "**Blocks:** <phase>"; after review all six
-// are resolved, so asserting a minimum count of blockers would now fail for the right reason
-// happening. The durable invariant is that no question sits in limbo: unlabelled.
+// blocks. Before review all six carried a `**Blocks:**` annotation; after review all six are
+// resolved, so asserting a minimum count of blockers would now fail for the wrong reason.
+// The durable invariant is that no question sits in limbo: unlabelled.
 const questionHeadings = [...openQ.matchAll(/^## (\d+)\.\s+(.+)$/gm)];
 if (questionHeadings.length < 6) fail(`OPEN_QUESTIONS.md has only ${questionHeadings.length} numbered questions`);
 const unlabelled = questionHeadings.filter(([, , title]) =>
   // The invariant is that no question sits in limbo, not which word its heading uses —
   // hence the alternation rather than one required label.
-  !/resolved|answered|descoping|descoped|deferred|reversal|Phase 1\+ can answer/i.test(title));
+  !/resolved|answered|descoping|descoped|deferred|reversal/i.test(title));
 if (unlabelled.length) {
   // A question with no disposition in its heading must state what it blocks in its body.
   const bodies = openQ.split(/^## /m);
@@ -468,6 +498,15 @@ const PACKAGES = [
   "llm", "adapters-ocr", "agentify",
 ];
 
+// Enforces the naming half of **ADR-0011**: every package is under the `@markforge/*` scope
+// and carries the project licence. The *public API shape* half of ADR-0011 — the three
+// stability tiers and which packages are semver-stable — is NOT enforced here and is owed by
+// `scripts/check-publish-tier.mjs` (docs/decisions/PUBLISHING.md). ADR-0011 says so in its
+// own text rather than leaving this gate to imply full coverage.
+//
+// Enforces **ADR-0008**: Apache-2.0 for every package in the monorepo, asserted per manifest
+// below and for the root LICENSE in 13f. ADR-0008 used to name `check-fixtures.mjs`, which
+// governs *fixture* licensing — the one thing ADR-0008 explicitly excludes from its scope.
 // 14a. Every package is private until publication is decided (OPEN_QUESTIONS §5),
 // so an accidental `npm publish` is impossible rather than merely unlikely.
 const notPrivate = [];
@@ -480,6 +519,118 @@ for (const name of PACKAGES) {
 }
 if (notPrivate.length) fail(`packages not marked private: ${notPrivate.join(", ")}`);
 else ok(`all ${PACKAGES.length} packages are private and Apache-2.0 licensed`);
+
+/*
+ * 14a-ii. `npx markforge` must appear nowhere, because it runs somebody else's package.
+ *
+ * The unscoped name `markforge` is taken on npm by an unrelated HTML-to-Markdown library
+ * (`maqen/markforge`, v1.0.1, MIT) which ships `bin: null`. So the command a user is most
+ * likely to guess — it is the binary name, and it is the shape every README in this
+ * ecosystem uses — fetches the wrong package and fails with an error about a missing
+ * executable that says nothing about why.
+ *
+ * `docs/decisions/PUBLISHING.md` resolves this by publishing `@markforge/cli` with
+ * `bin: markforge`: the installed command is unchanged and only the `npx` form moves. That
+ * resolution survives exactly as long as no document reintroduces the string, which is what
+ * this checks. `npx -y @markforge/cli` and the bare installed `markforge` are both fine.
+ */
+const NPX_WRONG = /npx\s+(?:-y\s+|--yes\s+)?markforge\b/;
+const npxOffenders = [];
+/** Every place a user could read a command from: docs, the root README, the Action, the manifest. */
+const commandBearing = [
+  "README.md",
+  "action.yml",
+  "targets/mcp-manifest.json",
+  ...Object.keys(allDocs).map((n) => `docs/${n}`),
+];
+for (const file of commandBearing) {
+  if (!existsSync(join(REPO, file))) continue;
+  read(file)
+    .split(/\r?\n/)
+    .forEach((line, i) => {
+      if (NPX_WRONG.test(line)) npxOffenders.push(`${file}:${i + 1}`);
+    });
+}
+if (npxOffenders.length) {
+  fail(
+    `"npx markforge" resolves to an unrelated npm package and would fail for every user: ` +
+      `${npxOffenders.join(", ")}. Use "npx -y @markforge/cli" or the installed "markforge" binary.`,
+  );
+} else if (!NPX_WRONG.test("npx -y @markforge/cli mcp") && NPX_WRONG.test("npx markforge convert x.md")) {
+  // Negative control inline: the pattern must reject the correct form and catch the wrong one.
+  ok("no document tells a user to run `npx markforge`, which is somebody else's package");
+} else {
+  fail("the npx-collision predicate is broken: it does not separate the two forms");
+}
+
+// Enforces **ADR-0007** rule 1, the one architectural clause of that record that is real:
+// `adapters-*` and `render-*` may depend on `ir`, `ooxml`, and `core`, and must not depend on
+// `llm`, on each other, or on `cli`. ADR-0007's tooling table is amended in its own text —
+// four of its twelve rows name tools nobody installed, and its rule 2 does not exist.
+//
+/*
+ * 14a-iii. The merge-predicate escape hatch is reachable from exactly one place.
+ *
+ * `enforceMergePredicate: false` turns off the veto that makes `--llm` dedup safe — the one
+ * that stops the adjudicator merging "must never be re-issued under the same reference" with
+ * "must be re-issued under a fresh reference". It exists because
+ * `scripts/check-merge-predicate.mjs` asks a counterfactual: *if* these two merged, what would
+ * the output lose? Answering that requires forcing a merge, which requires standing the veto
+ * down.
+ *
+ * The previous version of this claim was a sentence in three comments saying "nothing in
+ * @markforge/cli sets it". That is the annotation defect again — a promise about code, kept by
+ * whoever reads the comment. This resolves it against the tree, `dist/` included, because a
+ * stale bundle shipping a caller that disables the veto is the failure that matters.
+ */
+/** Setting it, in either the object-literal or the assignment form. Comparisons do not count. */
+const PREDICATE_DISABLED = /enforce(?:Merge)?Predicate\s*(?::|=(?!=))\s*false/;
+
+/*
+ * One rule: **nothing outside the allowlist may set this flag.**
+ *
+ * The allowlist is the two agentify modules that declare and forward it — matched by basename
+ * so their compiled output is covered without exempting `dist/` wholesale, which would have
+ * exempted the CLI bundle too — plus the grading script that is the reason it exists, plus
+ * this file, which necessarily contains the pattern.
+ *
+ * `===` is excluded from the pattern on purpose: `compile.ts` reads the option with a
+ * comparison and forwards it with an assignment, and only the second is the hazard.
+ */
+const FLAG_DECLARING = /^packages\/agentify\/(src|dist)\/(dedup|compile)\.(ts|js)$/;
+const FLAG_ALLOWED = (f) =>
+  FLAG_DECLARING.test(f) || f === "scripts/check-merge-predicate.mjs" || f === "scripts/check-docs.mjs";
+
+const disableOffenders = sourceTree().filter((f) => !FLAG_ALLOWED(f) && PREDICATE_DISABLED.test(read(f)));
+if (disableOffenders.length) {
+  fail(
+    `the merge-predicate veto is disabled in ${disableOffenders.join(", ")}. Only ` +
+      `scripts/check-merge-predicate.mjs may do that, and only because its question is a ` +
+      `counterfactual (CORPUS §2.14.1, docs/ROADMAP.md).`,
+  );
+} else {
+  ok(`the merge-predicate veto is disabled nowhere outside its one script (${sourceTree().length} files scanned, dist/ included)`);
+}
+
+/*
+ * The control. Without it, a pattern that stopped matching would make the check above pass by
+ * matching nothing — which is the vacuous-check defect this repository has now found five
+ * times, so every predicate of this shape gets one.
+ */
+if (PREDICATE_DISABLED.test(read("scripts/check-merge-predicate.mjs"))) {
+  ok("the disable pattern matches the one legitimate call site, so it can detect another");
+} else {
+  fail(
+    "the disable pattern does not match scripts/check-merge-predicate.mjs, which does disable " +
+      "the veto — so the check above is matching nothing",
+  );
+}
+if (PREDICATE_DISABLED.test("compile({ enforceMergePredicate: false })") &&
+    !PREDICATE_DISABLED.test("if (options.enforceMergePredicate === false) {")) {
+  ok("the disable pattern separates setting the flag from reading it");
+} else {
+  fail("the disable pattern cannot tell `: false` from `=== false`");
+}
 
 // 14b. The dependency rule from ADR-0009 and SPEC §6: adapters and renderers must
 // not reach the LLM. Enforced as a build failure rather than a policy, because a

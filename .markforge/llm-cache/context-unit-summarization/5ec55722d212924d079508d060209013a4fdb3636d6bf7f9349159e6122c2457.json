@@ -1,0 +1,26 @@
+{
+  "key": "5ec55722d212924d079508d060209013a4fdb3636d6bf7f9349159e6122c2457",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "81a3701676b3f675137ae3d4f2d1e16e6eeee10bd55418013a86bccac58e5013",
+  "inputPreview": "Completion records must stay queryable throughout a 90 day window. || The audit trail for a sealed document must be preserved for 90 days.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the requirement that the audit trail for a sealed document be preserved for 90 days.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 611,
+      "completionTokens": 469,
+      "totalTokens": 1080
+    }
+  }
+}

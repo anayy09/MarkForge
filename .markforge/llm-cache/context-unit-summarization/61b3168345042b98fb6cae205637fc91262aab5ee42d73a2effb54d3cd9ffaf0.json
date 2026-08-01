@@ -15,12 +15,12 @@
     "seed": 20260731
   },
   "response": {
-    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the deploy command with the --env production flag, which is a distinct actionable instruction.\"\n}",
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the deploy command with the --env production flag.\"\n}",
     "finishReason": "stop",
     "usage": {
       "promptTokens": 595,
-      "completionTokens": 142,
-      "totalTokens": 737
+      "completionTokens": 138,
+      "totalTokens": 733
     }
   }
 }

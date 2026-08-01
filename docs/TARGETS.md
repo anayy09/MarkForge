@@ -131,6 +131,12 @@ tested. ADR-0013 chose to ship them because a delta on a base costs almost nothi
 
 `verifiedAgainst.date` is machine-readable, so a profile that has not been re-checked within
 a chosen window is detectable rather than merely regrettable. `Registry.verificationAges()`
-returns the age of every profile's check. Wiring that into a CI warning is a small, unbuilt
-follow-up (ADR-0013 anticipated it); today the dates are visible and the responsibility is a
-human's.
+returns the age of every profile's check, and **`scripts/check-agentify.mjs` check 10 fails
+the build when any profile is older than 180 days** — every `pnpm verify` run, not a warning
+someone might read.
+
+This paragraph said the opposite until 2026-08-01: *"wiring that into a CI warning is a small,
+unbuilt follow-up … the responsibility is a human's."* It had been wired for a phase. The
+sentence was hand-written about behaviour that lives in code, which is the same defect as the
+`honestyNote` above one layer out, and it is why the tables on this page are generated rather
+than typed.

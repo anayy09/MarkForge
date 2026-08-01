@@ -73,6 +73,10 @@ if (compiled.ir) {
   }
 }
 
+// Enforces **ADR-0001** (the IR is authored as JSON Schema and types are generated from it,
+// so the schema is the authority rather than a description of the types) and **ADR-0002**
+// (provenance and style evidence live in id-keyed side tables on the envelope, not inline on
+// nodes) — the A4 check below is exactly ADR-0002's join key holding for every node.
 // 3. Structural invariants the schema cannot express (docs/SPEC.md A4, section 2.6).
 if (compiled.ir) {
   const dir = "docs/examples";

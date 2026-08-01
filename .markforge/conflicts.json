@@ -1,0 +1,21 @@
+{
+  "conflicts": [],
+  "agreements": [
+    {
+      "entity": "SEAL_GRACE_MINUTES",
+      "category": "environmentVariable",
+      "value": "15",
+      "sources": [
+        "fixtures/agentify/dedup/sealing-operations.md"
+      ]
+    },
+    {
+      "entity": "SEAL_RETRY_LIMIT",
+      "category": "environmentVariable",
+      "value": "5",
+      "sources": [
+        "fixtures/agentify/dedup/sealing-operations.md"
+      ]
+    }
+  ]
+}

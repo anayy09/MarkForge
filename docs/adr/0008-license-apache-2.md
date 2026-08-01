@@ -3,7 +3,7 @@
 - Status: **Confirmed by reviewer**
 - Date: 2026-07-29
 - Relates to: brief §0 (expensive-to-reverse decisions), `PRIOR_ART.md` §1
-- Enforced by: scripts/check-fixtures.mjs
+- Enforced by: scripts/check-docs.mjs
 
 ## Context
 

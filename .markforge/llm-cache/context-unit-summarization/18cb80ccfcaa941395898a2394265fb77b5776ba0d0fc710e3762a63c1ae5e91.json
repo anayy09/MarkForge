@@ -1,0 +1,26 @@
+{
+  "key": "18cb80ccfcaa941395898a2394265fb77b5776ba0d0fc710e3762a63c1ae5e91",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "7cedf988cdb46d7e400f0539c0871445901cdade657722bab69baf3cb907653f",
+  "inputPreview": "A sealed document must be re-issued under a fresh reference. || A sealed document must never be re-issued under the same reference.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": true,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping A would drop nothing; B adds no additional constraint.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 608,
+      "completionTokens": 507,
+      "totalTokens": 1115
+    }
+  }
+}

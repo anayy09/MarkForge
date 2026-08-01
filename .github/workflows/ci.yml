@@ -191,6 +191,17 @@ jobs:
       - name: The merge predicate agrees with the corpus keys (CORPUS §2.14.1)
         run: node scripts/check-merge-predicate.mjs
 
+      # §2.16's three graded cases were all worked examples inside the prompt that grades
+      # them, so its 1/1 recall and 0/2 false merges measured the prompt reciting itself.
+      # The rule that retired them was prose; this is the rule as a gate.
+      - name: No graded fixture appears in a prompt that grades it (CORPUS §2.17)
+        run: node scripts/check-fixture-contamination.mjs
+
+      # 611 tests here, 606 on a clean clone: 7 reported skipped and 5 that left the total
+      # unannounced. A suite that reports its own completeness is the defect this phase is about.
+      - name: Every test file is collected and every skip is declared
+        run: node scripts/check-test-collection.mjs
+
       # ADR-0015 sat Accepted while wrong for all ten packages it named, because
       # acceptance never had a check attached. Every ADR now names one.
       - name: Every ADR names the check that enforces it
@@ -474,34 +485,45 @@ jobs:
       # reproducible offline, and *different* from the deterministic path. The second matters
       # more — a cached run that matched --no-llm exactly would mean the model changed nothing
       # and the measurement was vacuous. Here the difference is one merged near-duplicate.
-      # Runs on `fixtures/agentify/dedup` (CORPUS §2.16), not on the clean set.
+      # Runs on `fixtures/agentify/dedup` (CORPUS §2.17), not on the clean set.
       #
       # It used to run on `clean` and assert that `--llm` differed from `--no-llm` there,
       # which held because of a sentence-split merge. Adjudicator prompt v2 correctly
       # declines that merge — it drops `partial` and `never`, which §2.14.1 counts as scope
       # — so the clean set now merges nothing and this job failed for the *correct*
-      # behaviour. §2.16 is the set with a genuine near-duplicate in it, and the diff is
+      # behaviour. §2.17 is the set where a merge still happens, and the diff is
       # exactly one line.
       #
       # The same stale assertion existed in check-agentify.mjs and was fixed there; this
       # copy was missed because `pnpm verify` does not run ci.yml. Two places asserting one
       # thing is how one of them goes stale unnoticed.
-      - name: Cached-LLM agentify is byte-reproducible, offline, and changes the output
+      - name: Cached-LLM agentify is byte-reproducible offline and the cached path is live
         run: |
           set -e
           unset MODEL_API_KEY
           for run in a b; do
-            node packages/cli/dist/index.js agentify fixtures/agentify/dedup               --targets claude-md --llm --llm-cache-mode readOnly               --out-dir "/tmp/agl-$run" --manifest "/tmp/agl-$run/p.json" --quiet
+            node packages/cli/dist/index.js agentify fixtures/agentify/dedup               --targets claude-md --llm --llm-cache-mode readOnly --dedup-adjudicate               --out-dir "/tmp/agl-$run" --manifest "/tmp/agl-$run/p.json" --quiet
           done
           diff -r /tmp/agl-a /tmp/agl-b             || (echo "::error::two cached-LLM agentify runs differ" && exit 1)
           node packages/cli/dist/index.js agentify fixtures/agentify/dedup             --targets claude-md --out-dir /tmp/agl-det --manifest /tmp/agl-det/p.json --quiet
-          if cmp -s /tmp/agl-a/CLAUDE.md /tmp/agl-det/CLAUDE.md; then
-            echo "::error::--llm produced the same CLAUDE.md as --no-llm; the near-duplicate"
-            echo "::error::merge stopped happening, or the committed cache is unreachable"
-            exit 1
-          fi
+          # What --llm changes is asserted against a committed file by
+          # `scripts/check-agentify.mjs` check 8, which this workflow already runs. It is NOT
+          # asserted here as "the outputs differ", and that wording is gone on purpose.
+          #
+          # Three jobs in a row asserted a difference existed and went green on a merge nobody
+          # had inspected — the last of which deleted "A sealed document must never be
+          # re-issued under the same reference". Since CORPUS §2.14.1 became a veto in
+          # `dedup.ts`, the assisted and deterministic outputs on this set are **byte-identical**,
+          # because the veto blocks the one merge the adjudicator proposes. Asserting a
+          # difference would now fail for the correct behaviour, for the third time.
+          #
+          # What this job still owns is that the cached path is *live and reproducible*: two
+          # readOnly runs with no key agree, and the run report shows calls were made and
+          # answered from cache rather than skipped.
+          calls=$(node packages/cli/dist/index.js agentify fixtures/agentify/dedup             --targets claude-md --llm --llm-cache-mode readOnly --dedup-adjudicate --out-dir /tmp/agl-j             --json --quiet | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);process.stdout.write(String(j.llm?.calls ?? 0))})')
+          test "$calls" -gt 0             || (echo "::error::the cached-LLM run made 0 model calls, so this job exercised the deterministic path twice" && exit 1)
           diff /tmp/agl-det/CLAUDE.md /tmp/agl-a/CLAUDE.md || true
-          echo "Cached-LLM agentify is reproducible offline and merges a near-duplicate."
+          echo "Cached-LLM agentify is reproducible offline; $calls call(s) served from the committed cache."
 
       # fmt --check on already-formatted files must exit 0. If it did not, the
       # formatter would report its own output as needing formatting.
