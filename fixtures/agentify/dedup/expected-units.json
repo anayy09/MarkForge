@@ -1,0 +1,46 @@
+{
+  "set": "dedup",
+  "note": "CORPUS.md §2.16. The fresh §10.4 grading set, authored 2026-08-01, AFTER the §2.14.1 merge predicate was written and after both original near-duplicate pairs were retired. Nothing here informed the predicate, the adjudicator prompt, or any fixture correction — which is the whole point: §2.14's pairs were spent by the process that resolved them, and a graded case that has already taught the thing it grades is not a graded case. These documents deliberately do not overlap the clean set's subject matter (NIMBUS batch ingestion) so that no unit here can be confused with one there. Every sentence here carries a deontic modal, because the first draft did not and three of the four were never extracted at all — which made two hard negatives pass on the strength of their own absence. check-agentify.mjs now asserts both sides of every graded pair exist as units.",
+  "nearDuplicates": [
+    {
+      "why": "One fact under §2.14.1: merging drops nothing renderable. Both state a 64 MB upload ceiling; the salient tokens are `64` and `mb` and both carry them. Every other word differs — refuse/reject, submission/upload, service/platform, exceeding/larger — which is exactly the lexical variation §7c said dedup must reach and which the FIRST implementation of the predicate wrongly counted as lost content. Expected: MERGE.",
+      "a": {
+        "source": "platform-guide.md",
+        "text": "The service must refuse any submission exceeding 64 MB."
+      },
+      "b": {
+        "source": "retention-policy.md",
+        "text": "Uploads larger than 64 MB must be rejected by the platform."
+      },
+      "category": "constraint"
+    }
+  ],
+  "mustNotMerge": [
+    {
+      "why": "Different facts under §2.14.1, and the difference is an ORDERING obligation carried by `before` against `within one hour of`: one requires two zones as a precondition of acknowledgement, the other permits acknowledgement first and replication up to an hour later. A system can satisfy either while violating the other. Maximally confusable — the two sentences differ in four words out of fourteen — which is what makes it hard. REPLACED an earlier version of this pair (\"An acknowledged write must have reached at least two zones\") that was too marginal to grade anything: the adjudicator kept the more specific sentence and argued it carried the other, which is defensible, and the predicate objected only on the single token `least`. A graded case that turns on one word grades the fixture author, not the system. Expected: KEEP APART.",
+      "a": {
+        "source": "retention-policy.md",
+        "text": "Every archive must be written to two availability zones before the write is acknowledged."
+      },
+      "b": {
+        "source": "platform-guide.md",
+        "text": "Every archive must be written to two availability zones within one hour of acknowledgement."
+      },
+      "category": "constraint",
+      "blockedBy": "adjudicator"
+    },
+    {
+      "why": "Different facts, and the numbers are the whole difference: 24 hours against 7 days for the same operation under two names (deletion/purge). The salient tokens `24`/`hour` and `7`/`day` are disjoint, so §2.14.1 rejects the merge on the qualifier arm without needing to read the sentences. This is the case a purely topical similarity gets most confidently wrong. Expected: KEEP APART.",
+      "a": {
+        "source": "retention-policy.md",
+        "text": "Deletion requests must be honoured within 24 hours."
+      },
+      "b": {
+        "source": "platform-guide.md",
+        "text": "Purge requests must be processed within 7 days."
+      },
+      "category": "constraint",
+      "blockedBy": "adjudicator"
+    }
+  ]
+}

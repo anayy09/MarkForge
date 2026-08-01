@@ -25,5 +25,8 @@
     "@markforge/adapters-md": "workspace:*",
     "@markforge/render-md": "workspace:*",
     "@markforge/infer": "workspace:*"
+  },
+  "markforge": {
+    "browserTier": "eager"
   }
 }

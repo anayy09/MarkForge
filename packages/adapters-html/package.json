@@ -19,5 +19,8 @@
   ],
   "dependencies": {
     "@markforge/ir": "workspace:*"
+  },
+  "markforge": {
+    "browserTier": "eager"
   }
 }

@@ -414,6 +414,76 @@ naming it was unmeasurable rather than unmet, and the fixture had to be built to
 arithmetic of `scoreHeading` rather than to taste. A corpus that looks like it exercises
 something is not evidence that it does.
 
+### 2.14.1 The merge predicate — **normative**
+
+> **Two units are one fact if and only if merging them drops nothing renderable:** no
+> constraint, qualifier, scope restriction, or source obligation that some target profile
+> would have emitted survives in the unmerged output and is absent from the merged one.
+
+This section is normative, not commentary. Anything that decides whether two units merge —
+the adjudicator's prompt, a future threshold, an answer key in this corpus — is measured
+against **this** sentence, and a disagreement is a defect in that thing rather than a matter
+of opinion.
+
+**Why it had to be written down.** §2.14 previously asserted that two authored pairs were
+"the same fact" without saying under what predicate, while the adjudicator applied its own.
+When they disagreed there was no way to say which was wrong, so a graded case existed whose
+answer key could not itself be checked. Undecidable answer keys grade nothing.
+
+**Why it is a question about output.** "Do these mean the same thing" is not decidable.
+"Does merging them change what any profile emits" is: compile the target set twice, once
+with the merge forced and once with it blocked, and diff. Whatever disappears is what the
+merge costs. `scripts/check-merge-predicate.mjs` does exactly that and is a CI gate.
+
+**What "renderable" is measured as, and what it is not.** Numbers, units, identifiers, and
+scope words — `2000`, `millisecond`, `p95`, `NIMBUS_MAX_BATCH_MB`, `whole`, `only`,
+`never`. Synonyms are excluded on purpose: a restatement is *expected* to vary
+`refuse`/`reject` and `upload`/`file`, and treating that variation as lost content would
+make the predicate answer "different facts" for every pair it exists to judge.
+
+That is not hypothetical. The first implementation compared plain content words, and
+measured against a known-true restatement — "The service must refuse any upload exceeding
+64 MB" versus "Uploads larger than 64 MB are rejected by the platform" — it returned
+**different facts**, because `service`, `refuse`, and `exceed` are absent from the second.
+Both authored pairs score Jaccard 0.000, so *every* verdict it produced was the only verdict
+it could produce, and the conclusion below would have been an artifact of the implementation
+rather than evidence about the pairs. The control that catches this is the first one the
+gate runs, and its failure message says that section 1 means nothing until it passes.
+
+A second correction from the same control: `any` and `each` were in the scope list and are
+not any more. As a determiner in front of a generic plural, `any` adds no coverage the
+plural did not already have, and it alone turned that restatement into a false negative.
+`all`, `every`, `only`, `whole`, `partial`, `never`, and `always` remain, because dropping
+one of those genuinely says something weaker.
+
+**The predicate is conservative in the direction that keeps data.** What it cannot see as
+carried by the survivor is reported as dropped, so its errors fall on the side of *different
+facts*. §10.4 blocks cross-category merges for the same reason: a wrong merge deletes a fact
+silently, and a wrong refusal only leaves a duplicate.
+
+### 2.14.2 Both authored near-duplicate pairs were wrong — corrected 2026-08-01
+
+Applying §2.14.1 to the two pairs this corpus asserted were one fact: **both are different
+facts.** The answer key was wrong, the adjudicator was right about both, and the 0-of-2
+recall reported through Phase 4 and Phase 5 was the correct answer to a question whose key
+was incorrect.
+
+| Pair | Merging drops | Verdict |
+| --- | --- | --- |
+| "No user should ever wait more than two seconds…" vs "The p95 acknowledgement budget… is 2000 milliseconds" | `more`, `second` | different facts |
+| "A batch that fails validation must be rejected whole" vs "A submission is committed in one transaction or not at all" | `whole` | different facts |
+
+Pair 1 is a user-facing ceiling against an engineering percentile budget — a p95 target is
+not a promise to every user, which is what the adjudicator said in Phase 4 and was recorded
+then as a merge it had declined "on defensible grounds". Pair 2 is a rule about *validation
+failure* against a rule about *commit atomicity*; the second implies the first only if you
+already believe they are the same design, which is the assumption the corpus was encoding.
+
+**Both pairs are now retired as graded cases.** Each has informed either the fixture or the
+prompt, so neither can grade §10.4 again without grading the correction that came out of it.
+They stay in the corpus as documentation of the disagreement, marked `retired`, and §10.4's
+grading moves to a fresh set authored afterwards — §2.16.
+
 **A fourth set was added after Phase 4 shipped: `classification/`, a role holdout.** The 10/10
 the rules score on sets (a)–(c) measured nothing — `classify.ts` and those documents were
 written in the same sitting, with the signal weights tuned while reading the classifier's own

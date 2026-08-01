@@ -449,6 +449,7 @@ export async function resolveAmbiguities(
     let answer: TiebreakAnswer | undefined;
     try {
       answer = await tiebreak(decision);
+    // degradation: caller-diagnoses — @markforge/cli emits MF-LLM-0001 per failure. This layer cannot tell budget from transport from schema; the caller can. That promise was NOT kept until 2026-08-01, which is why check-degradation.mjs exists
     } catch (error) {
       // The caller diagnoses the failure with its own vocabulary (it knows whether this
       // was a budget, transport, or schema problem). Here it is simply "no answer".

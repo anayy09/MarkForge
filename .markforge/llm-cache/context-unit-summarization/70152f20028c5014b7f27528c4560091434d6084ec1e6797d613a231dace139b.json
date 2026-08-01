@@ -1,0 +1,26 @@
+{
+  "key": "70152f20028c5014b7f27528c4560091434d6084ec1e6797d613a231dace139b",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "0f6a4acdcc0f02f90ec9b48cf8f8bded036616db605ab8bee5602127eeea4c5f",
+  "inputPreview": "Tokens are issued per customer and are never shared between environments. || A submission is committed in one transaction or not at all.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would lose the constraint that a submission is committed atomically (B).\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 603,
+      "completionTokens": 160,
+      "totalTokens": 763
+    }
+  }
+}

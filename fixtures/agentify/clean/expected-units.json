@@ -150,9 +150,12 @@
       ]
     }
   ],
-  "nearDuplicates": [
+  "nearDuplicates": [],
+  "retiredNearDuplicates": [
     {
-      "why": "The same latency constraint stated in a PRD and in an ADR. Almost no shared content words, so a lexical threshold cannot merge them and an embedding must. Measured Jaccard is asserted by the --check run below.",
+      "retired": "2026-08-01",
+      "verdict": "differentFacts",
+      "why": "Asserted as the same latency constraint stated in a PRD and in an ADR. It is not: a p95 engineering budget is not a per-user ceiling, and merging drops `more` and `second`. Jaccard 0.000, so the lexical claim held; the identity claim did not.",
       "a": {
         "source": "product-spec.md",
         "text": "No user should ever wait more than two seconds for a batch to be acknowledged."
@@ -163,7 +166,9 @@
       }
     },
     {
-      "why": "Whole-batch atomicity, stated as a requirement and as a decision rationale.",
+      "retired": "2026-08-01",
+      "verdict": "differentFacts",
+      "why": "Asserted as whole-batch atomicity stated twice. It is not: a rule about what happens on validation failure is not the rule about commit atomicity, and merging drops `whole`. The second implies the first only if you already believe they are the same design, which is the assumption the corpus was encoding.",
       "a": {
         "source": "product-spec.md",
         "text": "A batch that fails validation must be rejected whole. Partial ingestion is never acceptable."

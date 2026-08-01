@@ -1,0 +1,26 @@
+{
+  "key": "99c70815b2f6d4082ffcab904ecb3c4b5be3662584b2a1b3337dc3f7d58a4ae9",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v1",
+  "mode": "guided",
+  "inputDigest": "79958810d89d2236ddb0140780f1df8bdbfc1f0cd2412a488f55ff8935d00c39",
+  "inputPreview": "An acknowledged write must have reached at least two zones. || Every archive must be written to two availability zones before the write is acknowledged.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "6db9cd0e43c0c4161751820d2c5944c8d3d3f3ce0ce0906dbbb96efabc64b2a8",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": true,\n  \"surviving\": \"A\",\n  \"rationale\": \"Both statements require that a write be persisted in at least two zones before acknowledgment.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 315,
+      "completionTokens": 473,
+      "totalTokens": 788
+    }
+  }
+}

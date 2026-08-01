@@ -1,0 +1,26 @@
+{
+  "key": "026c61216744eb6c02f876cd2986cb1984f0b133038aab4339a6dcf5fbfda180",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "761a4afaafffc6124f60d18f8dca68202e321e762b1c62bf864ba34959fef403",
+  "inputPreview": "The service must refuse any submission exceeding 64 MB. || An operator may raise the ceiling per tenant, but never above 512 MB.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the operator‑adjustable ceiling per tenant (never above 512 MB).\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 610,
+      "completionTokens": 627,
+      "totalTokens": 1237
+    }
+  }
+}

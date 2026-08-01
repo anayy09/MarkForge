@@ -26,9 +26,13 @@
     "@markforge/adapters-ocr": "workspace:*",
     "@markforge/agentify": "workspace:*",
     "@markforge/http": "workspace:*",
-    "@markforge/mcp": "workspace:*"
+    "@markforge/mcp": "workspace:*",
+    "@markforge/adapters-pdf": "workspace:*"
   },
   "bin": {
     "markforge": "./dist/index.js"
+  },
+  "markforge": {
+    "browserTier": "nodeOnly"
   }
 }

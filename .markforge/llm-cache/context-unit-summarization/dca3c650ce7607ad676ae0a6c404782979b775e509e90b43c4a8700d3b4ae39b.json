@@ -1,0 +1,26 @@
+{
+  "key": "dca3c650ce7607ad676ae0a6c404782979b775e509e90b43c4a8700d3b4ae39b",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "d3e6249b5c717970b92538dd178042cbe032724aa3bbeb9d0db88550efbced0b",
+  "inputPreview": "pnpm install --frozen-lockfile || pnpm build",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the build command (pnpm build).\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 592,
+      "completionTokens": 279,
+      "totalTokens": 871
+    }
+  }
+}

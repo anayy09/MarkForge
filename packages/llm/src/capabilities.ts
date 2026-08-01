@@ -124,6 +124,7 @@ export async function probeCapabilities(
           `prose, so the schema was ignored. The repair loop is the primary mechanism.`,
       );
     }
+  // degradation: rethrows
   } catch (error) {
     assertConclusive(error, "guided decoding");
     const status = error instanceof LlmTransportError ? error.status : 0;
@@ -158,6 +159,7 @@ export async function probeCapabilities(
       `Seed: unavailable. A deliberately invalid seed ("not-an-integer") was accepted, ` +
         `which means the parameter is being ignored rather than honoured.`,
     );
+  // degradation: rethrows
   } catch (error) {
     assertConclusive(error, "seed support");
     const status = error instanceof LlmTransportError ? error.status : 0;
@@ -225,6 +227,7 @@ function assertConclusive(error: unknown, probing: string): void {
 function tryParse(text: string): unknown {
   try {
     return JSON.parse(text.trim());
+  // degradation: benign — same: absent or unparseable capabilities degrade to unprobed, never to an assumed capability. probeCapabilities refuses to conclude from an auth failure for the same reason
   } catch {
     return undefined;
   }
@@ -281,6 +284,7 @@ export function loadCapabilities(
     if (age < 0 || age > maxAgeMs) return undefined;
 
     return parsed;
+  // degradation: benign — an unreadable capabilities file means "unprobed", which is the safe default and is reported in the run report as probedModel: (unprobed)
   } catch {
     return undefined;
   }

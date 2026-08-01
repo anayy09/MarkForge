@@ -20,5 +20,8 @@
   "dependencies": {
     "@markforge/ir": "workspace:*",
     "ajv": "^8.20.0"
+  },
+  "markforge": {
+    "browserTier": "nodeOnly"
   }
 }

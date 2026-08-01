@@ -1,0 +1,26 @@
+{
+  "key": "de8ac501bd5976284a7e3e34b1064c4ac7c9e1be65dcd26a5697286a14930072",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "ba5da299a4ddf8cc780b9f4a79e79210fbc184e16d2069a1c1dad4ec3650bc62",
+  "inputPreview": "Every archive must be written to two availability zones before the write is acknowledged. || Deletion requests must be honoured within 24 hours.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the requirement that deletion requests be honoured within 24 hours.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 608,
+      "completionTokens": 350,
+      "totalTokens": 958
+    }
+  }
+}

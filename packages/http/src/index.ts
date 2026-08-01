@@ -146,6 +146,7 @@ async function handleConvert(
     // No `assist`. This surface has no LLM path; see the module comment.
     const result = await convert(body, { from, to, ...(filename ? { path: filename } : {}) });
     return { bytes: result.bytes, diagnostics: result.diagnostics, from, to };
+  // degradation: rethrows
   } catch (e) {
     throw new HttpError(422, e instanceof Error ? e.message : String(e));
   }
@@ -218,6 +219,7 @@ export function createServer(options: ServerOptions = {}): Server {
           `no route ${req.method} ${url.pathname}. This API has exactly two: ` +
             ROUTES.map((r) => `${r.method} ${r.path}`).join(", ")
         );
+      // degradation: benign — the request handler converts any throw into an HTTP status and a JSON body, which is the surface a client reads
       } catch (e) {
         const status = e instanceof HttpError ? e.status : 500;
         const message = e instanceof Error ? e.message : String(e);

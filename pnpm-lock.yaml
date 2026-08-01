@@ -150,6 +150,9 @@ importers:
       '@markforge/adapters-ocr':
         specifier: workspace:*
         version: link:../adapters-ocr
+      '@markforge/adapters-pdf':
+        specifier: workspace:*
+        version: link:../adapters-pdf
       '@markforge/agentify':
         specifier: workspace:*
         version: link:../agentify
@@ -192,9 +195,6 @@ importers:
       '@markforge/adapters-office':
         specifier: workspace:*
         version: link:../adapters-office
-      '@markforge/adapters-pdf':
-        specifier: workspace:*
-        version: link:../adapters-pdf
       '@markforge/fidelity':
         specifier: workspace:*
         version: link:../fidelity

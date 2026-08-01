@@ -22,5 +22,9 @@
   "optionalDependencies": {
     "tesseract.js": "^6.0.1"
   },
-  "optionalDependenciesComment": "tesseract.js is optional and lazily imported: it is a WASM bundle plus a language model that has to be fetched, so an install must not depend on it and a Markdown conversion must not load it. See docs/adr/0017-ocr-recognizer-boundary.md."
+  "optionalDependenciesComment": "tesseract.js is optional and lazily imported: it is a WASM bundle plus a language model that has to be fetched, so an install must not depend on it and a Markdown conversion must not load it. See docs/adr/0017-ocr-recognizer-boundary.md.",
+  "markforge": {
+    "browserTier": "eager",
+    "note": "Eager, and ADR-0015 said deferred. Measured: core and browser reach only documentFromPages, which is a pure function over already-recognised pages, and tree-shaking leaves tesseract.js out of both — the recogniser is injected (ADR-0017). This package bundled ALONE does contain tesseract.js, because its entry re-exports createTesseractRecognizer, and that is legitimate: someone importing that symbol wants it. The heavy-artifact rule therefore applies to the shipped browser entry point, not to every package standalone."
+  }
 }

@@ -179,6 +179,18 @@ jobs:
       - name: The HTTP API retains no document (brief §8)
         run: node scripts/check-http-retention.mjs
 
+      # Brief §3.3: every degradation carries a diagnostic. That was an invariant nobody
+      # could check, and one instance means it was never held. Every catch block now
+      # declares what it does with the failure, and an unannotated one fails here.
+      - name: Every degrading path is classified at its site (brief §3.3)
+        run: node scripts/check-degradation.mjs
+
+      # CORPUS §2.14.1's merge predicate, applied to every pair a corpus key claims
+      # something about. This is what makes "are these one fact" decidable rather than a
+      # matter of opinion between a fixture comment and a model.
+      - name: The merge predicate agrees with the corpus keys (CORPUS §2.14.1)
+        run: node scripts/check-merge-predicate.mjs
+
       # Phase 5's done-criterion. The same input through the CLI, the HTTP API, the MCP
       # server, and the browser build must produce identical bytes — this is what makes
       # four surfaces one engine rather than four converters, and a wrapper that trimmed a

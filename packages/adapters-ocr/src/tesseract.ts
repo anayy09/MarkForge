@@ -82,6 +82,7 @@ export function createTesseractRecognizer(options: TesseractOptions = {}) {
     let module: { createWorker: CreateWorker };
     try {
       module = (await import("tesseract.js")) as unknown as { createWorker: CreateWorker };
+    // degradation: rethrows
     } catch (error) {
       throw new Error(
         `adapters-ocr: tesseract.js is not installed (${(error as Error).message}). It is ` +

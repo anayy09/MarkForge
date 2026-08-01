@@ -1,0 +1,26 @@
+{
+  "key": "c2d76b9a5a7b422d19839428e3334eca7b1214556353d8e4e8f04d73f5ebcc98",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "008794a8317e3277d6a5f3f5e8dff71539881d380e2121897e1abe57531adeb7",
+  "inputPreview": "the p95 acknowledgement budget for a single submission is 2000 milliseconds, and synchronous validation against the warehouse cannot meet it under load. || No user should ever wait more than two seconds for a batch to be acknowledged.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping A would drop the worst‑case, batch‑scope guarantee that no user waits >2 s.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 624,
+      "completionTokens": 798,
+      "totalTokens": 1422
+    }
+  }
+}

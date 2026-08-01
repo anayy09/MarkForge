@@ -19,5 +19,8 @@
   "dependencies": {
     "@markforge/ir": "workspace:*",
     "pdfjs-dist": "^4.10.38"
+  },
+  "markforge": {
+    "browserTier": "deferred"
   }
 }

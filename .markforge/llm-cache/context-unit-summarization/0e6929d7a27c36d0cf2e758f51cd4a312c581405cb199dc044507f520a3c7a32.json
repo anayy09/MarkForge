@@ -1,0 +1,26 @@
+{
+  "key": "0e6929d7a27c36d0cf2e758f51cd4a312c581405cb199dc044507f520a3c7a32",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "fd5a077d840867c028a413c62dbda52dd8b297c43542d671a8a2b3db6d0c497a",
+  "inputPreview": "A submission is committed in one transaction or not at all. || Every rejected batch must be retrievable for thirty days.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping A would drop the thirty‑day retrievability requirement for rejected batches.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 602,
+      "completionTokens": 342,
+      "totalTokens": 944
+    }
+  }
+}

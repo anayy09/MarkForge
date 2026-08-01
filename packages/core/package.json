@@ -30,7 +30,9 @@
     "@markforge/adapters-html": "workspace:*",
     "@markforge/render-html": "workspace:*",
     "@markforge/adapters-office": "workspace:*",
-    "@markforge/adapters-pdf": "workspace:*",
     "@markforge/adapters-ocr": "workspace:*"
+  },
+  "markforge": {
+    "browserTier": "eager"
   }
 }

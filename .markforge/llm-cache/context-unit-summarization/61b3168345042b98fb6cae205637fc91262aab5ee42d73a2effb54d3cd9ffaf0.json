@@ -1,0 +1,26 @@
+{
+  "key": "61b3168345042b98fb6cae205637fc91262aab5ee42d73a2effb54d3cd9ffaf0",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "8df67f1e2760db6a044a427c0080ad0c4baafd24218838b6b35bcf5c2f2b3519",
+  "inputPreview": "pnpm install --frozen-lockfile || pnpm deploy --env production",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the deploy command with the --env production flag, which is a distinct actionable instruction.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 595,
+      "completionTokens": 142,
+      "totalTokens": 737
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "key": "8391411d7c88833383a81444da103c4fed38cedb0bdccdf5f62b8c0baadb3ec6",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "ff4c779de3a17af3d77326170766ac5ad5e13d52fcbadf58be99a61f444b1c6a",
+  "inputPreview": "Every archive must be written to two availability zones within one hour of acknowledgement. || Purge requests must be processed within 7 days.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Dropping statement B would lose the requirement that purge requests be processed within 7 days.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 606,
+      "completionTokens": 310,
+      "totalTokens": 916
+    }
+  }
+}

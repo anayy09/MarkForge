@@ -136,6 +136,7 @@ export class ChatClient {
       });
       status = response.status;
       text = await response.text();
+    // degradation: rethrows
     } catch (error) {
       // An aborted request and a DNS failure both land here. Naming the endpoint
       // without the key is the useful half of the message.
@@ -158,6 +159,7 @@ export class ChatClient {
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
+    // degradation: rethrows
     } catch {
       throw new LlmTransportError(
         `endpoint returned a non-JSON body for model "${request.model}"`,
@@ -229,6 +231,7 @@ export class ChatClient {
       });
       status = response.status;
       text = await response.text();
+    // degradation: rethrows
     } catch (error) {
       throw new LlmTransportError(
         `request to ${this.baseUrl}/embeddings failed: ${(error as Error).message}`,
@@ -249,6 +252,7 @@ export class ChatClient {
     let parsed: { data?: { embedding?: unknown; index?: unknown }[]; usage?: Record<string, unknown> };
     try {
       parsed = JSON.parse(text) as typeof parsed;
+    // degradation: rethrows
     } catch {
       throw new LlmTransportError(
         `embeddings endpoint returned a non-JSON body for model "${request.model}"`,

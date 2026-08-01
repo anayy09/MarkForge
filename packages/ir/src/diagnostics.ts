@@ -145,6 +145,27 @@ export class DiagnosticBag {
     this.add({ code, severity: "info", lossy: false, message, ...extra });
   }
 
+  /**
+   * A capability the caller explicitly asked for did not happen, and nothing was lost.
+   *
+   * Distinct from `degraded()` above, which means a construct survived with reduced
+   * fidelity and is therefore `lossy`. This one is for the case where the **output is
+   * exactly right** — it is what the deterministic path would have produced — and the
+   * defect is that a requested step was skipped: a model that could not be reached, an
+   * optional recogniser that was absent.
+   *
+   * It exists because `--strict` keyed on `lossy` alone, so a degradation of this kind was
+   * invisible to the one flag whose job is to fail on degradation. That is the failure
+   * mode by construction: no exit code could ever reflect it, whatever the diagnostic said.
+   */
+  capabilityUnavailable(
+    code: DiagnosticCodeValue,
+    message: string,
+    extra: Partial<Diagnostic> = {},
+  ): void {
+    this.add({ code, severity: "warning", lossy: false, degraded: true, message, ...extra });
+  }
+
   error(code: DiagnosticCodeValue, message: string, extra: Partial<Diagnostic> = {}): void {
     this.add({ code, severity: "error", lossy: true, message, ...extra });
   }
@@ -163,9 +184,23 @@ export class DiagnosticBag {
     );
   }
 
-  /** Diagnostics reporting real information loss. Drives `--strict` (exit code 2). */
+  /** Diagnostics reporting real information loss. */
   lossy(): Diagnostic[] {
     return this.all().filter((d) => d.lossy);
+  }
+
+  /**
+   * Everything `--strict` fails on: information lost, **or** a requested capability that
+   * did not happen (exit code 2).
+   *
+   * Widened from `lossy` alone. `--strict` means "fail if anything did not go as it should
+   * have", and keyed on loss it could not see a model that was asked for and never
+   * reached — so that degradation was invisible to the flag whose purpose is to catch
+   * degradation, no matter what the diagnostic said. One instance means the invariant was
+   * never held, which is why this is a widening rather than a new flag.
+   */
+  strictFailing(): Diagnostic[] {
+    return this.all().filter((d) => d.lossy || d.degraded === true);
   }
 
   get size(): number {

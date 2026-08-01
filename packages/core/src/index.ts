@@ -27,7 +27,7 @@ import {
   type HeadingTiebreaker,
   type InferOptions,
 } from "@markforge/infer";
-import { documentFromPages, type Recognizer } from "@markforge/adapters-ocr";
+import { documentFromPages, type PageImage, type Recognizer } from "@markforge/adapters-ocr";
 
 const CORE = { kind: "rule" as const, name: "@markforge/core", version: "0.1.0" };
 
@@ -101,7 +101,40 @@ export interface Assist {
   headingTiebreak?: HeadingTiebreaker;
   /** Transcribes a page image when a PDF has no text layer (SPEC §3.3). */
   recognize?: Recognizer;
+  /**
+   * Reads a PDF. **Injected, not imported** — see `PdfReader`.
+   *
+   * Absent means this build cannot read PDFs, and `parse` says so by name rather than
+   * failing somewhere internal.
+   */
+  readPdf?: PdfReader;
 }
+
+/**
+ * The PDF reader, supplied by the host rather than imported by this package.
+ *
+ * `core` used to reach `@markforge/adapters-pdf` through `await import(...)`, on the
+ * reasoning that a dynamic import is the lazy boundary ADR-0015 asks for. Measured, it is
+ * not: a bundler follows a dynamic import like any other, so **`@markforge/core` and
+ * `@markforge/browser` failed to bundle for a browser under every standard esbuild
+ * configuration**, including `splitting: true` — splitting decides which *chunk* a module
+ * lands in, not whether `node:zlib` resolves. The browser gate only passed because it
+ * supplied a stub plugin, which meant a build-tool flag was standing in for a property of
+ * the code.
+ *
+ * Injection is the pattern this codebase already chose for exactly this problem: ADR-0017
+ * made the OCR recogniser an injected function, and `@markforge/adapters-ocr` bundles for
+ * a browser cleanly as a direct result. The PDF reader is the same shape and gets the same
+ * treatment, so `core` now has no reference of any kind to `adapters-pdf` and both it and
+ * the browser entry bundle with no plugin, no external, and no stub.
+ */
+export type PdfReader = (
+  bytes: Uint8Array,
+  options: { path?: string },
+) => Promise<
+  | { kind: "text"; document: MarkForgeDocument; diagnostics: DiagnosticBag }
+  | { kind: "scan"; pages: PageImage[]; charsPerPage: number; pageCount: number; diagnostics: DiagnosticBag }
+>;
 
 export interface ConvertOptions {
   from?: Format;
@@ -174,8 +207,15 @@ async function parsePdfOrScan(
   path: string | undefined,
   assist: Assist | undefined,
 ): Promise<{ document: MarkForgeDocument; diagnostics: DiagnosticBag }> {
-  const { readPdf } = await import("@markforge/adapters-pdf");
-  const result = await readPdf(bytes, path !== undefined ? { path } : {});
+  if (!assist?.readPdf) {
+    throw new Error(
+      `markforge: reading "${path ?? "a PDF"}" needs a PDF reader, and this build has none. ` +
+        `The Node CLI injects @markforge/adapters-pdf; the browser build does not, because ` +
+        `that package requires node:module, node:path, and node:zlib (ADR-0015 defers it, ` +
+        `and deferred is not the same as browser-capable).`,
+    );
+  }
+  const result = await assist.readPdf(bytes, path !== undefined ? { path } : {});
   if (result.kind === "text") {
     return { document: result.document, diagnostics: result.diagnostics };
   }

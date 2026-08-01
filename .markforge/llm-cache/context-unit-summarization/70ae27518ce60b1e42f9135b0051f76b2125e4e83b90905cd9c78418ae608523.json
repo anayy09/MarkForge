@@ -1,0 +1,26 @@
+{
+  "key": "70ae27518ce60b1e42f9135b0051f76b2125e4e83b90905cd9c78418ae608523",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "e3c98dfc44b0a9def9c1da09a775735840d4c4efc2537ad0fe7cd2577f9767f7",
+  "inputPreview": "A submission is committed in one transaction or not at all. || A batch that fails validation must be rejected whole.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping A would drop the requirement that a batch failing validation must be rejected whole.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 600,
+      "completionTokens": 338,
+      "totalTokens": 938
+    }
+  }
+}

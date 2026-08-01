@@ -1,0 +1,26 @@
+{
+  "key": "61b3e760042ecf9af47ecf40bb338247eaed258b1452ef7f9f8922ded71d7619",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "026635f710ffb42561b966015cbd18528c4caabe2fc125a7033f0a805d6de692",
+  "inputPreview": "A submission is committed in one transaction or not at all. || downstream reporting cannot distinguish a truncated load from a complete one, so any partial write becomes a silent data error rather than a visible failure.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping A would drop B's point that downstream reporting cannot detect partial writes, turning them into silent data errors.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 617,
+      "completionTokens": 476,
+      "totalTokens": 1093
+    }
+  }
+}

@@ -42,6 +42,7 @@ export function loadPrompt(task: string, version: string): LoadedPrompt {
   let text: string;
   try {
     text = readFileSync(path, "utf8");
+  // degradation: rethrows
   } catch {
     throw new Error(
       `llm: no prompt file for task "${task}" version "${version}". Expected ` +

@@ -1,0 +1,26 @@
+{
+  "key": "ca53dbc3f8f7072a251fcf5960e791ba6875d2b4108a01f1395fd9b641a49ead",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "0d966b71c57f89cf230ead871c2da6ad66afdf8bf85dc4f95b34cbd0e13f2c1c",
+  "inputPreview": "A submission is committed in one transaction or not at all. || No user should ever wait more than two seconds for a batch to be acknowledged.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Keeping only A would drop the two‑second wait‑time limit for batch acknowledgment.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 606,
+      "completionTokens": 365,
+      "totalTokens": 971
+    }
+  }
+}

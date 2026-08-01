@@ -79,6 +79,7 @@ export async function handleRequest(
       const args = (request.params?.["arguments"] ?? {}) as Record<string, unknown>;
       try {
         return ok(id, await callTool(name, args, ctx));
+      // degradation: benign — a tool throw becomes a tool result with isError, which is how MCP reports a tool failure as distinct from a protocol one
       } catch (e) {
         // A tool throwing is a *tool* failure, not a protocol failure: the client gets a
         // successful RPC carrying `isError`, so it can show the model what went wrong
@@ -117,6 +118,7 @@ export async function serve(options: ServeOptions): Promise<void> {
     let request: JsonRpcRequest;
     try {
       request = JSON.parse(line) as JsonRpcRequest;
+    // degradation: benign — a malformed line becomes a ParseError response and the session continues, asserted in mcp.test.ts
     } catch {
       output.write(JSON.stringify(err(null, ErrorCode.ParseError, "invalid JSON")) + "\n");
       continue;
@@ -132,6 +134,7 @@ export async function serve(options: ServeOptions): Promise<void> {
     let response: JsonRpcResponse | null;
     try {
       response = await handleRequest(request, ctx);
+    // degradation: benign — a handler throw becomes a JSON-RPC InternalError, which is the surface a client reads
     } catch (e) {
       response = err(request.id ?? null, ErrorCode.InternalError, e instanceof Error ? e.message : String(e));
     }

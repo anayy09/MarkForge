@@ -1,0 +1,26 @@
+{
+  "key": "fd0ffa491639d6061b9b1186ca98fe217d52406743ef373ad3e11dcf03fa2315",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v2",
+  "mode": "guided",
+  "inputDigest": "a0a392a11de6d30a3fa7df32ced4b6bca80e8f123b61af5bd23106fa4d9a0efb",
+  "inputPreview": "Every archive must be written to two availability zones within one hour of acknowledgement. || Every archive must be written to two availability zones before the write is acknowledged.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "c75b9d1e40dfb34fa6c4169036519831b2cf421fd5a1eb797b96d293897d47fa",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Dropping B loses the requirement that the write to two availability zones must occur before acknowledgement.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 610,
+      "completionTokens": 374,
+      "totalTokens": 984
+    }
+  }
+}

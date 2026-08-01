@@ -136,6 +136,7 @@ async function lookup(page: PdfPageLike, name: string): Promise<RawImage | undef
     const value = await new Promise<unknown>((resolve) => {
       try {
         store.get(name, resolve);
+      // degradation: emits MF-PDF-0004 — the caller raises PDF_PAGE_IMAGE_UNAVAILABLE for the page whose raster came back undefined (pages.ts:102)
       } catch {
         // `get` throws for an object this store does not know about at all. A missing
         // image is a diagnostic, not a crash.

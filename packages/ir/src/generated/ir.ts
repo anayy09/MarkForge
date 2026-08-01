@@ -1011,4 +1011,8 @@ export interface Diagnostic {
     ref: string;
   };
   producedBy: Producer;
+  /**
+   * True when a capability the caller explicitly asked for did not happen, though nothing was lost. Distinct from `lossy`: the output is exactly what the deterministic path would produce, and the defect is that a requested step was skipped. Any degraded diagnostic sets exit code 2 under --strict, because a degradation nobody can fail on is invisible by construction.
+   */
+  degraded?: boolean;
 }
