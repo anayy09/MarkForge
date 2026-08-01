@@ -74,4 +74,41 @@ for (const t of targets) {
   console.log(`ok    ${t.out}  (${t.name}, ${ts.length} bytes)`);
   generated++;
 }
+// ---------------------------------------------------------------------------
+// The schema itself, embedded as a module.
+//
+// `salient.ts` and `validate.ts` used to `readFileSync` the IR schema at runtime, which
+// is correct in Node and impossible in a browser — and it was the single reason **all
+// ten** packages ADR-0015 claims run in-browser failed to bundle (scripts/check-browser-bundle.mjs,
+// first run). Embedding it here rather than hand-copying it into a `.ts` file keeps the
+// property those two modules' comments care about: the schema stays the one source of
+// truth for the salient-attribute allowlist, because this file *is* the schema and the
+// existing "Generated types are up to date" CI step fails if it drifts.
+//
+// Emitted as a JSON string parsed at load rather than as an object literal. 62 KB of
+// nested literal would be a real cost to typecheck for a value every consumer treats as
+// `object` anyway, and `JSON.parse` is what the two call sites already did.
+const SCHEMA_MODULES = [
+  {
+    schema: "packages/ir/schema/ir.v0.schema.json",
+    out: "packages/ir/src/generated/schema.ts",
+    symbol: "IR_SCHEMA",
+  },
+];
+
+for (const s of SCHEMA_MODULES) {
+  const raw = readFileSync(join(REPO, s.schema), "utf8");
+  // Round-trips through parse/stringify so the embedded text is canonical: whitespace
+  // in the source file cannot change the generated module, so reformatting the schema
+  // does not produce a spurious "generated types are stale" failure.
+  const canonical = JSON.stringify(JSON.parse(raw));
+  const body =
+    banner(s.schema) +
+    `export const ${s.symbol}: Record<string, unknown> = JSON.parse(\n  ${JSON.stringify(canonical)}\n) as Record<string, unknown>;\n`;
+  mkdirSync(join(REPO, s.out, ".."), { recursive: true });
+  writeFileSync(join(REPO, s.out), body, "utf8");
+  console.log(`ok    ${s.out}  (${s.symbol}, ${canonical.length} bytes of schema)`);
+  generated++;
+}
+
 console.log(`\ngenerated ${generated} type module(s)`);

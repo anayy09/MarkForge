@@ -165,6 +165,13 @@ jobs:
           git diff --exit-code -- docs/AGENTIFY.md \
             || (echo "::error::docs/AGENTIFY.md is stale. Run 'node scripts/check-agentify.mjs --update' and commit." && exit 1)
 
+      # ADR-0015, built rather than asserted. The decision sat at `Proposed` for four
+      # phases and was wrong for all ten packages it named; this is what keeps it true.
+      # A `node:` import added to any package in the eager set fails here, which is the
+      # only moment that regression is cheap to fix.
+      - name: The browser build has no Node dependency (ADR-0015)
+        run: node scripts/check-browser-bundle.mjs
+
       - name: Test
         run: pnpm run test
 

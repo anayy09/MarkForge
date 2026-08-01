@@ -21,17 +21,19 @@
     "check:corpus": "node scripts/build-messy-fixtures.mjs --check",
     "check:agentify-corpus": "node scripts/build-agentify-corpus.mjs --check",
     "check:agentify": "node scripts/check-agentify.mjs",
+    "check:browser": "node scripts/check-browser-bundle.mjs",
     "check:templates": "node scripts/build-reference-templates.mjs --check",
     "check:markdown": "node scripts/check-markdown-lint.mjs",
     "check:mammoth": "node scripts/diff-mammoth.mjs --check",
     "codegen": "node scripts/codegen-types.mjs",
     "fidelity": "node scripts/run-fidelity.mjs",
-    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run check:agentify-corpus && pnpm run typecheck && pnpm run check:markdown && pnpm run check:mammoth && pnpm run test && pnpm run build && pnpm run check:templates && pnpm run check:agentify"
+    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run check:agentify-corpus && pnpm run typecheck && pnpm run check:markdown && pnpm run check:mammoth && pnpm run test && pnpm run build && pnpm run check:templates && pnpm run check:agentify && pnpm run check:browser"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "esbuild": "^0.28.1",
     "fast-check": "^3.23.2",
     "json-schema-to-typescript": "^15.0.4",
     "mammoth": "^1.12.0",

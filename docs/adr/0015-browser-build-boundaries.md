@@ -1,8 +1,10 @@
 # ADR-0015: Browser build boundaries
 
-- Status: Proposed
+- Status: **Accepted, amended 2026-07-31** — the decision stands; three of its claims were
+  measured and two were wrong. See *What building it found*.
 - Date: 2026-07-29
 - Relates to: brief §3.6, §8; `SPEC.md` §11
+- Gated by: `scripts/check-browser-bundle.mjs`, CI job `build`
 
 ## Context
 
@@ -64,6 +66,66 @@ and discarding that capability would waste the reason we chose the engine.
 **Allowing the browser build to skip inference for bundle size.** Rejected: it would make
 browser and CLI output differ for the same input, which breaks the determinism guarantee more
 seriously than any size concern justifies. `infer` is deterministic, pure, and small.
+
+## What building it found
+
+This ADR sat at `Proposed` from 2026-07-29 to 2026-07-31 and every claim in it was
+untested. Phase 5 built `scripts/check-browser-bundle.mjs`, which bundles each named
+package at `platform=browser` and fails on any Node builtin or polyfill.
+
+**The first run failed all ten packages of the eager set.** Not partly — every one.
+
+Nine failed for one shared reason: they all depend on `@markforge/ir`, and `ir` reached
+Node in three files. `node-id.ts` imported `node:crypto` for `createHash("sha256")`;
+`salient.ts` and `validate.ts` each `readFileSync`-ed `schema/ir.v0.schema.json` at
+runtime; and `validate.ts` used `createRequire` for ajv's CJS interop. `@markforge/ooxml`
+was the only package in the repository that bundled for a browser. The tenth, `core`,
+additionally reached `adapters-pdf`.
+
+The decision survives because the fix was small and local — which is the argument the
+*Rejected alternatives* section makes for not deferring the browser build, arriving two
+years early in miniature. What did not survive is the assumption that stating the boundary
+puts the boundary there. Three corrections:
+
+**1. The eager set is now true, and it is true because a gate holds it there.** The schema
+is embedded by `scripts/codegen-types.mjs` into `packages/ir/src/generated/schema.ts`
+rather than read from disk, so it remains one source of truth with a staleness check
+instead of becoming a second copy that drifts. ajv is a plain ESM import; measured, it
+bundles at 299 KB. `node:crypto` is replaced by `@noble/hashes` — MIT, dependency-free,
+audited, synchronous. **Justification (brief §13): the browser has no synchronous SHA-256
+and node ids are synchronous by construction.** It is used in Node as well as the browser,
+because two implementations selected by platform are two things that must agree about
+every byte forever, with the agreement untested on whichever platform CI does not run.
+Verified: node ids are byte-identical across all seven Markdown fixtures, measured on both
+sides of the change, and the digest matches `node:crypto` over 306 inputs.
+
+**2. "Lazy-loaded" and "browser-capable" are not the same property, and this ADR conflated
+them.** The deferred `adapters-pdf` chunk still imports `node:module`, `node:path`, and
+`node:zlib`. Deferring it means a user converting DOCX to Markdown does not download it —
+which is the size argument, and that argument holds. It does not mean PDF works in a
+browser today. The gate reports this as a note on every run rather than letting the word
+"lazy" imply a capability nobody has built.
+
+**3. The lazy tier is drawn around packages, and the package is the wrong unit.** This
+ADR's own stated reason for deferring three packages is their weight: "Typst, pdf.js, and
+Tesseract plus language data together are tens of megabytes". Measured,
+`@markforge/adapters-ocr` bundles at **397 KB and contains no Tesseract at all** —
+`documentFromPages` builds IR from already-recognised pages, and the `Recognizer` is
+injected (ADR-0017), so the heavy artifact sits behind the injection point rather than
+behind the import. Gating on package names would have failed `core` for eagerly importing
+a pure function. The gate therefore asserts on the artifacts — `tesseract.js`,
+`pdfjs-dist`, `typst` — and this ADR is amended to match the measurement rather than the
+measurement bent to match the ADR.
+
+**`render-pdf` remains untestable.** It is named in the lazy tier and does not exist,
+because ADR-0003 blocks it on the Typst WASM bundle. The lazy tier is therefore ratified
+for two of its three members, and the gate prints that as a note rather than narrowing the
+claim to whatever happens to be checkable.
+
+**Still unbuilt from this ADR:** the Playwright leg. The *Consequences* below promise that
+browser and Node produce byte-identical output on the same fixtures, which is the strongest
+available check that the surfaces have not diverged — and it is Phase 5's done-criterion
+rather than something this amendment delivers.
 
 ## Consequences
 

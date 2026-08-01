@@ -23,6 +23,7 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `check-markdown-lint.mjs` | `markdownlint`, built packages | Lints the Markdown our renderer produces. A gate, not a repair pass (ADR-0006) |
 | `diff-mammoth.mjs` | `mammoth`, built packages | Differential test of our OOXML reader against Mammoth; every divergence triaged in `docs/MAMMOTH-DIFF.md` (ADR-0005) |
 | `fetch-ocr-assets.mjs` | network, once | Downloads tesseract language data and the found scan into gitignored `fixtures/local/` (`docs/CORPUS.md` §2.7) |
+| `check-browser-bundle.mjs` | `esbuild`, built packages | Builds every package ADR-0015 claims runs in-browser at `platform=browser` and fails on any `node:` builtin or polyfill. The Phase 5 gate that took ADR-0015 off `Proposed` |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
@@ -113,6 +114,49 @@ The script also refuses rather than degrades: a source construct it cannot draw,
 wrapped across two lines, throws with the reason. A rasteriser that quietly skipped a table
 would produce a fixture whose committed ground truth claims content the image does not contain,
 which would make every OCR number measured against it meaningless.
+
+## `check-browser-bundle.mjs`
+
+ADR-0015 named ten packages that "run fully in-browser" and three deferred behind a lazy
+load. It carried `Status: Proposed` through four phases because nothing ever built it. This
+script builds it.
+
+Four sections, and the last one is why the first three mean anything:
+
+1. Every eager package bundles at `platform=browser` with no `node:` builtin reachable.
+   Measured from esbuild's resolution errors, so a builtin arriving through a transitive
+   dependency counts the same as an import.
+2. No Node global stands in for a builtin that is absent — `Dynamic require of`,
+   `process.env`, `__dirname`, `__filename`, `globalThis.process`.
+3. `core` is split into chunks, and its **entry** chunk must contain no builtin and none of
+   `tesseract.js`, `pdfjs-dist`, or `typst`. Builtins are marked external only here, and
+   only so the build gets far enough to answer *which chunk* rather than *whether*.
+4. Negative controls: a direct `node:fs` import, a builtin two hops away behind a clean
+   entry point, and a `process.env` read that bundles successfully and must still be caught.
+
+**The first run failed all ten.** Every one failed through `@markforge/ir` — `node:crypto`
+in `node-id.ts`, and a runtime `readFileSync` of `ir.v0.schema.json` in both `salient.ts`
+and `validate.ts`, plus `createRequire` for ajv's CJS interop. `@markforge/ooxml` was the
+only package in the repository that bundled. The ADR's central claim was not partly wrong;
+it was wrong for every package it named, for one shared reason nobody had run.
+
+Three of the notes it prints are findings rather than progress reports, and they are the
+reason ADR-0015 is amended rather than simply ratified: `render-pdf` does not exist, so a
+third of the lazy tier is untestable; the deferred `adapters-pdf` chunk still needs
+`node:module`, `node:path`, and `node:zlib`, so "lazy" and "browser-capable" are not the
+same property; and `adapters-ocr` bundles clean at 397 KB with no Tesseract in it at all,
+because the recogniser is injected — so the ADR's lazy tier is drawn around packages when
+the thing worth deferring is the WASM artifact.
+
+Two of its own checks were wrong first, both caught by reading output against what is on
+disk rather than by reasoning:
+
+- **Check 3 reported the absent `render-pdf` as present.** It inferred existence from the
+  shape of an esbuild error, and esbuild reports a missing entry point with the same
+  `Could not resolve "…"` wording it uses for a builtin. It now uses `existsSync`.
+- **Check 2's negative control tested nothing.** It read `process.env.NODE_ENV`, the one
+  key esbuild constant-folds by default, so the control bundled to `var mode = "development"`
+  with no `process` in it. Any other variable name survives.
 
 ## `check-markdown-lint.mjs`
 

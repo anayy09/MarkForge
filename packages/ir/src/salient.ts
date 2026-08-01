@@ -7,8 +7,7 @@
  * without any test necessarily noticing. The schema is the single source of truth
  * for what makes a node the node it is.
  */
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { IR_SCHEMA } from "./generated/schema.js";
 
 interface NodeDef {
   properties?: { type?: { const?: string } };
@@ -19,26 +18,22 @@ interface IrSchema {
   $defs: Record<string, NodeDef>;
 }
 
+/**
+ * The schema, embedded at build time rather than read from disk.
+ *
+ * It used to be a `readFileSync` of `../schema/ir.v0.schema.json`, which works in Node
+ * and cannot work in a browser — and that one line, shared with `validate.ts`, is why
+ * **all ten** packages ADR-0015 claims run in-browser failed to bundle on the first run
+ * of `scripts/check-browser-bundle.mjs`.
+ *
+ * The property the old comment cared about is unchanged: this is still the schema and not
+ * a second copy of it. `scripts/codegen-types.mjs` emits `generated/schema.ts` from
+ * `schema/ir.v0.schema.json`, and CI's "Generated types are up to date" step fails if the
+ * two drift — so a hand-edited allowlist is caught rather than silently renumbering every
+ * node id in every document, which is the drift the original comment was guarding against.
+ */
 function loadSchema(): IrSchema {
-  // Resolved relative to this module so it works from src/ under vitest and from
-  // dist/ once built. `files` in package.json ships schema/, so it is present in a
-  // published tarball too.
-  const candidates = [
-    new URL("../schema/ir.v0.schema.json", import.meta.url), // dist/  -> ../schema
-    new URL("../../schema/ir.v0.schema.json", import.meta.url), // src/ -> ../../schema
-  ];
-  for (const url of candidates) {
-    try {
-      return JSON.parse(readFileSync(fileURLToPath(url), "utf8")) as IrSchema;
-    } catch {
-      continue;
-    }
-  }
-  throw new Error(
-    "@markforge/ir: could not locate ir.v0.schema.json. The salient-attribute " +
-      "allowlist lives in the schema (SPEC §2.7), so node ids cannot be computed " +
-      "without it.",
-  );
+  return IR_SCHEMA as unknown as IrSchema;
 }
 
 let cache: Map<string, readonly string[]> | undefined;

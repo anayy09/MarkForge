@@ -9,7 +9,7 @@
  * makes incremental regeneration produce a minimal diff instead of renumbering
  * everything after the edit, which a positional scheme (`/body/children/3`) would.
  */
-import { createHash } from "node:crypto";
+import { sha256 } from "@noble/hashes/sha2.js";
 import { canonicalJson } from "./canonical-json.js";
 import { salientAttrsFor } from "./salient.js";
 
@@ -38,12 +38,29 @@ export function base32lower(bytes: Uint8Array): string {
   return out;
 }
 
+/**
+ * SHA-256, from `@noble/hashes` rather than `node:crypto`.
+ *
+ * Node ids are synchronous by construction — `localDigest` is called bottom-up during a
+ * tree walk — and the browser has no synchronous SHA-256 at all: `crypto.subtle.digest`
+ * is async, and making ids async would change every call site in every package to buy
+ * one platform. `@noble/hashes` is MIT, dependency-free, audited, and sync, so it is the
+ * whole of the fix. (Brief §13: the one-line justification is that sentence.)
+ *
+ * Used in Node too, deliberately. Two implementations chosen by platform would be two
+ * things that must agree about every byte forever, and the agreement would be untested
+ * on whichever platform CI did not run. One implementation cannot disagree with itself.
+ */
+const utf8 = new TextEncoder();
+const hex = (bytes: Uint8Array): string =>
+  Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+
 export function sha256Hex(input: string | Uint8Array): string {
-  return createHash("sha256").update(input).digest("hex");
+  return hex(sha256(typeof input === "string" ? utf8.encode(input) : input));
 }
 
 function sha256Bytes(input: string): Uint8Array {
-  return new Uint8Array(createHash("sha256").update(input, "utf8").digest());
+  return sha256(utf8.encode(input));
 }
 
 /** Any node-shaped object. Deliberately loose: this runs before ids are assigned. */
@@ -153,7 +170,7 @@ export const NODE_ID_PATTERN = /^n_[a-z2-7]{20}:\d+$/;
 
 /** Digest of raw bytes, for source files and resources (SPEC §2.2). */
 export function contentHashOfBytes(bytes: Uint8Array): string {
-  return createHash("sha256").update(bytes).digest("hex");
+  return hex(sha256(bytes));
 }
 
 export { sha256Bytes };

@@ -5,10 +5,10 @@
  * boundary catches an adapter bug at the adapter rather than three packages later
  * as a confusing render failure.
  */
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
+import Ajv2020Cjs from "ajv/dist/2020.js";
+import addFormatsCjs from "ajv-formats";
 import type { ValidateFunction } from "ajv";
+import { IR_SCHEMA } from "./generated/schema.js";
 
 /**
  * The parts of ajv this module uses. Written out rather than imported because ajv's
@@ -20,31 +20,26 @@ interface AjvInstance {
   compile(schema: object): ValidateFunction;
 }
 
-// ajv and ajv-formats are CommonJS packages whose runtime export is `module.exports
-// = Class` with an added `.default` for interop. Under NodeNext, TypeScript sees the
+// ajv and ajv-formats are CommonJS packages whose runtime export is `module.exports =
+// Class` with an added `.default` for interop. Under NodeNext, TypeScript sees the
 // namespace and neither `import X from` nor the namespace itself is constructable.
-// createRequire loads the real CJS value, which is unambiguous at runtime and does
-// not depend on which interop flag is set.
-const require = createRequire(import.meta.url);
+//
+// This used to be `createRequire(import.meta.url)`, which is unambiguous at runtime and
+// pulls in `node:module` — one of the four builtins that kept every ADR-0015 in-browser
+// package from bundling. A default import plus the `.default ?? ` unwrap resolves the
+// same value in Node and in a bundler, where `createRequire` resolves nothing at all.
+// The unwrap is not defensive: it is which of the two shapes the CJS interop produced,
+// and both occur depending on who is loading the module.
 type Ajv2020Ctor = new (opts: Record<string, unknown>) => AjvInstance;
-const Ajv2020: Ajv2020Ctor = require("ajv/dist/2020.js").default ?? require("ajv/dist/2020.js");
-const addFormats: (ajv: AjvInstance) => void =
-  require("ajv-formats").default ?? require("ajv-formats");
+const Ajv2020 = ((Ajv2020Cjs as unknown as { default?: Ajv2020Ctor }).default ??
+  Ajv2020Cjs) as Ajv2020Ctor;
+const addFormats = ((addFormatsCjs as unknown as { default?: (a: AjvInstance) => void })
+  .default ?? addFormatsCjs) as (ajv: AjvInstance) => void;
 import type { MarkForgeDocument } from "./document.js";
 
+/** The schema, embedded at build time. See the note in `salient.ts` for why. */
 function loadSchema(): object {
-  const candidates = [
-    new URL("../schema/ir.v0.schema.json", import.meta.url),
-    new URL("../../schema/ir.v0.schema.json", import.meta.url),
-  ];
-  for (const url of candidates) {
-    try {
-      return JSON.parse(readFileSync(fileURLToPath(url), "utf8")) as object;
-    } catch {
-      continue;
-    }
-  }
-  throw new Error("@markforge/ir: could not locate ir.v0.schema.json");
+  return IR_SCHEMA;
 }
 
 /**
