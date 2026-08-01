@@ -1,0 +1,305 @@
+/**
+ * Deduplication — SPEC §10.4.
+ *
+ * Two passes, in this order, because they are good at different things and the cheap one
+ * is not a weaker version of the expensive one:
+ *
+ *   1. **Normalized text.** Catches exact and near-exact restatement. Free, offline, and
+ *      the only pass that runs under `--no-llm`.
+ *   2. **Embedding shortlist, then model adjudication.** Catches the same fact written by two
+ *      people who shared no vocabulary. Needs a model, so it runs only when one is supplied.
+ *
+ * OPEN_QUESTIONS §7c reversed this design from a text threshold to embeddings, and the
+ * corpus exists to keep that reversal honest rather than merely argued: both near-duplicate
+ * pairs in `fixtures/agentify/clean/` score **content-word Jaccard 0.000**, asserted on every
+ * run of `scripts/build-agentify-corpus.mjs`. At zero overlap no lexical threshold can merge
+ * them at any setting. That much held up.
+ *
+ * **What did not hold up is the other half of §7c: that cosine distance could then make the
+ * decision.** Measured against `nomic-embed-text-v1.5`, the two authored near-duplicate pairs
+ * score 0.63 and 0.62 — and the highest-scoring pair in the entire clean set is
+ * `NIMBUS_MAX_BATCH_MB=64` against `NIMBUS_BATCH_TIMEOUT_MS=30000` at **0.82**, two unrelated
+ * variables. "Every rejected batch must be retrievable for thirty days" against "A batch that
+ * fails validation must be rejected whole" scores 0.74. The true pairs rank *below* several
+ * false ones, so no threshold separates them; the documented task prefixes (`clustering:`,
+ * `search_document:`) raise every score and leave the ordering unchanged.
+ *
+ * The reason is not a bad model. Cosine over sentence embeddings measures topical
+ * relatedness, and deduplication needs semantic equivalence — two sentences about the same
+ * subsystem are near each other whether or not they say the same thing. So pass 2 is now two
+ * stages: the embedding **shortlists** candidates, and a `strong` model **decides**, with the
+ * surviving text constrained by schema to be one of the two inputs verbatim. Recorded in
+ * ADR-0020 and measured in docs/AGENTIFY.md.
+ *
+ * **Provenance is additive, never replaced** (§10.4). A merged unit keeps every source
+ * reference from both sides. This is why `unitContentHash` deliberately excludes `sources`:
+ * gaining a source must not look like a content change to §10.8's incremental diff, or every
+ * merge would rewrite a region that did not change.
+ *
+ * **Blocking by category is not an optimisation.** Merging a `command` into a `constraint`
+ * would be a claim about meaning that this stage has no basis for, so units only ever merge
+ * within a category — which also keeps the number of embedding calls proportional to the
+ * largest category rather than to the square of the corpus.
+ */
+import { DiagnosticCode, type DiagnosticBag } from "@markforge/ir";
+
+/** Shortlisted pairs adjudicated per category before the cap bites. */
+const DEFAULT_MAX_PAIRS = 24;
+import { normalizeUnitText, type ContextUnit, type UnitCategory } from "./units.js";
+
+/**
+ * Embeds a batch of strings, returning one vector per input in the same order.
+ *
+ * Injected rather than imported. `@markforge/agentify` must not depend on `@markforge/llm`
+ * for the same two reasons `@markforge/core` must not (ADR-0015 browser compatibility, and
+ * ADR-0009's rule being enforceable only if the import does not exist) — so the CLI
+ * composes this from a session and hands it in, and its absence is `--no-llm`.
+ */
+export type Embedder = (texts: string[]) => Promise<number[][]>;
+
+/**
+ * Decides whether a shortlisted pair states one fact, and which wording survives.
+ *
+ * Injected for the same reason `Embedder` is. Returning `undefined` means the call failed
+ * and the pair stays unmerged — an adjudicator that cannot answer must not merge.
+ */
+export type Adjudicator = (pair: {
+  a: ContextUnit;
+  b: ContextUnit;
+}) => Promise<{ sameFact: boolean; survivingText: string } | undefined>;
+
+export interface DedupOptions {
+  /**
+   * Cosine at or above which a pair is *worth asking about*. Not a merge decision.
+   *
+   * It was a merge decision until it was measured. See this module's header: on the clean
+   * corpus the highest-scoring pair of all was two unrelated environment variables, and the
+   * two authored near-duplicates ranked below several non-duplicates, so no value of this
+   * number both merges the true pairs and spares the decoys. It now controls recall into
+   * the adjudication stage, where being generous is cheap and being wrong is not.
+   */
+  threshold: number;
+  embed?: Embedder;
+  adjudicate?: Adjudicator;
+  /** Cap on shortlisted pairs per category, so a large corpus cannot fan out unboundedly. */
+  maxPairsPerCategory?: number;
+}
+
+export interface DedupResult {
+  units: ContextUnit[];
+  merges: {
+    survivingId: string;
+    mergedId: string;
+    method: "text" | "embedding";
+    similarity: number;
+    text: string;
+  }[];
+}
+
+export async function deduplicate(
+  input: ContextUnit[],
+  options: DedupOptions,
+  diagnostics: DiagnosticBag,
+): Promise<DedupResult> {
+  const merges: DedupResult["merges"] = [];
+
+  // --- Pass 1: exact restatement, by normalized text.
+  const byText = new Map<string, ContextUnit>();
+  const afterText: ContextUnit[] = [];
+  for (const unit of input) {
+    const key = `${unit.category} ${normalizeUnitText(unit.text)}`;
+    const existing = byText.get(key);
+    if (existing) {
+      mergeInto(existing, unit);
+      merges.push({
+        survivingId: existing.id,
+        mergedId: unit.id,
+        method: "text",
+        similarity: 1,
+        text: unit.text,
+      });
+      continue;
+    }
+    byText.set(key, unit);
+    afterText.push(unit);
+  }
+
+  if (!options.embed) {
+    report(merges, diagnostics, false);
+    return { units: afterText, merges };
+  }
+
+  // --- Pass 2: same fact, different words.
+  const groups = new Map<UnitCategory, ContextUnit[]>();
+  for (const unit of afterText) {
+    const bucket = groups.get(unit.category);
+    if (bucket) bucket.push(unit);
+    else groups.set(unit.category, [unit]);
+  }
+
+  const absorbed = new Set<string>();
+  for (const [category, bucket] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    if (bucket.length < 2) continue;
+    // One call per category, inputs in the bucket's own order, so the cache key is stable
+    // across runs. Batching per category rather than per pair is what keeps the committed
+    // cache small enough to review in a diff.
+    const vectors = await options.embed(bucket.map((u) => embeddingTextOf(u)));
+    if (vectors.length !== bucket.length) {
+      throw new Error(
+        `agentify: the embedder returned ${vectors.length} vectors for ${bucket.length} ` +
+          `${category} units. Merging on a misaligned batch would attach one unit's ` +
+          `provenance to another's text, so this refuses rather than guessing.`,
+      );
+    }
+    // Stage 2a: shortlist by cosine, highest first.
+    const shortlist: { i: number; j: number; similarity: number }[] = [];
+    for (let i = 0; i < bucket.length; i++) {
+      for (let j = i + 1; j < bucket.length; j++) {
+        const a = bucket[i]!;
+        const b = bucket[j]!;
+        // Two units that name *different* entities are about different things by
+        // definition, whatever the geometry says. This is the same "same entity" notion
+        // §10.4 uses for conflict detection, and it removes the corpus's strongest decoy —
+        // two unrelated NIMBUS_* variables at cosine 0.82 — on a principle rather than by
+        // tuning a number.
+        if (a.entityKey !== undefined && b.entityKey !== undefined && a.entityKey !== b.entityKey) {
+          continue;
+        }
+        const similarity = cosine(vectors[i]!, vectors[j]!);
+        if (similarity < options.threshold) continue;
+        shortlist.push({ i, j, similarity });
+      }
+    }
+    shortlist.sort((x, y) => y.similarity - x.similarity);
+    const capped = shortlist.slice(0, options.maxPairsPerCategory ?? DEFAULT_MAX_PAIRS);
+    if (shortlist.length > capped.length) {
+      diagnostics.info(
+        DiagnosticCode.AGENTIFY_UNITS_MERGED,
+        `agentify: ${shortlist.length} ${category} pairs cleared the shortlist threshold and ` +
+          `only the ${capped.length} closest were adjudicated. Raise ` +
+          `agentify.maxPairsPerCategory if duplicates are being missed.`,
+      );
+    }
+
+    // Stage 2b: the model decides. With no adjudicator, nothing merges here — a cosine
+    // score is not a merge decision and pretending otherwise is what the measurement
+    // refuted.
+    for (const { i, j, similarity } of capped) {
+      const a = bucket[i]!;
+      const b = bucket[j]!;
+      if (absorbed.has(a.id) || absorbed.has(b.id)) continue;
+      if (!options.adjudicate) continue;
+
+      const verdict = await options.adjudicate({ a, b });
+      if (!verdict || !verdict.sameFact) continue;
+
+      // The adjudicator names the surviving wording; `mergeInto` otherwise picks by
+      // authority. Aligning them here means the model's choice is honoured without
+      // `mergeInto` needing to know a model exists.
+      const [keep, drop] = verdict.survivingText === b.text ? [b, a] : [a, b];
+      mergeInto(keep, drop);
+      absorbed.add(drop.id);
+      merges.push({
+        survivingId: keep.id,
+        mergedId: drop.id,
+        method: "embedding",
+        similarity,
+        text: drop.text,
+      });
+    }
+
+    if (capped.length > 0 && !options.adjudicate) {
+      diagnostics.info(
+        DiagnosticCode.AGENTIFY_UNITS_MERGED,
+        `agentify: ${capped.length} ${category} pair(s) were close enough to be candidates but ` +
+          `no adjudicator was supplied, so none were merged. Cosine alone cannot make this ` +
+          `call on real text — see docs/AGENTIFY.md.`,
+      );
+    }
+  }
+
+  report(merges, diagnostics, true);
+  return { units: afterText.filter((u) => !absorbed.has(u.id)), merges };
+}
+
+/**
+ * What gets embedded for a unit.
+ *
+ * The text alone, not the category or the rationale. Including the category would push
+ * every unit in a bucket together — they already share it — and including the rationale
+ * would let two decisions with similar justifications merge despite deciding different
+ * things.
+ */
+function embeddingTextOf(unit: ContextUnit): string {
+  return unit.text;
+}
+
+/**
+ * Folds `from` into `into`, keeping the better-attested text.
+ *
+ * The surviving text is the one from the higher-authority source, which is a stated
+ * preference in §10.4 for *ordering*; used here it decides phrasing only, and both sources
+ * remain attached either way, so nothing is lost by the choice.
+ */
+function mergeInto(into: ContextUnit, from: ContextUnit): void {
+  const fromIsBetter =
+    from.authority > into.authority ||
+    (from.authority === into.authority && from.confidence > into.confidence);
+  if (fromIsBetter) {
+    into.text = from.text;
+    if (from.rationale !== undefined) into.rationale = from.rationale;
+    // The id and hash follow the text, so the surviving unit is addressable by what it
+    // now says rather than by what it used to say.
+    into.id = from.id;
+    into.contentHash = from.contentHash;
+  } else if (into.rationale === undefined && from.rationale !== undefined) {
+    // A merge should never lose a rationale: a decision that arrives without one and gains
+    // one from its twin is strictly better attested than either was alone.
+    into.rationale = from.rationale;
+  }
+
+  const seen = new Set(into.sources.map((s) => `${s.path} ${s.order}`));
+  for (const source of from.sources) {
+    const key = `${source.path} ${source.order}`;
+    if (!seen.has(key)) {
+      into.sources.push(source);
+      seen.add(key);
+    }
+  }
+  into.sources.sort((a, b) => (a.path === b.path ? a.order - b.order : a.path < b.path ? -1 : 1));
+  into.confidence = Math.max(into.confidence, from.confidence);
+  into.authority = Math.max(into.authority, from.authority);
+  if (into.entityKey === undefined && from.entityKey !== undefined) into.entityKey = from.entityKey;
+}
+
+function report(merges: DedupResult["merges"], diagnostics: DiagnosticBag, embedded: boolean): void {
+  if (merges.length === 0) return;
+  const byMethod = merges.filter((m) => m.method === "embedding").length;
+  diagnostics.info(
+    DiagnosticCode.AGENTIFY_UNITS_MERGED,
+    `agentify: merged ${merges.length} duplicate context unit(s) — ` +
+      `${merges.length - byMethod} by exact restatement` +
+      (embedded
+        ? ` and ${byMethod} by embedding similarity.`
+        : `. No embedder was supplied, so units restating the same fact in different words ` +
+          `were kept separate (SPEC §10.4). Pass --llm to merge them.`),
+  );
+}
+
+export function cosine(a: number[], b: number[]): number {
+  if (a.length !== b.length) {
+    throw new Error(`agentify: cannot compare embeddings of length ${a.length} and ${b.length}`);
+  }
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]!;
+    const y = b[i]!;
+    dot += x * y;
+    na += x * x;
+    nb += y * y;
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}

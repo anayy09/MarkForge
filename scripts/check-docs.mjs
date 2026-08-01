@@ -93,9 +93,10 @@ else ok("SPEC.md section 10 covers all 7 agentify stages");
 
 // --- 6. ADRs: files, index, and cross-references must all agree.
 const adrFiles = readdirSync(join(REPO, "docs/adr")).filter((f) => /^\d{4}-.*\.md$/.test(f)).sort();
-// 15 through Phase 2; Phase 3 adds 0016 (LLM runtime) and 0017 (the OCR boundary).
-if (adrFiles.length !== 17) fail(`expected 17 ADR files, found ${adrFiles.length}`);
-else ok("17 ADR files present");
+// 15 through Phase 2; Phase 3 adds 0016 (LLM runtime) and 0017 (the OCR boundary);
+// Phase 4 adds 0018 (unit ordering), 0019 (token counting), and 0020 (dedup staging).
+if (adrFiles.length !== 20) fail(`expected 20 ADR files, found ${adrFiles.length}`);
+else ok("20 ADR files present");
 
 for (const f of adrFiles) {
   if (!adrIndex.includes(f)) fail(`ADR ${f} is not linked from docs/adr/README.md`);
@@ -469,7 +470,7 @@ const PACKAGES = [
   "ir", "ooxml", "infer", "adapters-docx", "adapters-md",
   "render-md", "render-docx", "fidelity", "core", "cli",
   "adapters-html", "render-html", "adapters-office", "adapters-pdf",
-  "llm", "adapters-ocr",
+  "llm", "adapters-ocr", "agentify",
 ];
 
 // 14a. Every package is private until publication is decided (OPEN_QUESTIONS §5),

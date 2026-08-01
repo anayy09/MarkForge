@@ -109,6 +109,16 @@ jobs:
       - name: Agentify corpus fixtures are current
         run: node scripts/build-agentify-corpus.mjs --check
 
+      # Phase 4's measurements, and the negative control that makes them mean something.
+      # Runs after the build because it imports the built packages.
+      - name: Agentify gates and answer-key measurements
+        run: node scripts/check-agentify.mjs
+
+      - name: docs/AGENTIFY.md is current
+        run: |
+          git diff --exit-code -- docs/AGENTIFY.md \
+            || (echo "::error::docs/AGENTIFY.md is stale. Run 'node scripts/check-agentify.mjs --update' and commit." && exit 1)
+
       - name: Test
         run: pnpm run test
 
@@ -298,6 +308,91 @@ jobs:
           echo "$out" | grep -q "no text layer" || (echo "::error::a scan did not refuse by name" && exit 1)
           test "$code" -eq 1 || (echo "::error::a scan exited $code, expected 1" && exit 1)
           echo "A scan with no recogniser refuses with exit 1 and names both routes."
+
+      # Phase 4's done-criterion, both halves, through the shipped CLI rather than the
+      # library — so a broken command-line surface fails here rather than passing a unit
+      # test. No API key is set: agentify's default is --no-llm and the gate must clear
+      # without a model, or the deterministic path is not really the default.
+      - name: A folder of mixed documents compiles to a CLAUDE.md set that passes the gate
+        run: |
+          set -e
+          unset MODEL_API_KEY
+          rm -rf /tmp/agentify-out
+          node packages/cli/dist/index.js agentify fixtures/agentify/clean \
+            --targets agents-md,claude-md,claude-skills,claude-commands,mcp-manifest \
+            --out-dir /tmp/agentify-out \
+            --manifest /tmp/agentify-out/.markforge/provenance.json
+          test -f /tmp/agentify-out/CLAUDE.md \
+            || (echo "::error::no CLAUDE.md was produced" && exit 1)
+          test -f /tmp/agentify-out/.markforge/provenance.json \
+            || (echo "::error::no provenance manifest was written" && exit 1)
+          echo "A CLAUDE.md set was produced from md + html + docx and passed the gate."
+
+      # Budget loss is visible and non-zero under --strict.
+      #
+      # This step originally claimed an over-budget run exits 5, and running it showed that
+      # was wrong twice over: exit 5 is the *traceability* code, and nothing was being
+      # dropped at all because the overflow route absorbed it. What is true is narrower and
+      # worth checking — a target with no secondary route drops its lowest-value units,
+      # names every one under --explain-drops, and exits 2 under --strict.
+      #
+      # The gate's ability to *fail* is checked at library level by
+      # scripts/check-agentify.mjs (three crafted violations) rather than here, because by
+      # construction the CLI cannot assemble an untraceable file: exit 5 is reachable only
+      # through a defect, which is the point.
+      - name: Budget loss is reported and exits 2 under --strict
+        run: |
+          set +e
+          unset MODEL_API_KEY
+          out=$(node packages/cli/dist/index.js agentify fixtures/agentify/clean \
+            --targets claude-commands --budget 30 --dry-run --strict --explain-drops 2>&1)
+          code=$?
+          set -e
+          echo "$out"
+          test "$code" -eq 2 \
+            || (echo "::error::a lossy agentify run under --strict exited $code, expected 2" && exit 1)
+          echo "$out" | grep -q "dropped \[budget\]" \
+            || (echo "::error::--explain-drops named no dropped unit" && exit 1)
+          echo "$out" | grep -q "MF-AGENT-0006" \
+            || (echo "::error::dropping a unit emitted no lossy diagnostic" && exit 1)
+          echo "Budget loss is named unit by unit and exits 2 under --strict."
+
+      # Two runs, byte-identical. Determinism is a product guarantee (SPEC §1) and Surface A
+      # is not exempt: an agent file that churns on every run is unusable in a repository,
+      # which is the whole point of brief §6.2.
+      - name: Agentify output is byte-identical across runs
+        run: |
+          set -e
+          unset MODEL_API_KEY
+          for run in a b; do
+            node packages/cli/dist/index.js agentify fixtures/agentify/clean \
+              --targets claude-md,agents-md --out-dir "/tmp/ag-$run" \
+              --manifest "/tmp/ag-$run/.markforge/provenance.json" --quiet
+          done
+          diff -r /tmp/ag-a /tmp/ag-b \
+            || (echo "::error::two agentify runs of the same input differ" && exit 1)
+          echo "Agentify output and its provenance manifest are byte-identical across runs."
+
+      # Phase 4's LLM half, with the same two properties Phase 3 required of its own:
+      # reproducible offline, and *different* from the deterministic path. The second matters
+      # more — a cached run that matched --no-llm exactly would mean the model changed nothing
+      # and the measurement was vacuous. Here the difference is one merged near-duplicate.
+      - name: Cached-LLM agentify is byte-reproducible, offline, and changes the output
+        run: |
+          set -e
+          unset MODEL_API_KEY
+          for run in a b; do
+            node packages/cli/dist/index.js agentify fixtures/agentify/clean               --targets claude-md --llm --llm-cache-mode readOnly               --out-dir "/tmp/agl-$run" --manifest "/tmp/agl-$run/p.json" --quiet
+          done
+          diff -r /tmp/agl-a /tmp/agl-b             || (echo "::error::two cached-LLM agentify runs differ" && exit 1)
+          node packages/cli/dist/index.js agentify fixtures/agentify/clean             --targets claude-md --out-dir /tmp/agl-det --manifest /tmp/agl-det/p.json --quiet
+          if cmp -s /tmp/agl-a/CLAUDE.md /tmp/agl-det/CLAUDE.md; then
+            echo "::error::--llm produced the same CLAUDE.md as --no-llm; the near-duplicate"
+            echo "::error::merge stopped happening, or the committed cache is unreachable"
+            exit 1
+          fi
+          diff /tmp/agl-det/CLAUDE.md /tmp/agl-a/CLAUDE.md || true
+          echo "Cached-LLM agentify is reproducible offline and merges a near-duplicate."
 
       # fmt --check on already-formatted files must exit 0. If it did not, the
       # formatter would report its own output as needing formatting.

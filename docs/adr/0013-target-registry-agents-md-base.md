@@ -14,9 +14,20 @@ vendor documentation rather than trusted from training data, because these chang
 Verified 2026-07-29: `AGENTS.md` was released by OpenAI in August 2025, transferred to the
 Linux Foundation's Agentic AI Foundation in late 2025, and by May 2026 was adopted by 60,000+
 repositories and read natively by Codex, Cursor, Copilot, Gemini CLI, Aider, Windsurf, and Zed.
-Claude Code added `AGENTS.md` support during spring 2026 while retaining the richer `CLAUDE.md`
-memory model. Cursor uses `.cursor/rules/*.mdc` with YAML front matter for glob-scoped
+~~Claude Code added `AGENTS.md` support during spring 2026 while retaining the richer `CLAUDE.md`
+memory model.~~ Cursor uses `.cursor/rules/*.mdc` with YAML front matter for glob-scoped
 activation; Copilot uses `.github/copilot-instructions.md`; Gemini CLI reads `GEMINI.md`.
+
+> **Correction, 2026-07-31 (Phase 4 implementation).** The struck sentence is wrong. Claude
+> Code's current documentation states: *"Claude Code reads `CLAUDE.md`, not `AGENTS.md`."* The
+> decision below is unaffected and, if anything, better supported — the vendor's own remedy for
+> a repository holding both is a `CLAUDE.md` whose first line is `@AGENTS.md`, which is this
+> ADR's base-plus-delta arrangement expressed in the target's own import syntax. But the premise
+> was checked two days before implementation and was already wrong, which is the strongest
+> available argument for the required `verifiedAgainst` field this ADR introduces. Two further
+> corrections found the same afternoon: Windsurf's documentation now 307-redirects to
+> `docs.devin.ai`, and `.clinerules` is a directory rather than a file. All three are recorded
+> in `docs/TARGETS.md` under *What re-verification found*.
 
 That changes the shape of the problem. The brief's list implies nine peer targets; the current
 landscape is one standard plus a small number of genuine variations.

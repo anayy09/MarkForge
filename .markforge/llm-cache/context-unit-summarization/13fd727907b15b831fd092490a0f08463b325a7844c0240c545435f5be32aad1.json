@@ -1,0 +1,26 @@
+{
+  "key": "13fd727907b15b831fd092490a0f08463b325a7844c0240c545435f5be32aad1",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v1",
+  "mode": "guided",
+  "inputDigest": "a57330a581b62ad0b6efcb66b995d3e0c6fc1ec7fcd7f78bd556f0aa3820ceca",
+  "inputPreview": "No user should ever wait more than two seconds for a batch to be acknowledged. || Every rejected batch must be retrievable for thirty days.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "6db9cd0e43c0c4161751820d2c5944c8d3d3f3ce0ce0906dbbb96efabc64b2a8",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Statement A concerns acknowledgment latency, while statement B concerns retention period for rejected batches; they address unrelated requirements.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 328,
+      "completionTokens": 120,
+      "totalTokens": 448
+    }
+  }
+}

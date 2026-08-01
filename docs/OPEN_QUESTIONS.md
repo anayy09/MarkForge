@@ -345,6 +345,61 @@ suffixed precisely so it reads as an exception rather than half of a pair, and d
 not generalisable. `render` is async today even though every renderer built so far is
 synchronous, so that the signature does not change on the day PDF output lands.
 
+Added during Phase 4:
+
+**7k. `SPEC.md` §10.8's unit ordering is amended: source position sorts ahead of the id.**
+§10.8 specifies `(sectionOrder, categoryOrder, id)` and calls it "a total order independent of
+discovery order", which it is — but `id` is content-addressed, so editing a unit's text moves
+it, and the spec's own goal is a one-region diff. Measured on the corpus: under the order as
+written, changing "thirty days" to "ninety days" moved the unit from row 6 to row 4 and changed
+**three** rows; with source position ahead of the id it changes **one**. Argued in ADR-0018 and
+asserted on every CI run. Reversing it is one comparator.
+
+**7l. No tokenizer is bundled, and `modelTokenizer` refuses rather than approximating.**
+§10.5 offers a model tokenizer or a documented approximation. Every shipped profile uses the
+approximation at 3.8 characters per token, named as an estimate everywhere it appears. A
+profile asking for `modelTokenizer` gets an error rather than a silent fallback, because a
+silent fallback puts an estimate in the report under the name of a measurement. The 3.8 ratio
+is **not calibrated** against any consumer model. ADR-0019.
+
+**7m. `claude-skills` and `claude-commands` partition by document role.** §10.5's progressive
+disclosure says nothing about how a multi-file target divides its units, and the natural
+alternatives were per-section and per-role. Per-role won because a skill is selected by its
+description and a role is the topical unit a reader would expect — `/runbook`, not
+`/commands`. Recorded in each profile's `vendorFields.partitionBy` rather than in code, so
+disagreeing with it is a JSON edit. This is the decision most likely to be wrong: it has no
+vendor guidance behind it and no fixture that would catch a better answer.
+
+**7n. The `mcp-manifest` target's *content* is invented; only its envelope is verified.**
+Brief §6.3 asks for "an MCP server manifest" and says nothing about what a document-derived
+one contains. `.mcp.json`'s shape is verified against vendor documentation. What this target
+puts inside is our design: one server entry whose `command`/`args` are template scaffolding
+and whose `env` block is the only unit-derived part, one key per `environmentVariable` unit.
+The server it names is `markforge serve`, which is Phase 5 and does not exist. Its "gate"
+therefore measures our expectation, not a vendor's format. Said plainly in `docs/TARGETS.md`
+and in `STATUS.md` rather than hidden behind the word "first-class".
+
+**7p. SPEC §10.4's cosine merge is superseded: the embedding shortlists, a model decides.**
+§7c reversed a text threshold *to* embeddings and was half right. Lexical similarity really
+cannot reach these pairs (Jaccard 0.000) — but neither can cosine: measured against
+`nomic-embed-text-v1.5`, both authored pairs score ~0.62 while two unrelated `NIMBUS_*`
+variables score 0.82, so the decoys outrank the truths and no threshold separates them. Pass 2
+is now a shortlist plus a `strong`-model adjudication, with the surviving wording constrained
+to one of the two inputs by schema. Result: 1 of 2 authored pairs merged, 0 false merges.
+ADR-0020. Reversing it means accepting either a threshold that merges nothing or one that
+deletes facts silently.
+
+**7o. Only `embed` and `adjudicate` are wired; `classifyRole` and `extraUnits` are not.**
+`AgentifyAssist` has three injection points and one is connected. §10.4's merge is the one
+stage this corpus can grade — the near-duplicate pairs score Jaccard 0.000, so a merge proves
+an embedding did it. The other two are unwired because nothing here could tell a good answer
+from a plausible one: the rule-based classifier is already 10/10 on the authored roles, so a
+model could only agree or be wrong, and model-generated context units would be graded against
+a key written before either existed. Building them would be two prompt files with no honest
+measurement, which is the trap `packages/llm/src/tasks.ts` names at the top of the file. This
+is a judgement about evidence, not about value, and it is the row to reverse first if you want
+the prose categories §10.3 assigns to the model.
+
 ---
 
 ## 8. Questions only Phase 1+ can answer

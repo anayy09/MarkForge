@@ -1,0 +1,26 @@
+{
+  "key": "33a9c3dbf6548b08aec06db0af8dc21d8843020cf0dd0bd21c840bb75f295d40",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v1",
+  "mode": "guided",
+  "inputDigest": "008794a8317e3277d6a5f3f5e8dff71539881d380e2121897e1abe57531adeb7",
+  "inputPreview": "the p95 acknowledgement budget for a single submission is 2000 milliseconds, and synchronous validation against the warehouse cannot meet it under load. || No user should ever wait more than two seconds for a batch to be acknowledged.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "6db9cd0e43c0c4161751820d2c5944c8d3d3f3ce0ce0906dbbb96efabc64b2a8",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Statement A defines a p95 latency target for single submissions, while Statement B imposes a hard maximum wait for batch acknowledgments; they describe different guarantees.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 346,
+      "completionTokens": 517,
+      "totalTokens": 863
+    }
+  }
+}

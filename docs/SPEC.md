@@ -1302,11 +1302,20 @@ recompute their units, diff unit sets by `contentHash`, and regenerate only outp
 whose supporting unit set changed.
 
 Output stability is a hard requirement, and three rules deliver it: units are ordered by
-`(sectionOrder, categoryOrder, id)` — a total order independent of discovery order; text
-wrapping is fixed and never reflowed based on neighbours (`markdown.lineWidth: 0`); and
-section boundaries are stable across runs. Consequence: editing one sentence in one source
-document produces a `git diff` of one region. Property-tested by mutating a fixture source
-and asserting the diff touches only the expected region.
+`(sectionOrder, categoryOrder, sourcePath, sourceOrder, id)` — a total order independent of
+discovery order; text wrapping is fixed and never reflowed based on neighbours
+(`markdown.lineWidth: 0`); and section boundaries are stable across runs. Consequence: editing
+one sentence in one source document produces a `git diff` of one region. Property-tested by
+mutating a fixture source and asserting the diff touches only the expected region.
+
+**Amended in Phase 4 (ADR-0018, OPEN_QUESTIONS §7k).** The ordering above originally read
+`(sectionOrder, categoryOrder, id)`. That is a total order and it is not diff-stable: `id` is
+content-addressed (§10.3 → §2.7), so editing a unit's text changes its id and moves it within
+its group, producing a deletion at the old position and an insertion at the new one. Measured
+on `fixtures/agentify/clean/`, a one-word edit changed **three** rows under the original order
+and **one** under the amended one. `sourceOrder` — the document-order index of the unit's first
+supporting node — pins a unit to where its evidence sits, which an edit does not move; `id`
+remains the final tiebreak, so the order is still total and still independent of discovery.
 
 ### 10.9 Target registry (brief §6.3) — data, not code
 

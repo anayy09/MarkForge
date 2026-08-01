@@ -1,0 +1,40 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "claude-md",
+  "targetVersion": "0.1.0",
+  "displayName": "CLAUDE.md (Claude Code)",
+  "extends": "agents-md",
+  "kind": "flatMarkdown",
+  "tier": "firstClass",
+  "vendor": "Anthropic",
+  "docsUrl": "https://code.claude.com/docs/en/memory",
+  "verifiedAgainst": {
+    "url": "https://code.claude.com/docs/en/memory",
+    "date": "2026-07-31",
+    "note": "CORRECTS ADR-0013. The docs state plainly: 'Claude Code reads CLAUDE.md, not AGENTS.md.' ADR-0013's context claimed Claude Code had added AGENTS.md support, which is wrong. The vendor's own remedy for a repo that has both is a CLAUDE.md whose first line is `@AGENTS.md` — which is this registry's base-plus-delta shape expressed in the target's own import syntax, so the decision survives the error in its premise. Also verified: import syntax is `@path`, maximum four hops; project file may live at ./CLAUDE.md or ./.claude/CLAUDE.md; target under 200 lines."
+  },
+  "outputs": [
+    { "path": "CLAUDE.md", "role": "primary" },
+    { "path": ".claude/context/{slug}.md", "role": "secondary" }
+  ],
+  "budget": {
+    "primaryTokens": 4000,
+    "secondaryTokens": 24000,
+    "counter": {
+      "method": "approximate",
+      "charsPerToken": 3.8
+    },
+    "overflow": "linkToSecondary"
+  },
+  "imports": {
+    "supported": true,
+    "syntax": "@{path}",
+    "maxDepth": 4
+  },
+  "vendorFields": {
+    "sizeGuidance": "The vendor targets under 200 lines per CLAUDE.md; primaryTokens is set to roughly that at 3.8 chars/token rather than to a hard vendor limit, because no hard limit is documented.",
+    "alternatePrimaryPath": ".claude/CLAUDE.md",
+    "scopedRulesDirectory": ".claude/rules/",
+    "note": "Claude Code also supports path-scoped rules in .claude/rules/*.md with a `paths:` front-matter list — the same partitioning idea as Cursor's .mdc globs. Recorded here rather than modelled, because this profile emits the flat memory file; a scoped Claude target would be a separate profile of kind scopedRuleSet."
+  }
+}

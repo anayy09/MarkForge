@@ -1,0 +1,25 @@
+{
+  "name": "@markforge/agentify",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Agent Context Compiler: context units, dedup, conflicts, budgeting, targets, verification",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "schema"
+  ],
+  "dependencies": {
+    "@markforge/ir": "workspace:*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  }
+}

@@ -17,8 +17,10 @@
 import { canonicalJson, sha256Hex } from "@markforge/ir";
 import { ChatClient, type TokenUsage, type Transport } from "./client.js";
 import {
+  CacheMissError,
   FileCacheStore,
   MemoryCacheStore,
+  cacheKey,
   type CacheMode,
   type CacheStore,
 } from "./cache.js";
@@ -69,6 +71,30 @@ export interface LlmRunReport {
 
 export const DEFAULT_MAX_REPAIRS = 2;
 export const DEFAULT_BUDGET_TOKENS = 200_000;
+
+/**
+ * The embedding task's cache identity.
+ *
+ * The task name is the one `DEFAULT_TASK_ROLES` binds to `embed`, so `roleFor` and the
+ * cache agree on what this work is called; the version is the vector *encoding* contract
+ * rather than a prompt version, and bumping it is how a change to rounding or truncation
+ * invalidates recorded vectors.
+ */
+const EMBED_TASK = "context-unit-dedup";
+const EMBED_VERSION = "e2";
+
+/**
+ * `nomic-embed-text-v1.5` requires a task prefix on every input, and silently degrades
+ * without one rather than erroring.
+ *
+ * `clustering:` is the documented prefix for grouping similar texts, which is what §10.4's
+ * shortlist does. Measured on the agentify corpus it lifts the authored near-duplicate pairs
+ * from 0.63/0.62 to 0.78/0.74 — worth having for recall into the adjudication stage, though
+ * it does *not* reorder true pairs above topical decoys, which is why a threshold alone was
+ * abandoned (ADR-0020). Changing this string changes every vector, so EMBED_VERSION moved
+ * with it and the un-prefixed entries are unreachable rather than silently mixed in.
+ */
+const EMBED_PREFIX = "clustering: ";
 
 /**
  * The SPEC §6.2 table, as defaults rather than as law.
@@ -187,6 +213,105 @@ export class LlmSession {
       this.failures++;
       throw error;
     }
+  }
+
+  /**
+   * Embeddings for `context-unit-dedup` (SPEC §10.4), cached per text.
+   *
+   * **Cached per text, not per batch**, which is the only detail here worth arguing about.
+   * A batch key would be stable only while the batch is, so adding one context unit to a
+   * corpus would miss the cache for every unit beside it and turn a one-unit edit into a
+   * full re-embed — and, in `readOnly`, into a hard failure on a document nobody touched.
+   * Per-text keys make the committed cache survive edits to the corpus, which is what
+   * makes offline CI possible at all.
+   *
+   * Vectors are rounded to six decimals before storage. The threshold comparisons in
+   * §10.4 are at two decimals, so six is far more precision than any decision uses, and
+   * the full float64 text was several times larger for no behavioural difference — in a
+   * file that is meant to be committed and read in a diff.
+   */
+  async embed(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) return [];
+    const model = this.models.embed;
+    const out = new Array<number[] | undefined>(texts.length);
+    const missing: { index: number; text: string }[] = [];
+
+    texts.forEach((text, index) => {
+      if (this.cacheMode === "off") {
+        missing.push({ index, text });
+        return;
+      }
+      const hit = this.cache.get(this.embedKey(text, model));
+      if (hit) {
+        this.calls++;
+        this.cacheHits++;
+        out[index] = JSON.parse(hit.response.content) as number[];
+      } else {
+        missing.push({ index, text });
+      }
+    });
+
+    if (missing.length > 0) {
+      if (!this.client) {
+        throw new CacheMissError(
+          `llm: ${missing.length} embedding(s) are not in the cache and this session cannot ` +
+            `reach the network (cache mode "${this.cacheMode}"${this.client ? "" : ", no client"}). ` +
+            `Re-record with --llm-cache-mode readWrite and commit the result, or run without ` +
+            `--llm so deduplication uses text comparison alone.`,
+          this.embedKey(missing[0]!.text, model),
+        );
+      }
+      const problem = this.budgetProblem();
+      if (problem) throw new Error(problem);
+
+      const response = await this.client.embed({
+        model,
+        input: missing.map((m) => EMBED_PREFIX + m.text),
+      });
+      this.addUsage(response.usage);
+      missing.forEach((entry, i) => {
+        const vector = (response.vectors[i] ?? []).map((v) => Math.round(v * 1e6) / 1e6);
+        out[entry.index] = vector;
+        this.calls++;
+        this.liveCalls++;
+        if (this.cacheMode === "readWrite") {
+          this.cache.set({
+            key: this.embedKey(entry.text, model),
+            task: EMBED_TASK,
+            model,
+            promptVersion: EMBED_VERSION,
+            mode: this.capabilities.guidedDecoding ? "guided" : "prompted",
+            inputDigest: digestOf(entry.text),
+            inputPreview: entry.text.slice(0, 100),
+            params: { dimensions: vector.length },
+            response: {
+              content: JSON.stringify(vector),
+              finishReason: "stop",
+              usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            },
+          });
+        }
+      });
+    }
+
+    return out.map((vector, index) => {
+      if (!vector) throw new Error(`llm: no embedding produced for input ${index}`);
+      return vector;
+    });
+  }
+
+  private embedKey(text: string, model: string): string {
+    // No prompt file and no decoding parameters take part: an embedding depends on the
+    // model and the text and nothing else. Including `mode` or `seed` here — both of which
+    // belong in a *completion* key — would invalidate every vector whenever an unrelated
+    // capability probe changed its mind.
+    return cacheKey({
+      task: EMBED_TASK,
+      inputDigest: digestOf(text),
+      model,
+      promptVersion: EMBED_VERSION,
+      params: {},
+    });
   }
 
   private budgetProblem(): string | undefined {

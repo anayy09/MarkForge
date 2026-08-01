@@ -1,0 +1,76 @@
+/**
+ * @markforge/agentify — the Agent Context Compiler (SPEC §10, brief §6).
+ *
+ * Three rules shape this package, and they are why it looks the way it does:
+ *
+ *   1. **Targets are data, not code** (ADR-0013). No module here knows a vendor filename.
+ *      A target is JSON in `targets/`, validated against `schema/target.v0.schema.json`,
+ *      and adding one is adding a file.
+ *   2. **The traceability gate is mandatory and has no bypass** (§10.6). `verify.ts` works
+ *      from the emitted string rather than from the fragment list it was built with, and
+ *      re-checks scaffolding against the profile, so "mark it scaffolding" cannot become
+ *      the bypass flag the spec refuses to have.
+ *   3. **Nothing reaches a model unless asked.** This package does not depend on
+ *      `@markforge/llm`; the optional help is injected as functions (`AgentifyAssist`), the
+ *      same composition `@markforge/core` uses, so `--no-llm` is the default by
+ *      construction rather than by discipline.
+ */
+export { compile } from "./compile.js";
+export type {
+  AgentifyAssist,
+  CompileOptions,
+  CompileResult,
+  RunReport,
+  TargetResult,
+} from "./compile.js";
+
+export { loadRegistry, sectionForCategory, countTokens, counterDescription } from "./targets.js";
+export type {
+  Registry,
+  SectionRender,
+  TargetKind,
+  TargetOutput,
+  TargetProfile,
+  TargetSection,
+} from "./targets.js";
+
+export { classifyByRules, applyModelOpinion, documentFeatures } from "./classify.js";
+export type { Classification, RoleScore } from "./classify.js";
+
+export { extractUnits, splitSentences, authorityOf } from "./extract.js";
+export type { SourceDocument } from "./extract.js";
+
+export { deduplicate, cosine } from "./dedup.js";
+export type { DedupOptions, DedupResult, Embedder } from "./dedup.js";
+
+export { detectConflicts, renderConflictReport } from "./conflicts.js";
+export type { Conflict, ConflictReport, ConflictSide } from "./conflicts.js";
+
+export { planBudget, valueOf, compareUnitsIn } from "./budget.js";
+export type { BudgetPlan, RankedUnit } from "./budget.js";
+
+export { assemble, satisfiesCondition, kebab, MARKERS } from "./assemble.js";
+export type { EmittedFile, EmittedSection, Fragment, ScaffoldKind } from "./assemble.js";
+
+export { verify, verifyFile, dropUnsupported } from "./verify.js";
+export type { FileVerification, UnsupportedSentence, VerificationResult } from "./verify.js";
+
+export { buildManifest, serializeManifest } from "./emit.js";
+export type {
+  ProvenanceFile,
+  ProvenanceManifest,
+  ProvenanceSection,
+  ProvenanceSentence,
+} from "./emit.js";
+
+export {
+  compareUnits,
+  makeUnit,
+  normalizeUnitText,
+  sourceOrderOf,
+  unitContentHash,
+  unitId,
+  DOCUMENT_ROLES,
+  UNIT_CATEGORIES,
+} from "./units.js";
+export type { ContextUnit, DocumentRole, UnitCategory, UnitSource } from "./units.js";

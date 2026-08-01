@@ -121,11 +121,26 @@ importers:
         specifier: ^4.10.38
         version: 4.10.38
 
+  packages/agentify:
+    dependencies:
+      '@markforge/ir':
+        specifier: workspace:*
+        version: link:../ir
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.20.0)
+
   packages/cli:
     dependencies:
       '@markforge/adapters-ocr':
         specifier: workspace:*
         version: link:../adapters-ocr
+      '@markforge/agentify':
+        specifier: workspace:*
+        version: link:../agentify
       '@markforge/core':
         specifier: workspace:*
         version: link:../core

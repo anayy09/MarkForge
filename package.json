@@ -20,11 +20,12 @@
     "check:fixtures": "node scripts/check-fixtures.mjs",
     "check:corpus": "node scripts/build-messy-fixtures.mjs --check",
     "check:agentify-corpus": "node scripts/build-agentify-corpus.mjs --check",
+    "check:agentify": "node scripts/check-agentify.mjs",
     "check:markdown": "node scripts/check-markdown-lint.mjs",
     "check:mammoth": "node scripts/diff-mammoth.mjs --check",
     "codegen": "node scripts/codegen-types.mjs",
     "fidelity": "node scripts/run-fidelity.mjs",
-    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run check:agentify-corpus && pnpm run typecheck && pnpm run check:markdown && pnpm run check:mammoth && pnpm run test"
+    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run check:agentify-corpus && pnpm run typecheck && pnpm run check:markdown && pnpm run check:mammoth && pnpm run test && pnpm run build && pnpm run check:agentify"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

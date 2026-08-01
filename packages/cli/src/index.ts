@@ -39,12 +39,15 @@ import {
   type LlmRunReport,
 } from "@markforge/llm";
 import {
+  agentifyAssistFrom,
   assistFrom,
   buildSession,
   resolveLlmRequest,
   withLlmOptions,
   type LlmFlags,
 } from "./llm-config.js";
+import { runAgentify, type AgentifyFlags } from "./agentify-command.js";
+import type { AgentifyAssist } from "@markforge/agentify";
 
 const program = new Command();
 
@@ -502,10 +505,88 @@ checkCommand
     }
   });
 
+const agentifyCommand = program
+  .command("agentify")
+  .description("Compile source documents into agent context files (SPEC §10)")
+  .argument("<sources...>", "documents or directories to compile")
+  .option("--targets <ids>", "comma-separated target profile ids", "claude-md")
+  .option("--registry <dir>", "directory of target profile JSON files", "targets")
+  .option("--out-dir <dir>", "where output files are written", ".")
+  .option("--budget <tokens>", "override every target's primary token budget")
+  .option("--manifest <path>", "provenance manifest path", ".markforge/provenance.json")
+  .option("--conflicts <mode>", "report | failOnConflict", "report")
+  .option("--dry-run", "verify and report, but write nothing")
+  .option("--explain-drops", "list every unit and sentence that did not reach an output file")
+  .option("--json", "emit a machine-readable result on stdout")
+  .option("--strict", "exit 2 if any unit or sentence did not reach an output file")
+  .option("--quiet", "suppress human output")
+  .option(
+    "--llm",
+    "allow the optional LLM layer: role classification, prose unit extraction, and " +
+      "embedding-based deduplication (SPEC §10.2–10.4). Off unless given",
+  )
+  .option("--no-llm", "the default: compile deterministically, with no network access");
+withLlmOptions(agentifyCommand);
+agentifyCommand.action(async (sources: string[], opts: Record<string, unknown>) => {
+  const flags = opts as GlobalFlags;
+  try {
+    const request = resolveLlmRequest(process.argv);
+    let assist: AgentifyAssist | undefined;
+    let llmReport: (() => LlmRunReport) | undefined;
+    if (request.enabled) {
+      const built = buildSession(opts as LlmFlags);
+      assist = agentifyAssistFrom(built.session);
+      if (!flags.json) log(built.describe(), flags);
+      llmReport = () => built.session.report();
+    }
+
+    const { result, exit, written } = await runAgentify({
+      inputs: sources,
+      flags: opts as AgentifyFlags,
+      cwd: process.cwd(),
+      ...(assist ? { assist } : {}),
+      log: (message) => log(message, flags),
+    });
+
+    if (flags.json) {
+      process.stdout.write(
+        JSON.stringify(
+          {
+            ok: result.passed,
+            targets: result.report.targets,
+            sources: result.report.sources,
+            units: result.units.length,
+            merges: result.report.merges,
+            conflicts: result.conflicts,
+            written,
+            drops: result.drops,
+            diagnostics: result.diagnostics,
+            llm: llmReport ? llmReport() : null,
+          },
+          null,
+          2,
+        ) + "\n",
+      );
+    } else {
+      reportDiagnostics(result.diagnostics, flags);
+      if (!result.passed) {
+        process.stderr.write(
+          `\nmarkforge: the traceability gate failed. SPEC §10.6 makes it mandatory and gives ` +
+            `it no bypass flag — there is deliberately no --force. Run with --explain-drops ` +
+            `to see every sentence that traced to no context unit.\n`,
+        );
+      }
+    }
+    process.exit(exit);
+  } catch (error) {
+    fail((error as Error).message);
+    process.exit(ExitCode.ERROR);
+  }
+});
+
 // The remaining SPEC §8 subcommands. Declared so `--help` tells the truth about the
 // intended surface, and each one refuses rather than silently doing nothing.
 for (const [name, description, phase] of [
-  ["agentify", "Compile documents into agent context files", "Phase 4"],
   ["diff", "Semantic IR diff between two documents", "Phase 2"],
   ["serve", "Local HTTP API", "Phase 5"],
   ["init", "Scaffold config and reference documents", "Phase 2"],

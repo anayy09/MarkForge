@@ -1,0 +1,142 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "claude-skills",
+  "targetVersion": "0.1.0",
+  "displayName": "Claude Code skills (SKILL.md packages)",
+  "kind": "skillPackage",
+  "tier": "firstClass",
+  "vendor": "Anthropic",
+  "docsUrl": "https://agentskills.io/specification",
+  "verifiedAgainst": {
+    "url": "https://agentskills.io/specification",
+    "date": "2026-07-31",
+    "note": "Normative Agent Skills spec, reached from anthropics/skills spec/agent-skills-spec.md which now redirects there. `name` and `description` are both REQUIRED: name max 64 chars, lowercase alphanumeric and hyphens only, no leading/trailing hyphen, no consecutive hyphens, and it MUST match the parent directory name; description max 1024 chars. Layout is <skill-name>/SKILL.md plus optional scripts/, references/, assets/. Note the disagreement with https://code.claude.com/docs/en/skills (verified the same day), which lists `name` as optional and `description` as merely recommended, and caps description+when_to_use at 1536 characters combined. This profile emits the stricter intersection, so output satisfies both."
+  },
+  "outputs": [
+    { "path": ".claude/skills/{slug}/SKILL.md", "role": "primary" },
+    { "path": ".claude/skills/{slug}/references/detail.md", "role": "secondary" }
+  ],
+  "budget": {
+    "primaryTokens": 5000,
+    "secondaryTokens": 20000,
+    "counter": {
+      "method": "approximate",
+      "charsPerToken": 3.8
+    },
+    "overflow": "linkToSecondary"
+  },
+  "frontMatter": {
+    "supported": true,
+    "language": "yaml",
+    "required": ["name", "description"],
+    "schema": {
+      "type": "object",
+      "required": ["name", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "license": { "type": "string" },
+        "compatibility": { "type": "string", "maxLength": 500 },
+        "allowed-tools": { "type": "string" },
+        "metadata": { "type": "object" }
+      }
+    }
+  },
+  "imports": {
+    "supported": true,
+    "syntax": "[{title}]({path})",
+    "maxDepth": 1
+  },
+  "sections": [
+    {
+      "id": "purpose",
+      "heading": "When to use this",
+      "headingLevel": 2,
+      "categories": ["entity"],
+      "categoryWeight": 0.7,
+      "render": "prose",
+      "omitWhenEmpty": true
+    },
+    {
+      "id": "commands",
+      "heading": "Commands",
+      "headingLevel": 2,
+      "categories": ["command"],
+      "categoryWeight": 1.6,
+      "render": "codeBlock"
+    },
+    {
+      "id": "constraints",
+      "heading": "Constraints and invariants",
+      "headingLevel": 2,
+      "categories": ["constraint", "invariant"],
+      "categoryWeight": 1.5,
+      "render": "bulletList"
+    },
+    {
+      "id": "conventions",
+      "heading": "Conventions",
+      "headingLevel": 2,
+      "categories": ["convention"],
+      "categoryWeight": 1.2,
+      "render": "bulletList"
+    },
+    {
+      "id": "anti-patterns",
+      "heading": "Do not",
+      "headingLevel": 2,
+      "categories": ["antiPattern"],
+      "categoryWeight": 1.4,
+      "render": "bulletList"
+    },
+    {
+      "id": "environment",
+      "heading": "Environment",
+      "headingLevel": 2,
+      "categories": ["environmentVariable"],
+      "categoryWeight": 1.1,
+      "render": "codeBlock"
+    },
+    {
+      "id": "dependencies",
+      "heading": "Dependencies",
+      "headingLevel": 2,
+      "categories": ["dependency"],
+      "categoryWeight": 0.8,
+      "render": "bulletList"
+    },
+    {
+      "id": "decisions",
+      "heading": "Decisions",
+      "headingLevel": 2,
+      "categories": ["decision"],
+      "categoryWeight": 1.0,
+      "render": "bulletList"
+    },
+    {
+      "id": "glossary",
+      "heading": "Glossary",
+      "headingLevel": 2,
+      "categories": ["glossaryTerm"],
+      "categoryWeight": 0.6,
+      "render": "definitionList"
+    }
+  ],
+  "tone": {
+    "voice": "imperative",
+    "person": "second"
+  },
+  "traceability": {
+    "required": 1,
+    "sentenceSegmenter": "icu"
+  },
+  "vendorFields": {
+    "partitionBy": "documentRole",
+    "partitionNote": "One skill package per document role that produced units. Roles are the topical partition the corpus already carries, and a skill is selected by its description, so a per-role skill is the unit of selection a reader would expect. Slugs are the kebab-cased role name, which the spec requires to match the parent directory.",
+    "progressiveDisclosure": "The spec's three levels — metadata (~100 tokens, always loaded), SKILL.md body (<5000 tokens, loaded on activation), references/ (on demand) — are what primaryTokens and secondaryTokens mean for this kind. The mapping is the spec's, not ours."
+  }
+}

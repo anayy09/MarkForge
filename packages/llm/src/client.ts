@@ -196,6 +196,104 @@ export class ChatClient {
       },
     };
   }
+
+  /**
+   * `POST /embeddings` — the second endpoint this client speaks, added for SPEC §10.4.
+   *
+   * Separate from `chat` rather than folded into it because almost nothing is shared:
+   * there are no messages, no schema, no repair loop, and no `finish_reason`. The one
+   * thing that *is* shared is the part that matters — a caller must never assume the
+   * response preserved input order, so this re-sorts by the `index` the API returns and
+   * refuses a response whose count does not match the request. Silently mismatched
+   * embeddings would attach one context unit's provenance to another's text.
+   */
+  async embed(request: { model: string; input: string[] }): Promise<{
+    vectors: number[][];
+    usage: TokenUsage;
+  }> {
+    if (request.input.length === 0) return { vectors: [], usage: emptyUsage() };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let status: number;
+    let text: string;
+    try {
+      const response = await this.transport(`${this.baseUrl}/embeddings`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({ model: request.model, input: request.input }),
+        signal: controller.signal,
+      });
+      status = response.status;
+      text = await response.text();
+    } catch (error) {
+      throw new LlmTransportError(
+        `request to ${this.baseUrl}/embeddings failed: ${(error as Error).message}`,
+        0,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (status !== 200) {
+      throw new LlmTransportError(
+        `embeddings endpoint returned HTTP ${status} for model "${request.model}"`,
+        status,
+        text.slice(0, 600),
+      );
+    }
+
+    let parsed: { data?: { embedding?: unknown; index?: unknown }[]; usage?: Record<string, unknown> };
+    try {
+      parsed = JSON.parse(text) as typeof parsed;
+    } catch {
+      throw new LlmTransportError(
+        `embeddings endpoint returned a non-JSON body for model "${request.model}"`,
+        status,
+        text.slice(0, 600),
+      );
+    }
+
+    const data = parsed.data ?? [];
+    if (data.length !== request.input.length) {
+      throw new LlmTransportError(
+        `embeddings endpoint returned ${data.length} vector(s) for ${request.input.length} ` +
+          `input(s) with model "${request.model}"`,
+        status,
+        text.slice(0, 300),
+      );
+    }
+
+    const vectors: number[][] = new Array<number[]>(data.length);
+    data.forEach((entry, position) => {
+      const index = typeof entry.index === "number" ? entry.index : position;
+      if (!Array.isArray(entry.embedding)) {
+        throw new LlmTransportError(
+          `embeddings entry ${index} carries no numeric vector`,
+          status,
+          text.slice(0, 300),
+        );
+      }
+      vectors[index] = entry.embedding as number[];
+    });
+
+    const rawUsage = parsed.usage ?? {};
+    return {
+      vectors,
+      usage: {
+        promptTokens: numberOr(rawUsage["prompt_tokens"], 0),
+        completionTokens: 0,
+        totalTokens: numberOr(rawUsage["total_tokens"], numberOr(rawUsage["prompt_tokens"], 0)),
+      },
+    };
+  }
+}
+
+function emptyUsage(): TokenUsage {
+  return { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 }
 
 function numberOr(value: unknown, fallback: number): number {

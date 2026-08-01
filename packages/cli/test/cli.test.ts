@@ -133,11 +133,23 @@ describe.skipIf(!built)("unimplemented subcommands", () => {
   const dir = tmpdir();
 
   // Declared so --help tells the truth about the intended surface, but refusing
-  // rather than silently succeeding.
-  it.each(["agentify", "diff", "serve", "init"])("%s refuses instead of doing nothing", (name) => {
+  // rather than silently succeeding. `agentify` left this list in Phase 4.
+  it.each(["diff", "serve", "init"])("%s refuses instead of doing nothing", (name) => {
     const r = run([name], dir);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/not implemented yet \(Phase/);
+  });
+
+  // The other half, and the reason this file is worth keeping honest: a command that has
+  // *landed* must stop claiming it has not. Without this, removing `agentify` from the list
+  // above would have been enough to make the suite green while `markforge agentify` still
+  // printed "not implemented yet" to every user who ran it.
+  it("agentify no longer refuses, because it is implemented", () => {
+    const r = run(["agentify"], dir);
+    expect(r.stderr).not.toMatch(/not implemented yet/);
+    // No sources given, so it is a usage error rather than a phase refusal.
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/missing required argument|no ingestible documents/);
   });
 
   it("lists every planned subcommand in --help", () => {

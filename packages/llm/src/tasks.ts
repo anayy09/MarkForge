@@ -143,6 +143,125 @@ export async function breakHeadingTie(
 }
 
 // --------------------------------------------------------------------------------
+// Near-duplicate adjudication (role `strong`)
+// --------------------------------------------------------------------------------
+
+export interface UnitEquivalenceInput {
+  textA: string;
+  textB: string;
+  pathA: string;
+  pathB: string;
+}
+
+export interface UnitEquivalenceResult {
+  sameFact: boolean;
+  survivingText: string;
+  rationale: string;
+  producedBy: ModelProducer;
+  source: "cache" | "live";
+  attempts: number;
+}
+
+const EQUIVALENCE_TASK = "context-unit-summarization";
+const EQUIVALENCE_VERSION = "v1";
+
+/**
+ * Decides whether two context units state one fact — SPEC §10.4's merge, after measurement
+ * showed a cosine threshold could not make the call.
+ *
+ * Permitted by brief §7.1 as "context-unit … summarization": the question being answered is
+ * which single unit two units collapse into. It is the *second* stage; the embedding pass
+ * still runs first and decides which pairs are worth asking about, so this is bounded by a
+ * shortlist rather than quadratic in the corpus.
+ *
+ * Like the heading tie-break, the guarantee is the schema, not the prompt: `survivingText`
+ * is an enum of the two inputs, so a merged unit's text is always one of the two verbatim
+ * and never something the model composed.
+ */
+export async function judgeUnitEquivalence(
+  session: LlmSession,
+  input: UnitEquivalenceInput,
+): Promise<UnitEquivalenceResult> {
+  const prompt = loadPrompt(EQUIVALENCE_TASK, EQUIVALENCE_VERSION);
+
+  // `surviving` is "A" or "B", not the sentence itself.
+  //
+  // It was an enum of the two full texts, which is the obvious way to make the schema
+  // guarantee that a merged unit's wording comes from a source. Measured, it was also a
+  // pathological guided-decoding constraint: the grammar required the model to reproduce a
+  // ~150-character string exactly, and when its preferred continuation diverged the
+  // constrained sampler had nowhere to go and emitted whitespace until the ceiling. 41 of
+  // 50 adjudications on the clean corpus died that way at a 3000-token budget, having spent
+  // every token. A two-letter enum gives the same guarantee — the code below maps the letter
+  // back to verbatim text, so the model still cannot compose a third sentence — with a
+  // grammar the model can actually satisfy.
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["sameFact", "surviving", "rationale"],
+    properties: {
+      sameFact: { type: "boolean" },
+      surviving: { type: "string", enum: ["A", "B"] },
+      rationale: { type: "string", maxLength: 300 },
+    },
+  };
+
+  const user = fill(prompt.user, {
+    textA: input.textA,
+    textB: input.textB,
+    pathA: input.pathA,
+    pathB: input.pathB,
+  });
+
+  // Ordered, and deliberately not sorted. The prompt tells the model to fall back to
+  // statement A when it is unsure, so A and B are not interchangeable and a canonicalised
+  // key would let one pair's answer be served for the other orientation.
+  const inputDigest = digestOf({ a: input.textA, b: input.textB });
+
+  const result = await session.structured<{
+    sameFact: boolean;
+    surviving: "A" | "B";
+    rationale: string;
+  }>({
+    task: EQUIVALENCE_TASK,
+    role: session.roleFor(EQUIVALENCE_TASK),
+    prompt,
+    user,
+    schema,
+    inputDigest,
+    inputPreview: `${previewOf(input.textA)} || ${previewOf(input.textB)}`,
+    // 3000, not the 500 this started with. `nemotron-3-super-120b-a12b` is a reasoning
+    // model and spends most of its budget before writing any JSON: at 500 tokens, 50 of 65
+    // adjudications on the clean corpus came back `finish_reason: "length"` with a wall of
+    // newlines. They failed safe — an unanswered pair stays unmerged — but they were 50
+    // wasted calls that looked like model incompetence rather than a ceiling. STATUS.md
+    // records the identical mistake from Phase 3's capability probe, which is why this
+    // comment names the number.
+    maxTokens: 3000,
+  });
+
+  if (result.value.surviving !== "A" && result.value.surviving !== "B") {
+    throw new Error(
+      `llm: unit-equivalence returned surviving="${String(result.value.surviving)}", which is ` +
+        `neither "A" nor "B". Refusing it — a merged unit must be one of the two verbatim ` +
+        `(SPEC §10.6).`,
+    );
+  }
+
+  return {
+    sameFact: result.value.sameFact,
+    // Mapped here, from the letter. This is the line that keeps §10.6's guarantee: the
+    // merged unit's text is always one of the two inputs, byte for byte, and the model never
+    // had the opportunity to write a third.
+    survivingText: result.value.surviving === "B" ? input.textB : input.textA,
+    rationale: result.value.rationale,
+    producedBy: { kind: "model", model: result.model, promptVersion: result.promptVersion },
+    source: result.source,
+    attempts: result.attempts,
+  };
+}
+
+// --------------------------------------------------------------------------------
 // Scanned-page transcription (role `vision`)
 // --------------------------------------------------------------------------------
 

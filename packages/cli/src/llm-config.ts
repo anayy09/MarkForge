@@ -22,6 +22,7 @@ import {
   CAPABILITIES_PATH,
   LlmSession,
   headingTiebreaker,
+  judgeUnitEquivalence,
   loadCapabilities,
   resolveApiKey,
   visionRecognizer,
@@ -172,6 +173,55 @@ export function assistFrom(
   return {
     headingTiebreak: headingTiebreaker(built.session, { onFailure }),
     recognize: visionRecognizer(built.session, { onFailure }),
+  };
+}
+
+/**
+ * The injection points `@markforge/agentify` accepts (SPEC §10.2–10.4).
+ *
+ * `embed` and `adjudicate` are wired; `classifyRole` and `extraUnits` are not, and that is a
+ * statement about what is measurable rather than about what is possible. §10.4's merge is the
+ * one stage whose correctness the corpus can actually check, and checking it refuted the
+ * design: cosine alone ranked two unrelated environment variables above both authored
+ * near-duplicate pairs, so the embedding shortlists and a `strong` model decides (ADR-0020).
+ * `classifyRole` and `extraUnits` are left unbound because this corpus gives no
+ * way to tell a good answer from a plausible one — the rule-based classifier is already
+ * 10 for 10 on the authored roles, so a model could only agree or be wrong, and generated
+ * context units would be graded against an answer key written before either existed.
+ * Wiring them would add two prompt files whose quality nothing would keep honest, which is
+ * the trap `packages/llm/src/tasks.ts` names at the top. Recorded in docs/AGENTIFY.md.
+ */
+export function agentifyAssistFrom(
+  session: LlmSession,
+  onFailure?: (message: string) => void,
+): {
+  embed: (texts: string[]) => Promise<number[][]>;
+  adjudicate: (pair: {
+    a: { text: string; sources: { path: string }[] };
+    b: { text: string; sources: { path: string }[] };
+  }) => Promise<{ sameFact: boolean; survivingText: string } | undefined>;
+} {
+  return {
+    embed: (texts) => session.embed(texts),
+    adjudicate: async ({ a, b }) => {
+      try {
+        const verdict = await judgeUnitEquivalence(session, {
+          textA: a.text,
+          textB: b.text,
+          pathA: a.sources[0]?.path ?? "(unknown)",
+          pathB: b.sources[0]?.path ?? "(unknown)",
+        });
+        return { sameFact: verdict.sameFact, survivingText: verdict.survivingText };
+      } catch (error) {
+        // A failed adjudication leaves the pair unmerged, which is the safe direction: an
+        // unmerged duplicate repeats itself where a wrongly merged one deletes a fact.
+        onFailure?.(
+          `llm could not adjudicate a near-duplicate pair, so it stays unmerged: ` +
+            `${(error as Error).message}`,
+        );
+        return undefined;
+      }
+    },
   };
 }
 

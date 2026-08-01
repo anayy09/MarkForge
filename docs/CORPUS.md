@@ -386,7 +386,11 @@ that forces budget overflow into secondary files. Each set ships with an
 **Metrics:** traceability (must be 1.0), conflict recall, and a diff-stability check that
 mutating one sentence in one source produces a single-region `git diff`.
 
-**Status, before Phase 4 starts: all three sets are built and committed.**
+**Status: all three sets are built, committed, and now measured against.** Phase 4's
+extraction, conflict, budgeting, and traceability numbers all come from these documents and are
+reported in `docs/AGENTIFY.md`. Two things the answer keys caught that a captured snapshot could
+not: the classifier traps (`architecture.md` answers `decisionRecord`, `service-overview.md`
+answers `architecture`) and a false-positive conflict on the set with no conflicts in it.
 `scripts/build-agentify-corpus.mjs` authors them; `--check` fails if a committed byte drifted.
 Ten documents across Markdown, HTML, and DOCX — mixed on purpose, because §10.1 claims ingest
 is nothing but the adapters and a single-format corpus would not test that claim. All ten

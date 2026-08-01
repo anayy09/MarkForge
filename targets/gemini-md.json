@@ -1,0 +1,31 @@
+{
+  "$schema": "../packages/agentify/schema/target.v0.schema.json",
+  "id": "gemini-md",
+  "targetVersion": "0.1.0",
+  "displayName": "GEMINI.md (Gemini CLI)",
+  "extends": "agents-md",
+  "kind": "flatMarkdown",
+  "tier": "stub",
+  "vendor": "Google",
+  "docsUrl": "https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html",
+  "verifiedAgainst": {
+    "url": "https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html",
+    "date": "2026-07-31",
+    "note": "Verified: default context filename is GEMINI.md, overridable via the `context.fileName` key in settings.json which accepts a name or a list of names. Imports use `@file.md` syntax with relative or absolute paths, .md files only. Context files are hierarchical — the CLI concatenates all found files rather than letting the nearest win. No front matter is documented, so frontMatter.supported stays false."
+  },
+  "outputs": [
+    { "path": "GEMINI.md", "role": "primary" },
+    { "path": "docs/agent-context/{slug}.md", "role": "secondary" }
+  ],
+  "frontMatter": { "supported": false },
+  "imports": {
+    "supported": true,
+    "syntax": "@{path}",
+    "maxDepth": 1
+  },
+  "vendorFields": {
+    "filenameSetting": "context.fileName",
+    "importsMarkdownOnly": true,
+    "stubNote": "Schema-valid and shipped, but ungated: no traceability gate and no fixture test."
+  }
+}

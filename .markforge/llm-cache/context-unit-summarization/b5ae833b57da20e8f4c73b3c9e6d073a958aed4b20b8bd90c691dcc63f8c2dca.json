@@ -1,0 +1,26 @@
+{
+  "key": "b5ae833b57da20e8f4c73b3c9e6d073a958aed4b20b8bd90c691dcc63f8c2dca",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v1",
+  "mode": "guided",
+  "inputDigest": "aee35b0438dadc60ab06abef15cccc9bfd98a50d7b54fbce5a4cf8ad3d77ed12",
+  "inputPreview": "the p95 acknowledgement budget for a single submission is 2000 milliseconds, and synchronous validation against the warehouse cannot meet it under load. || A batch that fails validation must be rejected whole.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "6db9cd0e43c0c4161751820d2c5944c8d3d3f3ce0ce0906dbbb96efabc64b2a8",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Statement A concerns latency budget for submissions, while Statement B concerns batch rejection policy; they describe unrelated requirements.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 340,
+      "completionTokens": 252,
+      "totalTokens": 592
+    }
+  }
+}
