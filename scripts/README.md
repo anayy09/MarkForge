@@ -24,6 +24,7 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `diff-mammoth.mjs` | `mammoth`, built packages | Differential test of our OOXML reader against Mammoth; every divergence triaged in `docs/MAMMOTH-DIFF.md` (ADR-0005) |
 | `fetch-ocr-assets.mjs` | network, once | Downloads tesseract language data and the found scan into gitignored `fixtures/local/` (`docs/CORPUS.md` §2.7) |
 | `check-browser-bundle.mjs` | `esbuild`, built packages | Builds every package ADR-0015 claims runs in-browser at `platform=browser` and fails on any `node:` builtin or polyfill. The Phase 5 gate that took ADR-0015 off `Proposed` |
+| `check-http-retention.mjs` | built packages | Measures brief §8's "stateless, no document retention" — filesystem delta, retrieval routes, minted ids, cross-request contamination — against a deliberately retaining control |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |
@@ -157,6 +158,31 @@ disk rather than by reasoning:
 - **Check 2's negative control tested nothing.** It read `process.env.NODE_ENV`, the one
   key esbuild constant-folds by default, so the control bundled to `var mode = "development"`
   with no `process` in it. Any other variable name survives.
+
+## `check-http-retention.mjs`
+
+Brief §8 says the HTTP API is "stateless, no document retention". That is a privacy claim,
+and ADR-0015 rejected a server-side fallback for the browser's heavy paths on the same
+grounds — so the surface only earns its exception if the claim can be checked.
+
+Four probes, run against the shipped server and against a deliberately retaining control:
+a filesystem hash delta over the working directory, a request for every URL a retaining
+server would have to expose, an inspection of headers and the JSON envelope for a minted
+handle, and a marker document followed by a second request that must contain no trace of
+it. The fourth is the one that reaches an **in-memory** cache, which the first three
+cannot see.
+
+The control is a real retaining server rather than a simulated one: it writes each body to
+disk, mints an id and returns it in a header, serves documents back by that id, and leaks
+the last request through `/health`. All four probes must catch it. A retention check that
+only found the file on disk would pass a server that kept everything in RAM, and that is
+the failure this control is shaped to provoke.
+
+**What it does not measure, stated rather than implied:** memory the process holds and
+never exposes. Probe 4 catches retention that any observable behaviour depends on, which
+is the part that can leak. A buffer nobody reads is not distinguishable from one the
+allocator has not yet reclaimed, and claiming otherwise would be exactly the kind of
+assertion this file exists to replace.
 
 ## `check-markdown-lint.mjs`
 

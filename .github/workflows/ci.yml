@@ -172,6 +172,13 @@ jobs:
       - name: The browser build has no Node dependency (ADR-0015)
         run: node scripts/check-browser-bundle.mjs
 
+      # Brief §8's "stateless, no document retention" is a privacy claim, so it is
+      # measured here rather than asserted in a README — filesystem delta, retrieval
+      # routes, minted ids, and cross-request contamination, each against a deliberately
+      # retaining control that all four probes must catch.
+      - name: The HTTP API retains no document (brief §8)
+        run: node scripts/check-http-retention.mjs
+
       - name: Test
         run: pnpm run test
 

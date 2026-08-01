@@ -33,7 +33,7 @@ Five first-class targets, compiled from the five-document clean set.
 | `claude-md` | firstClass | `CLAUDE.md` | 552 | 100.0% |
 | `claude-skills` | firstClass | `.claude/skills/api-contract/SKILL.md`, `.claude/skills/coding-conventions/SKILL.md`, `.claude/skills/decision-record/SKILL.md`, `.claude/skills/product-spec/SKILL.md`, `.claude/skills/runbook/SKILL.md` | 859 | 100.0% |
 | `claude-commands` | firstClass | `.claude/commands/runbook.md` | 153 | 100.0% |
-| `mcp-manifest` | firstClass | `.mcp.json` | 85 | 100.0% |
+| `mcp-manifest` | firstClass | `.mcp.json` | 72 | 100.0% |
 
 Token counts are approximate (3.8 characters per token) — an estimate, not a measurement. SPEC §10.5
 requires the method to be named so an estimate is not mistaken for a measurement; no

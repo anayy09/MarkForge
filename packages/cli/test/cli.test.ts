@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -133,28 +133,60 @@ describe.skipIf(!built)("unimplemented subcommands", () => {
   const dir = tmpdir();
 
   // Declared so --help tells the truth about the intended surface, but refusing
-  // rather than silently succeeding. `agentify` left this list in Phase 4.
-  it.each(["diff", "serve", "init"])("%s refuses instead of doing nothing", (name) => {
+  // rather than silently succeeding. `agentify` left this list in Phase 4, `serve` in
+  // Phase 5.
+  it.each(["diff", "init"])("%s refuses instead of doing nothing", (name) => {
     const r = run([name], dir);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/not implemented yet \(Phase/);
   });
 
   // The other half, and the reason this file is worth keeping honest: a command that has
-  // *landed* must stop claiming it has not. Without this, removing `agentify` from the list
-  // above would have been enough to make the suite green while `markforge agentify` still
-  // printed "not implemented yet" to every user who ran it.
-  it("agentify no longer refuses, because it is implemented", () => {
-    const r = run(["agentify"], dir);
+  // *landed* must stop claiming it has not. Without this, removing a name from the list
+  // above would have been enough to make the suite green while the command still printed
+  // "not implemented yet" to every user who ran it.
+  it.each(["agentify", "serve", "mcp"])("%s no longer refuses, because it is implemented", (name) => {
+    // `serve` and `mcp` both block once started, so they are asked for help rather than
+    // run: `--help` exercises the same command registration and exits.
+    const r = run([name, "--help"], dir);
     expect(r.stderr).not.toMatch(/not implemented yet/);
-    // No sources given, so it is a usage error rather than a phase refusal.
-    expect(r.status).not.toBe(0);
-    expect(r.stderr).toMatch(/missing required argument|no ingestible documents/);
+    expect(r.stdout).not.toMatch(/not implemented yet/);
+  });
+
+  it("serve binds a port and reports where on stdout", async () => {
+    // Port 0, never the default. The first version of this test ran `serve` with no
+    // `--port` and failed with EADDRINUSE against 3000 — a test that competes for a
+    // fixed port fails for a reason that has nothing to do with the code.
+    const child = spawn(process.execPath, [CLI, "serve", "--port", "0", "--json"], { cwd: dir });
+    try {
+      const line = await new Promise<string>((resolveLine, rejectLine) => {
+        const timer = setTimeout(() => rejectLine(new Error("serve printed nothing in 10s")), 10_000);
+        let buffered = "";
+        child.stdout.on("data", (c: Buffer) => {
+          buffered += c.toString("utf8");
+          const nl = buffered.indexOf("\n");
+          if (nl >= 0) {
+            clearTimeout(timer);
+            resolveLine(buffered.slice(0, nl));
+          }
+        });
+      });
+      const parsed = JSON.parse(line) as { url: string; routes: { method: string; path: string }[] };
+      expect(parsed.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+      // The whole route table, asserted from the outside. A retrieval route appearing
+      // here would be the visible half of a retention bug.
+      expect(parsed.routes.map((x) => `${x.method} ${x.path}`)).toEqual([
+        "POST /convert",
+        "GET /health",
+      ]);
+    } finally {
+      child.kill();
+    }
   });
 
   it("lists every planned subcommand in --help", () => {
     const help = run(["--help"], dir).stdout;
-    for (const name of ["convert", "fmt", "agentify", "check", "diff", "serve", "init"]) {
+    for (const name of ["convert", "fmt", "agentify", "check", "diff", "serve", "init", "mcp"]) {
       expect(help).toContain(name);
     }
   });

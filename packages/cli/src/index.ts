@@ -584,11 +584,81 @@ agentifyCommand.action(async (sources: string[], opts: Record<string, unknown>) 
   }
 });
 
+/**
+ * `serve` — the stateless HTTP API of brief §8 and SPEC §8.
+ *
+ * Binds to loopback unless told otherwise. A converter that accepts a document over the
+ * network is exactly the shape brief §3.6 is cautious about, so reaching it from another
+ * machine is a thing the operator asks for by typing `--host`, not a default they would
+ * have to discover and turn off.
+ */
+program
+  .command("serve")
+  .description("Local HTTP API (stateless, no document retention)")
+  .option("--port <n>", "port to listen on; 0 picks a free one", "3000")
+  .option("--host <addr>", "address to bind; defaults to loopback only", "127.0.0.1")
+  .option("--max-body <bytes>", "reject request bodies larger than this", String(32 * 1024 * 1024))
+  .option("--allow-origin <origin...>", "CORS origins to permit; none by default")
+  .option("--json", "emit the listening address as JSON on stdout")
+  .action(async (opts: { port: string; host: string; maxBody: string; allowOrigin?: string[]; json?: boolean }) => {
+    const { createServer, ROUTES } = await import("@markforge/http");
+    const server = createServer({
+      maxBodyBytes: Number(opts.maxBody),
+      ...(opts.allowOrigin ? { allowedOrigins: opts.allowOrigin } : {}),
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(Number(opts.port), opts.host, resolve);
+    });
+
+    const address = server.address();
+    const bound = typeof address === "object" && address ? `${opts.host}:${address.port}` : opts.host;
+
+    if (opts.json) {
+      // stdout stays machine-readable (SPEC §8): exactly one JSON object, human text
+      // to stderr. A supervisor reading `.url` to know where we landed on port 0 is
+      // the reason this exists.
+      process.stdout.write(JSON.stringify({ url: `http://${bound}`, routes: ROUTES }) + "\n");
+    } else {
+      process.stderr.write(
+        `markforge serve: listening on http://${bound}\n` +
+          ROUTES.map((r) => `  ${r.method} ${r.path}  — ${r.description}\n`).join("") +
+          `Stateless: nothing is written to disk and no document is retained.\n` +
+          `No LLM on this surface: @markforge/http does not depend on @markforge/llm.\n`,
+      );
+    }
+  });
+
+/**
+ * `mcp` — the MCP server of brief §8, over stdio.
+ *
+ * A separate subcommand from `serve` because they are different protocols on different
+ * transports: `serve` is HTTP for a client with a socket, `mcp` is JSON-RPC on stdin and
+ * stdout for a coding agent that spawned us. `targets/mcp-manifest.json` used to scaffold
+ * `npx -y @markforge/mcp`, which named a package nothing publishes (OPEN_QUESTIONS §5);
+ * it now names this command, which exists.
+ *
+ * Nothing may reach stdout except protocol messages, so this command sets no `--json`
+ * flag and prints no banner.
+ */
+program
+  .command("mcp")
+  .description("MCP server over stdio, for a coding agent to call at runtime")
+  .option("--root <dir>", "the only directory the server may read or write", process.cwd())
+  .option("--targets <dir>", "target profile directory; defaults to <root>/targets")
+  .action(async (opts: { root: string; targets?: string }) => {
+    const { serve } = await import("@markforge/mcp");
+    await serve({
+      root: resolve(opts.root),
+      ...(opts.targets ? { targetsDir: resolve(opts.targets) } : {}),
+    });
+  });
+
 // The remaining SPEC §8 subcommands. Declared so `--help` tells the truth about the
 // intended surface, and each one refuses rather than silently doing nothing.
 for (const [name, description, phase] of [
   ["diff", "Semantic IR diff between two documents", "Phase 2"],
-  ["serve", "Local HTTP API", "Phase 5"],
   ["init", "Scaffold config and reference documents", "Phase 2"],
 ] as const) {
   program

@@ -1,0 +1,24 @@
+{
+  "name": "@markforge/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server over stdio, so a coding agent can call the converter at runtime (brief §8)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@markforge/agentify": "workspace:*",
+    "@markforge/core": "workspace:*",
+    "@markforge/ir": "workspace:*"
+  }
+}

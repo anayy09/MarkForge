@@ -147,12 +147,18 @@ importers:
       '@markforge/core':
         specifier: workspace:*
         version: link:../core
+      '@markforge/http':
+        specifier: workspace:*
+        version: link:../http
       '@markforge/ir':
         specifier: workspace:*
         version: link:../ir
       '@markforge/llm':
         specifier: workspace:*
         version: link:../llm
+      '@markforge/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@markforge/render-docx':
         specifier: workspace:*
         version: link:../render-docx
@@ -211,6 +217,15 @@ importers:
         specifier: workspace:*
         version: link:../ir
 
+  packages/http:
+    dependencies:
+      '@markforge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@markforge/ir':
+        specifier: workspace:*
+        version: link:../ir
+
   packages/infer:
     dependencies:
       '@markforge/ir':
@@ -234,6 +249,18 @@ importers:
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
+
+  packages/mcp:
+    dependencies:
+      '@markforge/agentify':
+        specifier: workspace:*
+        version: link:../agentify
+      '@markforge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@markforge/ir':
+        specifier: workspace:*
+        version: link:../ir
 
   packages/ooxml:
     dependencies:
