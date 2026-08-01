@@ -1,20 +1,42 @@
 /**
- * The two Phase 3 tasks, one function each.
+ * The model-backed tasks, one function each.
  *
- * SPEC §6.2 maps nine permitted tasks to three roles. Two of them are what Phase 3's
- * done-criterion turns on — heading tie-breaking on the ambiguous subset, and
- * scanned-page transcription on the scanned subset — and those two are built here. The
- * other seven (classification, context-unit extraction and summarisation, conflict
- * analysis, glossary extraction, alt text, ambiguous table geometry) are Phase 4's
- * agentify pipeline and its PDF table path. Building them now would be seven prompt
- * files with no caller, which brief §13 forbids and which nothing would keep honest.
+ * SPEC §6.2 maps nine permitted tasks to three roles. Three are built: heading tie-breaking
+ * (Phase 3), scanned-page transcription (Phase 3), and near-duplicate adjudication (Phase 4,
+ * ADR-0020).
  *
- * Both functions share a shape worth naming: **the schema is the guarantee.** The
- * tie-break's `chosen` field is an enum of that node's own candidate set, so choosing
- * off-menu is rejected by the endpoint's grammar or by ajv rather than discouraged by
- * the prompt. Transcription is the one task that produces content rather than choosing
- * among candidates, and it is permitted only because the deterministic alternative on a
- * page with no text layer is nothing at all.
+ * ## Two tasks are deliberately unbuilt, and the blocker is evidence, not effort
+ *
+ * Read this before writing either prompt file. Both are held because nothing could currently
+ * tell a good answer from a plausible one, and a task whose output cannot fail is worse than
+ * an absent one — it produces a number that gets quoted.
+ *
+ * **`document-role-classification`.** Unblocked when the rule-based classifier has been
+ * measured on documents it was not written against. That measurement now exists and the
+ * answer is bad: `fixtures/agentify/classification/` scores **1 of 5**, against 10/10
+ * in-distribution. So a comparison is finally available — but the holdout is five documents,
+ * which is enough to show the rules are weak and not enough to show a model is better.
+ * *Condition: a holdout large enough that a difference between rules and model is
+ * distinguishable from noise.* Until then the rules stand and report `unknown` when they have
+ * no opinion, which is at least honest.
+ *
+ * **`context-unit-extraction`.** The blocker is the key, not the prompt. `expected-units.json`
+ * was authored by the same person who wrote the extractor; grading a *second* extractor
+ * against it measures agreement with the first one's idea of a unit. *Condition: a unit key
+ * produced by blind annotation — someone who has seen neither extractor's output, with
+ * disagreements adjudicated.* That is manual and is the more expensive of the two to unblock,
+ * so start it early if SPEC §10.3's prose categories are on the critical path.
+ *
+ * Recorded in OPEN_QUESTIONS §7o so this is not relitigated from scratch.
+ *
+ * ## The shape all three share
+ *
+ * **The schema is the guarantee.** The tie-break's `chosen` is an enum of that node's own
+ * candidate set; the adjudicator answers `"A"` or `"B"` and the code maps it back to verbatim
+ * text. Neither can invent. Transcription is the one task that produces content rather than
+ * choosing, and it is permitted only because the deterministic alternative on a page with no
+ * text layer is nothing at all.
+ *
  */
 import type { LlmSession } from "./session.js";
 import { digestOf } from "./session.js";

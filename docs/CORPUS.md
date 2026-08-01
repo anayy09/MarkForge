@@ -414,6 +414,20 @@ naming it was unmeasurable rather than unmet, and the fixture had to be built to
 arithmetic of `scoreHeading` rather than to taste. A corpus that looks like it exercises
 something is not evidence that it does.
 
+**A fourth set was added after Phase 4 shipped: `classification/`, a role holdout.** The 10/10
+the rules score on sets (a)–(c) measured nothing — `classify.ts` and those documents were
+written in the same sitting, with the signal weights tuned while reading the classifier's own
+output on them. Five documents authored afterwards, each attacking a different assumption (role
+only in the body; a PRD in ADR clothing; a filename that suggests everything; architecture
+without architecture vocabulary; a role no other set contains), with the key fixed before the
+rules ran and not adjusted after. **The rules score 1 of 5.**
+
+**A precision arm was added to §10.4 at the same time.** `nearDuplicates` grades deduplication
+in one direction only — it shows a merge happened, never that the right thing merged — so the
+clean key now also authors `mustNotMerge` pairs, and the generator asserts they are genuinely
+hard: same category, and at least half must survive as far as the adjudicator rather than being
+filtered structurally. Without that arm, a method that merged everything passed every check.
+
 ### 2.15 Library- and LLM-generated documents — *authored via generators*
 
 **Catches:** the defect profile of DOCX files produced by software rather than by Word, which is

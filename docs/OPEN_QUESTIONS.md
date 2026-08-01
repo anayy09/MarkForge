@@ -389,6 +389,18 @@ to one of the two inputs by schema. Result: 1 of 2 authored pairs merged, 0 fals
 ADR-0020. Reversing it means accepting either a threshold that merges nothing or one that
 deletes facts silently.
 
+**7q. §10.4's category blocking makes one of the corpus's own near-duplicate pairs
+unmergeable, and the two cannot both be right.** The clean set's second authored pair is a
+product-spec `constraint` against `architecture.md`'s ADR-2 statement, which extraction files
+as a `decision`. Deduplication blocks cross-category merges — merging a command into a
+constraint would be a claim about meaning the stage has no basis for — so that pair is never
+compared. `CORPUS.md` §2.14 says they are the same fact; `SPEC.md` §10.4 says units merge
+within a category. **This is open, not decided.** Either the corpus pair is wrong, or a small
+set of compatible categories should be mergeable (`constraint`/`invariant`/`decision` are the
+plausible ones), or the extractor should file an ADR statement as a constraint and let the
+rationale carry the decision. Loosening the block is the option that risks silent data loss,
+so it is not being taken unilaterally. Measured: 0 of 2 authored pairs merge today.
+
 **7o. Only `embed` and `adjudicate` are wired; `classifyRole` and `extraUnits` are not.**
 `AgentifyAssist` has three injection points and one is connected. §10.4's merge is the one
 stage this corpus can grade — the near-duplicate pairs score Jaccard 0.000, so a merge proves

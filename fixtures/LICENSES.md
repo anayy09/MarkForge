@@ -23,6 +23,12 @@ a file with no row, and a row with no file. See `README.md` for the procedure an
 | agentify/clean/api-contract.html | authored | Apache-2.0 | MarkForge | — | §2.14(a) apiContract, and the HTML input in a mixed-format set — §10.1 claims ingest is just the adapters, and a single-format corpus would not test it |
 | agentify/clean/runbook.md | authored | Apache-2.0 | MarkForge | — | §2.14(a) runbook. The deterministic extractor categories live here: commands in fences, NAME=value environment variables, and one antiPattern |
 | agentify/clean/conventions.docx | authored | Apache-2.0 | MarkForge | — | §2.14(a) codingConventions, and the DOCX input. Rendered from authored Markdown by scripts/build-agentify-corpus.mjs |
+| agentify/classification/weekly.md | authored | Apache-2.0 | MarkForge | — | Role-classification holdout: meeting notes with no role word in the filename and a date for a title, so the role is only in the body |
+| agentify/classification/overview.md | authored | Apache-2.0 | MarkForge | — | Holdout: a product spec wearing a decision record's clothes — an `## Decision` heading and a `**Rationale:**` paragraph over requirements. Catches a classifier fooled by format |
+| agentify/classification/README.md | authored | Apache-2.0 | MarkForge | — | Holdout: a filename that suggests anything over a body that is only coding conventions. Catches a classifier leaning on the filename |
+| agentify/classification/platform.md | authored | Apache-2.0 | MarkForge | — | Holdout: architecture described in prose with none of the architecture heading vocabulary |
+| agentify/classification/checks.md | authored | Apache-2.0 | MarkForge | — | Holdout: testPolicy, a role none of the other three sets contain, so nothing about it was exercised while the rules were written |
+| agentify/classification/expected-units.json | authored | Apache-2.0 | MarkForge | — | The holdout key, fixed before the rules were run against it and not adjusted afterwards. The rules score 1 of 5 |
 | agentify/conflicting/deploy-guide.md | authored | Apache-2.0 | MarkForge | — | §2.14(b) newer source: NIMBUS_BATCH_TIMEOUT_MS=30000 and `pnpm build` |
 | agentify/conflicting/ops-runbook.md | authored | Apache-2.0 | MarkForge | — | §2.14(b) older source: the same two facts with different values, so the conflict is structural rather than a matter of phrasing |
 | agentify/conflicting/service-overview.md | authored | Apache-2.0 | MarkForge | — | §2.14(b) third document with no conflict, so a detector that fires on it is producing a false positive |

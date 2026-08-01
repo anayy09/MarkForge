@@ -3,6 +3,10 @@
     "correct": 10,
     "total": 10
   },
+  "holdout": {
+    "correct": 1,
+    "total": 5
+  },
   "sets": {
     "clean": {
       "units": 24,
@@ -59,6 +63,11 @@
       "oversizedConventions": 31,
       "oversizedGlossary": 8,
       "expectedConventions": 30
+    },
+    {
+      "dedupAuthoredRecall": "0/2",
+      "dedupMergesPerformed": 1,
+      "dedupFalseMerges": 0
     }
   ]
 }

@@ -18,6 +18,12 @@
  *   5. The oversized set overflows into secondary files and loses no unit.
  *   6. Two runs of the same input are byte-identical.
  *   7. Extraction measured against the authored answer keys, with a committed baseline.
+ *   8. **Deduplication precision**, from the committed cache. `nearDuplicates` alone grades
+ *      §10.4 in one direction — a method that merged everything would pass it — so the
+ *      corpus authors `mustNotMerge` pairs and this asserts none of them merged.
+ *   9. **The classification holdout.** The 10/10 in check 7 is in-distribution: `classify.ts`
+ *      was tuned while reading its own output on those documents. This runs a set authored
+ *      afterwards and never tuned against, and it scores 1 of 5.
  *
  * Run with `--update` to rewrite `docs/AGENTIFY.md` and the baseline; CI runs `--check`,
  * which fails on a regression and on a stale document.
@@ -42,6 +48,7 @@ const { parseHtmlDocument } = await import(dist("adapters-html"));
 const { parseDocx } = await import(dist("adapters-docx"));
 const agentify = await import(dist("agentify"));
 const { DiagnosticBag } = await import(dist("ir"));
+const llm = await import(dist("llm"));
 
 const failures = [];
 const notes = [];
@@ -350,9 +357,128 @@ const measured = { roles: { correct: 0, total: 0 }, sets: {} };
   }
 }
 
+// ---------------------------------------------------------------- 8. dedup precision
+console.log("\n8. Deduplication precision, from the committed cache (offline)");
+{
+  const key = keyFor("clean");
+  const negatives = key.mustNotMerge ?? [];
+  if (negatives.length === 0) {
+    fail("the clean key authors no mustNotMerge pairs, so §10.4 is graded for recall only");
+  }
+
+  // readOnly, no key: the recorded answers or nothing. A miss is a hard error rather than a
+  // silent downgrade to the deterministic path, which is what makes this a real check.
+  const session = new llm.LlmSession({
+    baseUrl: llm.DEFAULT_BASE_URL,
+    models: llm.DEFAULT_MODELS,
+    cache: { dir: join(REPO, ".markforge/llm-cache"), mode: "readOnly" },
+    // These three are part of the cache key, so they must match what `buildSession` used
+    // when the entries were recorded. Omitting the seed alone was enough to miss every one.
+    seed: 20260731,
+    maxRepairs: 2,
+    budget: { maxTokens: 200_000 },
+    capabilities: llm.loadCapabilities(llm.CAPABILITIES_PATH, llm.DEFAULT_BASE_URL, {
+      maxAgeMs: Number.POSITIVE_INFINITY,
+    }),
+  });
+  const assist = {
+    embed: (texts) => session.embed(texts),
+    adjudicate: async ({ a, b }) => {
+      const v = await llm.judgeUnitEquivalence(session, {
+        textA: a.text, textB: b.text,
+        pathA: a.sources[0]?.path ?? "?", pathB: b.sources[0]?.path ?? "?",
+      });
+      return { sameFact: v.sameFact, survivingText: v.survivingText };
+    },
+  };
+
+  try {
+    const run = await agentify.compile(await readSet(setDir("clean")), {
+      registry, targets: ["claude-md"], assist,
+    });
+
+    // Every surviving unit's text, plus the text of everything folded into it. A pair is
+    // "merged" when both sides ended up inside one unit.
+    const mergedInto = new Map();
+    for (const unit of run.units) {
+      mergedInto.set(unit.id, new Set([norm(unit.text)]));
+    }
+    for (const m of run.merges) {
+      mergedInto.get(m.survivingId)?.add(norm(m.text));
+    }
+    const together = (x, y) =>
+      [...mergedInto.values()].some((texts) => contains(texts, x) && contains(texts, y));
+
+    for (const pair of negatives) {
+      if (together(pair.a.text, pair.b.text)) {
+        fail(`FALSE MERGE: "${pair.a.text.slice(0, 40)}" was merged with "${pair.b.text.slice(0, 40)}"`);
+      } else {
+        ok(`kept apart (${pair.blockedBy}): ${pair.a.text.slice(0, 34)} / ${pair.b.text.slice(0, 34)}`);
+      }
+    }
+
+    // Recall is reported and baselined, not hard-failed. It currently reads 0/2 and the
+    // reason is understood and recorded (OPEN_QUESTIONS §7q): pair 1 is shortlisted and
+    // rejected by the adjudicator on defensible grounds, and pair 2 is never *compared*,
+    // because its two sides land in different categories and §10.4 blocks cross-category
+    // merges by design. A hard failure on a known, reported gap trains people to ignore red;
+    // the baseline below still catches it getting worse.
+    const positives = (key.nearDuplicates ?? []).filter((p) => together(p.a.text, p.b.text)).length;
+    const total = (key.nearDuplicates ?? []).length;
+    console.log(`  info  authored near-duplicates merged: ${positives}/${total}`);
+    console.log(`  info  merges performed: ${run.merges.length} — ${run.merges.map((m) => m.text.slice(0, 46)).join(" | ") || "(none)"}`);
+    if (run.merges.length === 0) {
+      fail("nothing merged at all, so the recall arm is not exercised in any direction");
+    }
+    notes.push({
+      dedupAuthoredRecall: `${positives}/${total}`,
+      dedupMergesPerformed: run.merges.length,
+      dedupFalseMerges: 0,
+    });
+  } catch (error) {
+    fail(`the cached dedup path could not run offline: ${error.message.slice(0, 160)}`);
+  }
+}
+
+function norm(t) {
+  return t.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+}
+function contains(texts, needle) {
+  const n = norm(needle);
+  for (const t of texts) if (t.includes(n) || n.includes(t)) return true;
+  return false;
+}
+
+// ---------------------------------------------------------------- 9. classification holdout
+console.log("\n9. Role classification against a holdout the rules were not tuned on");
+let holdout = { correct: 0, total: 0 };
+{
+  const dir = setDir("classification");
+  const key = keyFor("classification");
+  for (const [file, expected] of Object.entries(key.roles ?? {})) {
+    const bytes = new Uint8Array(readFileSync(join(dir, file)));
+    const { document } = await parseMarkdown(bytes, { path: file });
+    const c = agentify.classifyByRules(document, file);
+    holdout.total++;
+    if (c.role === expected) {
+      holdout.correct++;
+      console.log(`  ok    ${file.padEnd(14)} ${c.role}`);
+    } else {
+      console.log(`  miss  ${file.padEnd(14)} got ${c.role.padEnd(16)} want ${expected.padEnd(16)} margin ${c.margin.toFixed(3)}`);
+    }
+  }
+  // Deliberately NOT a failure at 1/5. The number is the finding, and a gate set at today's
+  // value would only stop it getting worse — which is exactly what the baseline below does,
+  // without implying 1/5 is acceptable.
+  console.log(`  info  holdout: ${holdout.correct}/${holdout.total} — in-distribution is ${measuredRolesLine()}`);
+}
+function measuredRolesLine() {
+  return `${measured.roles.correct}/${measured.roles.total}`;
+}
+
 // ---------------------------------------------------------------- baseline
 console.log("\nBaseline");
-const current = { roles: measured.roles, sets: measured.sets, notes };
+const current = { roles: measured.roles, holdout, sets: measured.sets, notes };
 if (UPDATE || !existsSync(BASELINE)) {
   writeFileSync(BASELINE, JSON.stringify(current, null, 2) + "\n");
   ok(`baseline written to ${BASELINE.replace(REPO, "")}`);
@@ -370,6 +496,11 @@ if (UPDATE || !existsSync(BASELINE)) {
   }
   if (previous.roles && current.roles.correct < previous.roles.correct) {
     fail(`role classification fell from ${previous.roles.correct} to ${current.roles.correct}`);
+  }
+  if (previous.holdout && current.holdout.correct < previous.holdout.correct) {
+    fail(`holdout classification fell from ${previous.holdout.correct} to ${current.holdout.correct}`);
+  } else if (previous.holdout && current.holdout.correct > previous.holdout.correct) {
+    console.log(`  info  holdout ROSE from ${previous.holdout.correct} to ${current.holdout.correct} — run --update to record it`);
   }
 }
 
@@ -470,9 +601,21 @@ named the *wrong* convention as missed when four were expected and three found.
 | --- | --- | --- | --- |
 ${setRows}
 
-Document role classification: **${current.roles.correct}/${current.roles.total}**, including the two the
-corpus authored as traps — \`architecture.md\` answers \`decisionRecord\` because its content is
-ADR sections, and \`service-overview.md\` answers \`architecture\` with no such word in its name.
+### Role classification
+
+| Set | Score | What it measures |
+| --- | --- | --- |
+| sets (a)–(c), in-distribution | **${current.roles.correct}/${current.roles.total}** | almost nothing — \`classify.ts\` was tuned while reading its own output on these documents |
+| \`classification/\` holdout | **${current.holdout.correct}/${current.holdout.total}** | the real number: authored afterwards, key fixed before the rules ran, not adjusted after |
+
+The in-distribution score was reported as evidence in an earlier version of this document and
+of \`STATUS.md\`. It is not evidence: the rules and those documents were written together, with
+the weights tuned against the output. The holdout is what a reader should look at.
+
+Three of the holdout misses were exact ties (\`margin: 0.000\`) that the classifier used to
+report as decisions, because the distribution sort falls back to alphabetical order. A tie now
+returns \`unknown\`. That does not change the score, which is how you can tell it is a
+correctness fix rather than tuning.
 
 ### What the rules miss, and why
 
@@ -525,25 +668,39 @@ the documented task prefixes lift every score without changing it. Cosine measur
 relatedness; deduplication needs semantic equivalence. So the embedding **shortlists** and a
 \`strong\` model **decides** (ADR-0020).
 
-Measured end to end on the clean set, from the committed cache:
+### Both arms, measured
+
+\`nearDuplicates\` alone grades §10.4 in one direction: it shows a merge happened, never that
+the right thing merged, so anything loose enough to merge everything would pass. The corpus
+therefore also authors \`mustNotMerge\` pairs, three of which survive as far as the adjudicator
+rather than being filtered structurally.
 
 | | |
 | --- | --- |
 | pairs adjudicated | 19 |
 | unparseable responses | 0 |
 | median completion | 153 tokens |
-| authored pairs merged | **1 of 2** |
-| false merges | **0** |
+| **precision** — hard negatives kept apart | **4 of 4** |
+| **recall** — authored near-duplicate pairs merged | **0 of 2** |
+| merges performed | 1 |
 
-The unmerged pair is pair 1, and the model's reason is right: *"Statement A defines a p95
-latency target, while Statement B imposes a hard maximum wait; they describe different
-guarantees."* A p95 budget of 2000 ms lets 5% of requests exceed two seconds, which "no user
-should ever wait more than two seconds" forbids. On the text the extractor actually produces —
-the ADR's rationale sentence, compound clause included — they are not the same fact. The
-answer key is optimistic here and the pipeline is right to keep them apart.
+**Recall is 0 of 2, and an earlier version of this document said 1 of 2.** The merge that does
+happen is between two *product-spec* sentences — one requirement bullet split by sentence
+segmentation — which is a correct merge and is not an authored pair. The CI job asserting
+\`--llm\` differs from \`--no-llm\` went green because of it, and that was read as the authored
+pair working. That is precisely the failure a recall-only corpus invites.
 
-One decoy never reached the model at all: two units with different \`entityKey\`s are different
-facts by definition, so they are blocked structurally. The other was rejected by the model.
+The two authored pairs, individually:
+
+- **Pair 1** is shortlisted and the adjudicator rejects it: *"Statement A defines a p95 latency
+  target, while Statement B imposes a hard maximum wait; they describe different guarantees."*
+  A p95 budget of 2000 ms lets 5% of requests exceed two seconds, which "no user should ever
+  wait more than two seconds" forbids. On the text the extractor produces, the key is
+  optimistic and the pipeline is right.
+- **Pair 2 is never compared.** Its two sides are a \`constraint\` and a \`decision\`, and
+  cross-category merges are blocked by design. \`CORPUS.md\` §2.14 and \`SPEC.md\` §10.4
+  contradict each other here; open as OPEN_QUESTIONS §7q rather than resolved by loosening the
+  block, which is the option that risks silent loss.
 
 Offline with \`--no-llm\`, no pair merges and the run says so in a diagnostic. Two \`readOnly\`
 runs with no key present are byte-identical, and the \`--llm\` output differs from \`--no-llm\`
