@@ -133,7 +133,11 @@ jobs:
         run: |
           set -e
           for f in templates/*.docx; do
-            out=$(node packages/cli/dist/index.js check --reference-doc "$f")
+            # 2>&1 matters: `--json` is absent, so human output goes to stderr by design
+            # (SPEC §8 keeps stdout machine-readable). Capturing stdout alone made $out
+            # empty and the grep below matched nothing, so this step passed while checking
+            # nothing — caught on its first CI run, which is the argument for running it.
+            out=$(node packages/cli/dist/index.js check --reference-doc "$f" 2>&1)
             echo "$out" | head -1
             echo "$out" | grep -q "38 of 38 Pandoc names defined"               || (echo "::error::$f does not define all 38 Pandoc style names" && exit 1)
           done
