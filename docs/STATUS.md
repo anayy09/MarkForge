@@ -230,7 +230,7 @@ needed a model would not be the default path.
 | `targets/` registry — 12 profiles, all schema-validated | done |
 | Rule-based classification (§10.2) | done — **10/10** on the authored roles |
 | Deterministic extraction (§10.3) | done — recall **94.7%**, precision **75.0%** against the authored key |
-| Dedup by text, then by embedding (§10.4) | text pass done and measured; **embedding pass implemented but NOT measured** — see below |
+| Dedup by text, then embedding shortlist + model adjudication (§10.4) | done and **measured live** — 1 of 2 authored pairs merged, 0 false merges. The design as specified was refuted (ADR-0020) |
 | Conflict report (§10.4) | done — **2/2** recall, **0** false positives |
 | Budget and progressive disclosure (§10.5) | done — 31 primary / 9 secondary at a 600-token budget, nothing lost |
 | The traceability gate (§10.6) | done, **and checked for its ability to fail** |
@@ -239,24 +239,50 @@ needed a model would not be the default path.
 | `markforge agentify` (§8) | done — `--targets`, `--budget`, `--dry-run`, `--explain-drops`, `--strict`, `--json` |
 | Reverse direction (§10.10) | not done — a stated stretch, and no corpus for it |
 
-### The number that is not measured
+### The measurement that refuted a design
 
-**The embedding half of §10.4 is implemented and has never been run against a model.** There
-is no `MODEL_API_KEY` in the environment this was built in, so no vectors were recorded and
-the committed cache still holds only Phase 3's two entries. What *is* tested is the merge
-logic, against a stand-in embedder: a pair above threshold merges additively and keeps both
-sources, a pair below it does not, and a misaligned batch is refused. What is **not** tested is
-the claim that actually matters — that `nomic-embed-text-v1.5` places the corpus's
-Jaccard-0.000 pairs above 0.9.
+`SPEC.md` §10.4 and OPEN_QUESTIONS §7c say near-duplicates merge by **cosine distance between
+embeddings**. §7c added the `embed` role up front specifically so Phase 4 would not have to
+retrofit it. Half of that reasoning was right and half was wrong, and only running it showed
+which.
 
-This is the exact status Phase 3 carried for tesseract for a whole phase, and the first run
-found that wrapper could not start at all. It is recorded here in the same words so it does not
-get read as done: **implemented, not measured.** Recording it needs one run with a key
-(`markforge agentify fixtures/agentify/clean --llm --llm-cache-mode readWrite`) and a commit of
-the resulting cache.
+Right: no lexical threshold reaches these pairs — both score content-word Jaccard 0.000.
 
-Offline, the two near-duplicate pairs stay unmerged and the run says so in a diagnostic. That
-is the honest cost of `--no-llm` and it is reported rather than hidden.
+Wrong: cosine cannot decide either. Against `nomic-embed-text-v1.5`, the two authored pairs
+score **0.63** and **0.62**, while the highest-scoring pair in the whole clean set is
+`NIMBUS_MAX_BATCH_MB=64` against `NIMBUS_BATCH_TIMEOUT_MS=30000` at **0.82** — two unrelated
+variables. "Retrievable for thirty days" against "rejected whole" scores 0.74. Both decoys
+outrank both true pairs, so no cutoff separates them, and the documented task prefixes lift
+every score while leaving the ranking identical. Cosine measures topical relatedness;
+deduplication needs semantic equivalence.
+
+Shipped as specified, this would have failed one of two ways: a safe threshold that merges
+nothing, or a low one that silently deletes real facts from every generated file. The second
+is worse and is invisible, because a merged unit looks exactly like a unit.
+
+The embedding now **shortlists** and a `strong` model **decides** (ADR-0020). Measured:
+19 pairs adjudicated, 0 unparseable, **1 of 2 authored pairs merged, 0 false merges.** The
+unmerged one is defensible — a p95 target of 2000 ms permits 5% of requests past two seconds,
+which "no user should ever wait more than two seconds" forbids, and the model said exactly
+that. On the text the extractor produces, the answer key is optimistic.
+
+Two more defects surfaced on the way, both only visible by running it:
+
+**An enum of long strings is a pathological guided-decoding grammar.** Constraining
+`survivingText` to an enum of the two full sentences is the obvious way to guarantee the merged
+text comes from a source. It also forces the sampler to reproduce ~150 characters exactly, and
+when the model diverges it can only emit whitespace: **41 of 50 adjudications died at
+`finish_reason: "length"` having burned a 3000-token ceiling.** A two-letter `"A" | "B"` enum
+with the mapping done in code gives the identical guarantee at a median of 153 tokens.
+
+**A 500-token ceiling on a reasoning model looks like model incompetence.** The first run set
+it there; `nemotron-3-super-120b-a12b` spent all of it before writing JSON. STATUS.md already
+records this exact mistake from Phase 3's capability probe, which is the argument for the
+ceiling being commented with its number rather than merely set.
+
+The cache is committed — 48 entries, 324 KB — and the path is offline-reproducible: two
+`readOnly` runs with no key present are byte-identical, and `--llm` differs from `--no-llm` by
+exactly the one merged line. Both are CI jobs.
 
 ### What "first-class" does and does not mean here
 
@@ -334,8 +360,10 @@ authored. Phase 4's criterion was measurable on day one, and the authored keys c
 things a captured snapshot could not have: the classifier traps (`architecture.md` answers
 `decisionRecord`, `service-overview.md` answers `architecture`) and the false conflict above.
 
-Six of the ten bound LLM tasks still have no prompt file. Phase 4 wrote **none** of them and
-wired only the embeddings path, which needs no prompt; the reasoning is in OPEN_QUESTIONS §7o.
+Five of the ten bound LLM tasks still have no prompt file. Phase 4 wrote one —
+`context-unit-summarization/v1.md`, the near-duplicate adjudicator — and wired the embeddings
+path, which needs none. `document-role-classification` and `context-unit-extraction` remain
+unwired for the reason in OPEN_QUESTIONS §7o: this corpus cannot grade them.
 
 ## Unbuilt CLI surface
 

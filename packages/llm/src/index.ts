@@ -68,8 +68,10 @@ export type { LoadedPrompt } from "./prompts.js";
 export { headingTiebreaker, visionRecognizer } from "./assist.js";
 export type { AssistOptions } from "./assist.js";
 
-export { breakHeadingTie, transcribePage } from "./tasks.js";
+export { breakHeadingTie, judgeUnitEquivalence, transcribePage } from "./tasks.js";
 export type {
+  UnitEquivalenceInput,
+  UnitEquivalenceResult,
   HeadingTiebreakInput,
   HeadingTiebreakResult,
   ModelProducer,

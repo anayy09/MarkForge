@@ -30,6 +30,7 @@ behalf and is open to reversal at review.
 | [0017](0017-ocr-recognizer-boundary.md) | The OCR path: an injected recogniser, and tesseract's language data | Accepted |
 | [0018](0018-unit-ordering-diff-stability.md) | Source position orders context units, ahead of the content-addressed id | Accepted |
 | [0019](0019-token-counting-approximation.md) | No tokenizer is bundled; `modelTokenizer` refuses rather than approximating | Accepted |
+| [0020](0020-dedup-embedding-shortlist-model-decides.md) | The embedding shortlists near-duplicates; a model decides | Accepted |
 
 ## Records that deviate from the brief
 
@@ -45,3 +46,4 @@ is argued in place; `OPEN_QUESTIONS.md` §7 lists the ones decided without askin
 | [0011](0011-package-scope-and-public-api.md) | §9 | `@markforge/ooxml` and `@markforge/fidelity` added to the package layout. Decided without asking. |
 | [0018](0018-unit-ordering-diff-stability.md) | §6.2 | Amends `SPEC.md` §10.8's unit ordering, which was not diff-stable against its own criterion. Decided without asking; measured before deciding. |
 | [0019](0019-token-counting-approximation.md) | §6.1 | No tokenizer bundled, so every token figure is a named estimate. Decided without asking. |
+| [0020](0020-dedup-embedding-shortlist-model-decides.md) | §6.1 | Supersedes half of OPEN_QUESTIONS §7c: cosine shortlists, a model decides. Measurement refuted the original design. Decided without asking. |

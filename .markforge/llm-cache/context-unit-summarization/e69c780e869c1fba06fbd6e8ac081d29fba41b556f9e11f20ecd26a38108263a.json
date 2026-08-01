@@ -1,0 +1,26 @@
+{
+  "key": "e69c780e869c1fba06fbd6e8ac081d29fba41b556f9e11f20ecd26a38108263a",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v1",
+  "mode": "guided",
+  "inputDigest": "c32fbdf1f8190234466fbb772c761c1f544b61b540f2a7504acd49a755d31fa9",
+  "inputPreview": "downstream reporting cannot distinguish a truncated load from a complete one, so any partial write becomes a silent data error rather than a visible failure. || A batch that fails validation must be rejected whole.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "6db9cd0e43c0c4161751820d2c5944c8d3d3f3ce0ce0906dbbb96efabc64b2a8",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Statement A concerns silent errors from undetected truncation, while Statement B concerns whole‑batch rejection on validation failure—different facts.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 338,
+      "completionTokens": 223,
+      "totalTokens": 561
+    }
+  }
+}

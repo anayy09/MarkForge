@@ -1,0 +1,26 @@
+{
+  "key": "54cbccc8cf71642a4e012c08a9ce3309a6abf90a0fec4faf7b7a91b18a6dc971",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v1",
+  "mode": "guided",
+  "inputDigest": "1cac411588c01e622d319ec4957c67f009cc764c5f0387b79345935cfcc7254b",
+  "inputPreview": "A batch that fails validation must be rejected whole. || Operators must be able to replay any accepted batch without contacting engineering.",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "6db9cd0e43c0c4161751820d2c5944c8d3d3f3ce0ce0906dbbb96efabc64b2a8",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"Statement A concerns rejection of invalid batches, while Statement B concerns replaying accepted batches; they address different requirements.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 324,
+      "completionTokens": 128,
+      "totalTokens": 452
+    }
+  }
+}

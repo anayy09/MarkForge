@@ -1,0 +1,26 @@
+{
+  "key": "5fd8ca5ba4959a264a9c1a880f27d04dc2dfccceb1cc38290232871c15ffc77a",
+  "task": "context-unit-summarization",
+  "model": "nemotron-3-super-120b-a12b",
+  "promptVersion": "v1",
+  "mode": "guided",
+  "inputDigest": "cb60e69527da696faab6f081921214b4ef34eed3c099bfaa7650a789c155fdf8",
+  "inputPreview": "pnpm build || pnpm deploy --env production",
+  "params": {
+    "temperature": 0,
+    "maxTokens": 3000,
+    "mode": "guided",
+    "attempt": 1,
+    "promptDigest": "6db9cd0e43c0c4161751820d2c5944c8d3d3f3ce0ce0906dbbb96efabc64b2a8",
+    "seed": 20260731
+  },
+  "response": {
+    "content": "{\n  \"sameFact\": false,\n  \"surviving\": \"A\",\n  \"rationale\": \"A describes building the project while B describes deploying to production; they are distinct actions.\"\n}",
+    "finishReason": "stop",
+    "usage": {
+      "promptTokens": 311,
+      "completionTokens": 106,
+      "totalTokens": 417
+    }
+  }
+}

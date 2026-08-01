@@ -94,9 +94,9 @@ else ok("SPEC.md section 10 covers all 7 agentify stages");
 // --- 6. ADRs: files, index, and cross-references must all agree.
 const adrFiles = readdirSync(join(REPO, "docs/adr")).filter((f) => /^\d{4}-.*\.md$/.test(f)).sort();
 // 15 through Phase 2; Phase 3 adds 0016 (LLM runtime) and 0017 (the OCR boundary);
-// Phase 4 adds 0018 (unit ordering) and 0019 (token counting).
-if (adrFiles.length !== 19) fail(`expected 19 ADR files, found ${adrFiles.length}`);
-else ok("19 ADR files present");
+// Phase 4 adds 0018 (unit ordering), 0019 (token counting), and 0020 (dedup staging).
+if (adrFiles.length !== 20) fail(`expected 20 ADR files, found ${adrFiles.length}`);
+else ok("20 ADR files present");
 
 for (const f of adrFiles) {
   if (!adrIndex.includes(f)) fail(`ADR ${f} is not linked from docs/adr/README.md`);

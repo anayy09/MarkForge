@@ -172,10 +172,11 @@ describe("deduplication (SPEC §10.4, OPEN_QUESTIONS §7c)", () => {
     expect(result.merges[0]!.method).toBe("text");
   });
 
-  it("merges by embedding what text cannot reach, and leaves distant units alone", async () => {
+  it("shortlists by embedding and merges only what the adjudicator confirms", async () => {
     // The corpus's first near-duplicate pair, verbatim. Content-word Jaccard is 0.000, which
-    // `scripts/build-agentify-corpus.mjs` asserts on every run — so no text threshold merges
-    // these and only an embedding can.
+    // `scripts/build-agentify-corpus.mjs` asserts on every run, so no text threshold reaches
+    // it. Cosine alone does not reach it either — see the module header — so the embedding
+    // shortlists and the adjudicator decides.
     const prd = unit({ text: "No user should ever wait more than two seconds for a batch to be acknowledged." });
     const adr = unit({
       text: "The p95 acknowledgement budget for a single submission is 2000 milliseconds.",
@@ -186,22 +187,62 @@ describe("deduplication (SPEC §10.4, OPEN_QUESTIONS §7c)", () => {
       source: { sourceId: "s2", nodeIds: [], locator: { kind: "text", startOffset: 0, endOffset: 1 }, order: 1, path: "c.md" },
     });
 
-    // A stand-in embedder, because this environment has no API key. It proves the *merge
-    // logic* — that a pair above threshold merges additively and a pair below it does not.
-    // It does NOT prove that nomic-embed-text-v1.5 places the real pair above 0.9; that
-    // needs a recorded cache and is reported as unmeasured in docs/STATUS.md.
+    // Both non-identical pairs are placed *above* the shortlist threshold on purpose, so the
+    // test proves the adjudicator is what separates them rather than the geometry. That is
+    // the whole point of the two-stage design: on real vectors the decoys outrank the true
+    // pairs, so a test where cosine already sorts them correctly would prove nothing.
     const vectors: Record<string, number[]> = {
       [prd.text]: [1, 0, 0],
       [adr.text]: [0.97, 0.24, 0],
-      [unrelated.text]: [0, 0, 1],
+      [unrelated.text]: [0.95, 0.31, 0],
     };
     const embed = async (texts: string[]) => texts.map((t) => vectors[t] ?? [0, 1, 0]);
+    const asked: string[][] = [];
+    const adjudicate = async ({ a, b }: { a: ContextUnit; b: ContextUnit }) => {
+      asked.push([a.text, b.text]);
+      const sameFact = [a.text, b.text].every((t) => t === prd.text || t === adr.text);
+      return { sameFact, survivingText: sameFact ? adr.text : a.text };
+    };
 
-    const result = await deduplicate([prd, adr, unrelated], { threshold: 0.9, embed }, bag());
+    const result = await deduplicate([prd, adr, unrelated], { threshold: 0.9, embed, adjudicate }, bag());
+    expect(asked.length).toBeGreaterThan(1); // the decoy was shortlisted too
     expect(result.units).toHaveLength(2);
     const merged = result.units.find((u) => u.sources.length === 2);
     expect(merged?.sources.map((s) => s.path).sort()).toEqual(["a.md", "b.md"]);
+    // The adjudicator named B's wording, so B's text survives even though A came first.
+    expect(merged?.text).toBe(adr.text);
     expect(result.merges[0]!.method).toBe("embedding");
+  });
+
+  it("merges nothing from the embedding pass when no adjudicator is supplied", async () => {
+    // Cosine is a shortlist, not a verdict. Without something to decide, a close pair stays
+    // separate — the opposite of the original design, and the reason ADR-0020 exists.
+    const a = unit({ text: "Acknowledge a batch within two seconds." });
+    const b = unit({
+      text: "The acknowledgement budget is 2000 milliseconds.",
+      source: { sourceId: "s1", nodeIds: [], locator: { kind: "text", startOffset: 0, endOffset: 1 }, order: 0, path: "b.md" },
+    });
+    const embed = async (texts: string[]) => texts.map(() => [1, 0, 0]);
+    const result = await deduplicate([a, b], { threshold: 0.9, embed }, bag());
+    expect(result.units).toHaveLength(2);
+  });
+
+  it("never shortlists two units that name different entities", async () => {
+    // The corpus's strongest decoy: two unrelated NIMBUS_* variables at cosine 0.82, higher
+    // than either authored near-duplicate pair. Blocked on the entity key, before any model
+    // is asked, because different entities are different facts by definition.
+    const a = unit({ category: "environmentVariable", text: "NIMBUS_MAX_BATCH_MB=64", entityKey: "NIMBUS_MAX_BATCH_MB", entityValue: "64" });
+    const b = unit({
+      category: "environmentVariable", text: "NIMBUS_BATCH_TIMEOUT_MS=30000",
+      entityKey: "NIMBUS_BATCH_TIMEOUT_MS", entityValue: "30000",
+      source: { sourceId: "s1", nodeIds: [], locator: { kind: "text", startOffset: 0, endOffset: 1 }, order: 0, path: "b.md" },
+    });
+    const embed = async (texts: string[]) => texts.map(() => [1, 0, 0]);
+    let asked = 0;
+    const adjudicate = async () => { asked++; return { sameFact: true, survivingText: a.text }; };
+    const result = await deduplicate([a, b], { threshold: 0.5, embed, adjudicate }, bag());
+    expect(asked).toBe(0);
+    expect(result.units).toHaveLength(2);
   });
 
   it("refuses a misaligned embedding batch rather than guessing", async () => {

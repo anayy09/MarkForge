@@ -373,6 +373,27 @@ jobs:
             || (echo "::error::two agentify runs of the same input differ" && exit 1)
           echo "Agentify output and its provenance manifest are byte-identical across runs."
 
+      # Phase 4's LLM half, with the same two properties Phase 3 required of its own:
+      # reproducible offline, and *different* from the deterministic path. The second matters
+      # more — a cached run that matched --no-llm exactly would mean the model changed nothing
+      # and the measurement was vacuous. Here the difference is one merged near-duplicate.
+      - name: Cached-LLM agentify is byte-reproducible, offline, and changes the output
+        run: |
+          set -e
+          unset MODEL_API_KEY
+          for run in a b; do
+            node packages/cli/dist/index.js agentify fixtures/agentify/clean               --targets claude-md --llm --llm-cache-mode readOnly               --out-dir "/tmp/agl-$run" --manifest "/tmp/agl-$run/p.json" --quiet
+          done
+          diff -r /tmp/agl-a /tmp/agl-b             || (echo "::error::two cached-LLM agentify runs differ" && exit 1)
+          node packages/cli/dist/index.js agentify fixtures/agentify/clean             --targets claude-md --out-dir /tmp/agl-det --manifest /tmp/agl-det/p.json --quiet
+          if cmp -s /tmp/agl-a/CLAUDE.md /tmp/agl-det/CLAUDE.md; then
+            echo "::error::--llm produced the same CLAUDE.md as --no-llm; the near-duplicate"
+            echo "::error::merge stopped happening, or the committed cache is unreachable"
+            exit 1
+          fi
+          diff /tmp/agl-det/CLAUDE.md /tmp/agl-a/CLAUDE.md || true
+          echo "Cached-LLM agentify is reproducible offline and merges a near-duplicate."
+
       # fmt --check on already-formatted files must exit 0. If it did not, the
       # formatter would report its own output as needing formatting.
       - name: fmt is a fixed point on the corpus

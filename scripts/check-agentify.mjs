@@ -508,19 +508,46 @@ that rule is now enforced rather than assumed.
 
 The clean set's two near-duplicate pairs score content-word Jaccard **0.000**, asserted by
 \`scripts/build-agentify-corpus.mjs\` on every run. No lexical threshold merges them at any
-setting, which is what makes §10.4's embedding pass necessary rather than preferable.
-Offline, they stay separate and the run says so in a diagnostic; that is the honest cost of
-\`--no-llm\`, and it is reported rather than hidden.
+setting. That half of OPEN_QUESTIONS §7c held up.
 
-**The embedding pass itself is implemented and has never been run against a model.** There is
-no API key in the environment this was built in, so no vectors were recorded and no number
-here covers it. What is tested is the merge *logic*, against a stand-in embedder: a pair above
-threshold merges additively and keeps both sources, a pair below it does not, and a misaligned
-batch is refused rather than guessed at. What is **not** tested is the claim that matters —
-that \`nomic-embed-text-v1.5\` actually places these two sentences above 0.9. Phase 3 carried
-tesseract as "implemented but never measured" for a whole phase and the first run found it
-could not start at all, so the same words are used here deliberately. Recording it takes one
-run with a key and a commit of the resulting cache.
+**The other half did not: cosine cannot make the decision either.** Measured against
+\`nomic-embed-text-v1.5\`:
+
+| Pair | cosine | with \`clustering:\` |
+| --- | --- | --- |
+| authored pair 1 — latency, PRD vs ADR | 0.6335 | 0.7782 |
+| authored pair 2 — whole-batch atomicity | 0.6183 | 0.7416 |
+| **decoy** \`NIMBUS_MAX_BATCH_MB\` vs \`NIMBUS_BATCH_TIMEOUT_MS\` | **0.8201** | **0.9063** |
+| **decoy** "thirty days" vs "rejected whole" | **0.7428** | **0.8648** |
+
+Both decoys outrank both true pairs, so no cutoff separates them — the ordering is wrong, and
+the documented task prefixes lift every score without changing it. Cosine measures topical
+relatedness; deduplication needs semantic equivalence. So the embedding **shortlists** and a
+\`strong\` model **decides** (ADR-0020).
+
+Measured end to end on the clean set, from the committed cache:
+
+| | |
+| --- | --- |
+| pairs adjudicated | 19 |
+| unparseable responses | 0 |
+| median completion | 153 tokens |
+| authored pairs merged | **1 of 2** |
+| false merges | **0** |
+
+The unmerged pair is pair 1, and the model's reason is right: *"Statement A defines a p95
+latency target, while Statement B imposes a hard maximum wait; they describe different
+guarantees."* A p95 budget of 2000 ms lets 5% of requests exceed two seconds, which "no user
+should ever wait more than two seconds" forbids. On the text the extractor actually produces —
+the ADR's rationale sentence, compound clause included — they are not the same fact. The
+answer key is optimistic here and the pipeline is right to keep them apart.
+
+One decoy never reached the model at all: two units with different \`entityKey\`s are different
+facts by definition, so they are blocked structurally. The other was rejected by the model.
+
+Offline with \`--no-llm\`, no pair merges and the run says so in a diagnostic. Two \`readOnly\`
+runs with no key present are byte-identical, and the \`--llm\` output differs from \`--no-llm\`
+by exactly the one merged line. Both are CI jobs.
 `;
   writeFileSync(DOC, body);
 }

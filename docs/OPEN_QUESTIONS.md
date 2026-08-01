@@ -379,7 +379,17 @@ The server it names is `markforge serve`, which is Phase 5 and does not exist. I
 therefore measures our expectation, not a vendor's format. Said plainly in `docs/TARGETS.md`
 and in `STATUS.md` rather than hidden behind the word "first-class".
 
-**7o. Only `embed` is wired to the model; `classifyRole` and `extraUnits` are not.**
+**7p. SPEC §10.4's cosine merge is superseded: the embedding shortlists, a model decides.**
+§7c reversed a text threshold *to* embeddings and was half right. Lexical similarity really
+cannot reach these pairs (Jaccard 0.000) — but neither can cosine: measured against
+`nomic-embed-text-v1.5`, both authored pairs score ~0.62 while two unrelated `NIMBUS_*`
+variables score 0.82, so the decoys outrank the truths and no threshold separates them. Pass 2
+is now a shortlist plus a `strong`-model adjudication, with the surviving wording constrained
+to one of the two inputs by schema. Result: 1 of 2 authored pairs merged, 0 false merges.
+ADR-0020. Reversing it means accepting either a threshold that merges nothing or one that
+deletes facts silently.
+
+**7o. Only `embed` and `adjudicate` are wired; `classifyRole` and `extraUnits` are not.**
 `AgentifyAssist` has three injection points and one is connected. §10.4's merge is the one
 stage this corpus can grade — the near-duplicate pairs score Jaccard 0.000, so a merge proves
 an embedding did it. The other two are unwired because nothing here could tell a good answer

@@ -81,7 +81,20 @@ export const DEFAULT_BUDGET_TOKENS = 200_000;
  * invalidates recorded vectors.
  */
 const EMBED_TASK = "context-unit-dedup";
-const EMBED_VERSION = "e1";
+const EMBED_VERSION = "e2";
+
+/**
+ * `nomic-embed-text-v1.5` requires a task prefix on every input, and silently degrades
+ * without one rather than erroring.
+ *
+ * `clustering:` is the documented prefix for grouping similar texts, which is what §10.4's
+ * shortlist does. Measured on the agentify corpus it lifts the authored near-duplicate pairs
+ * from 0.63/0.62 to 0.78/0.74 — worth having for recall into the adjudication stage, though
+ * it does *not* reorder true pairs above topical decoys, which is why a threshold alone was
+ * abandoned (ADR-0020). Changing this string changes every vector, so EMBED_VERSION moved
+ * with it and the un-prefixed entries are unreachable rather than silently mixed in.
+ */
+const EMBED_PREFIX = "clustering: ";
 
 /**
  * The SPEC §6.2 table, as defaults rather than as law.
@@ -251,7 +264,10 @@ export class LlmSession {
       const problem = this.budgetProblem();
       if (problem) throw new Error(problem);
 
-      const response = await this.client.embed({ model, input: missing.map((m) => m.text) });
+      const response = await this.client.embed({
+        model,
+        input: missing.map((m) => EMBED_PREFIX + m.text),
+      });
       this.addUsage(response.usage);
       missing.forEach((entry, i) => {
         const vector = (response.vectors[i] ?? []).map((v) => Math.round(v * 1e6) / 1e6);

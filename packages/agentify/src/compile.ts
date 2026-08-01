@@ -15,7 +15,7 @@
 import { DiagnosticBag, DiagnosticCode, type Diagnostic } from "@markforge/ir";
 import { applyModelOpinion, classifyByRules } from "./classify.js";
 import { extractUnits, type SourceDocument } from "./extract.js";
-import { deduplicate, type Embedder } from "./dedup.js";
+import { deduplicate, type Adjudicator, type Embedder } from "./dedup.js";
 import { detectConflicts, type ConflictReport } from "./conflicts.js";
 import { planBudget, type BudgetPlan } from "./budget.js";
 import { assemble, type EmittedFile } from "./assemble.js";
@@ -28,8 +28,10 @@ const AGENTIFY = { kind: "rule" as const, name: "@markforge/agentify", version: 
 
 /** Optional model-backed help. Every field absent is `--no-llm`. */
 export interface AgentifyAssist {
-  /** SPEC §10.4 — merges units restating one fact in different words. */
+  /** SPEC §10.4 — shortlists units that may restate one fact. */
   embed?: Embedder;
+  /** SPEC §10.4 — decides a shortlisted pair. Cosine alone cannot (ADR-0020). */
+  adjudicate?: Adjudicator;
   /** SPEC §10.2 — may adjust the rule-based role, never replace it. */
   classifyRole?: (input: {
     path: string;
@@ -96,7 +98,7 @@ export async function compile(
   options: CompileOptions,
 ): Promise<CompileResult> {
   const diagnostics = new DiagnosticBag(AGENTIFY);
-  const threshold = options.dedupeThreshold ?? 0.9;
+  const threshold = options.dedupeThreshold ?? 0.72;
   const roleMargin = options.roleMargin ?? 0.15;
 
   // --- §10.2 Classify, and §10.3 Extract.
@@ -170,7 +172,11 @@ export async function compile(
   // --- §10.4 Deduplicate, then detect conflicts.
   const deduped = await deduplicate(
     units,
-    { threshold, ...(options.assist?.embed ? { embed: options.assist.embed } : {}) },
+    {
+      threshold,
+      ...(options.assist?.embed ? { embed: options.assist.embed } : {}),
+      ...(options.assist?.adjudicate ? { adjudicate: options.assist.adjudicate } : {}),
+    },
     diagnostics,
   );
   units = deduped.units;
