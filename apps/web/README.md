@@ -79,8 +79,23 @@ Next needs `noEmit`, and TypeScript rejects that alongside `composite`. It still
 
 ## Deployment
 
-`vercel.json` at the repo root carries the whole configuration, so no dashboard setting is
-load-bearing. Node 22 comes from the root `engines` field.
+`vercel.json` at the repo root carries the build configuration. **One dashboard setting is
+load-bearing and cannot move into the file: Root Directory must be `apps/web`.** Everything in
+`vercel.json` is then resolved relative to that, which is the part that is easy to get wrong.
+
+`outputDirectory` is `.next`, not `apps/web/.next`. The first deploy used the latter and failed
+after a completely successful build:
+
+```
+Error: The Next.js output directory "apps/web/.next" was not found at
+"/vercel/path0/apps/web/apps/web/.next"
+```
+
+Two things were wrong and only the first is obvious. The path is relative to the Root
+Directory, so it doubles. And Vercel **stores** these fields on the project at first deploy, so
+deleting `outputDirectory` from this file does not restore the default: the stale
+`apps/web/.next` keeps being applied. The field has to be present with the right value to
+override it.
 
 Two limits worth knowing before relying on the hosted instance:
 
