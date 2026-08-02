@@ -5,14 +5,20 @@
 # the Marketplace display name moves; the repository, the binary, the `@markforge` scope and
 # `uses: anayy09/MarkForge@v0.1.0` are all unaffected (OPEN_QUESTIONS §7aq).
 #
-# The description leads with what this *is* rather than with a command, because the Marketplace
-# truncates it and `PUBLISHING.md` already sets that rule for the npm description: the first
-# clause has to disambiguate from the unrelated `markforge` package before any cut.
+# The description leads with what this *is* rather than with a command, because
+# `PUBLISHING.md` sets that rule for the npm description: the first clause has to disambiguate
+# from the unrelated `markforge` package, which is an HTML-to-Markdown library, before any cut.
+#
+# **It must also stay under 125 characters**, which is not documented in the metadata syntax
+# reference — the draft-release form rejected a 198-character description with "Description must
+# be less than 125 characters" and named no other problem, so the `name` above cleared the
+# user-account rule on the same submission. 115 characters, and the two claims worth the budget
+# are determinism and that nothing is sent anywhere; which subcommands exist is the `command`
+# input's job, and the README's.
 name: MarkForge Document Check
 description: >-
-  Gate documents in CI — deterministic Markdown formatting and document validation, offline.
-  Runs `markforge fmt --check` or `markforge check`; no model is consulted and no document
-  leaves the runner.
+  Deterministic Markdown formatting and document validation for CI.
+  No model is consulted; nothing leaves the runner.
 author: MarkForge contributors
 
 branding:

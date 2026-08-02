@@ -797,6 +797,18 @@ has already built, so `action.yml`'s reuse branch short-circuits and `corepack e
 install and `tsc -b` had never executed in CI — the only path an external consumer can take was
 the one path nothing tested. `ci.yml` now has a job with a clean runner and nothing before it.
 
+*Amended 2026-08-02, from the draft-release form.* The name cleared, so the reasoning above
+holds. The description did not: **the Marketplace requires under 125 characters, and that limit
+is documented nowhere in the metadata syntax reference.** The submitted description was 198 and
+the release was blocked until it was cut to 115. Two claims earn the budget — determinism, and
+that nothing is sent anywhere — because which subcommands exist is the `command` input's job.
+
+Worth naming as a class rather than a typo: nothing in `pnpm verify` could have caught this,
+because a description is not parsed by anything this repository runs. The first reader was the
+publish form, after the work was called done. `check-docs.mjs` §14a-iv now measures it, folding
+the block the way YAML folds it rather than reading raw lines, and it was seen to fail on the
+198-character original.
+
 *Cost of reversal.* One line in `action.yml`, if the `MarkForge` account is ever transferred.
 
 ---
