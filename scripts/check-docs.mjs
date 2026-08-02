@@ -515,6 +515,48 @@ if (existsSync(join(REPO, "docs/SCOREBOARD.md"))) {
   fail("docs/SCOREBOARD.md is missing — run `node scripts/run-scoreboard.mjs`");
 }
 
+/*
+ * 13g. Every version `README.md` states must be the version this repository is.
+ *
+ * The release added three copies of the same string to one file — the `--branch` clone, the
+ * release link, and the Action's `uses:` pin — none of which anything read. The next release
+ * updates the manifest and leaves at least one of them behind, and the failure is silent: a
+ * `uses:` pin naming a tag that predates a fix resolves, runs, and gates with the wrong CLI.
+ *
+ * Same shape as the `word-to-markdown` and `PANDOC_VERSION` checks above, and the same reason:
+ * a version recorded in two places is a version that will disagree with itself.
+ */
+const declaredVersion = JSON.parse(read("package.json")).version;
+const readmeText = read("README.md");
+/** Anything of the form `vX.Y.Z` in the README, wherever it appears. */
+const readmeVersions = [...new Set([...readmeText.matchAll(/\bv(\d+\.\d+\.\d+)\b/g)].map((m) => m[1]))];
+if (!/^\d+\.\d+\.\d+$/.test(declaredVersion)) {
+  fail(`package.json version "${declaredVersion}" is not a semver triple, so 13g cannot compare it`);
+} else if (readmeVersions.length === 0) {
+  fail(
+    "README.md states no vX.Y.Z anywhere, so the Action pin and the release link have gone " +
+      "missing — 13g would pass vacuously and the install instructions name no version.",
+  );
+} else {
+  const wrong = readmeVersions.filter((v) => v !== declaredVersion);
+  if (wrong.length) {
+    fail(
+      `README.md names version(s) ${wrong.map((v) => `v${v}`).join(", ")} but package.json is ` +
+        `${declaredVersion}. Every \`uses:\` pin, release link, and \`--branch\` must move with ` +
+        `the release, or a consumer pins a tag that predates the fix they are reading about.`,
+    );
+  } else if (
+    // Negative control: the extractor must find a pin, and the comparison must reject a mismatch.
+    [...`- uses: anayy09/MarkForge@v9.9.9`.matchAll(/\bv(\d+\.\d+\.\d+)\b/g)].length === 1 &&
+    "9.9.9" !== declaredVersion
+  ) {
+    const n = [...readmeText.matchAll(/\bv(\d+\.\d+\.\d+)\b/g)].length;
+    ok(`README.md's ${n} version reference(s) all read v${declaredVersion}, matching package.json`);
+  } else {
+    fail("the version extractor is broken: it does not find a `uses:` pin");
+  }
+}
+
 // --- 14. Architecture invariants: is the package boundary still real?
 
 // The dependency rule below is the one ADR-0009 relies on, and a rule that only inspects the

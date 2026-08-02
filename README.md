@@ -14,15 +14,19 @@ Deterministic, offline by default, and identical across every interface.
 
 ## Installation
 
-No package is published to a registry — [`docs/decisions/PUBLISHING.md`](docs/decisions/PUBLISHING.md)
-records what that would take and what is still unbuilt. The GitHub Action below is the one
-surface you can consume without a clone; everywhere else, build from source:
+The GitHub Action is on the [Marketplace](https://github.com/marketplace/actions/markforge-document-check)
+and needs no clone. No *package* is published to a registry —
+[`docs/decisions/PUBLISHING.md`](docs/decisions/PUBLISHING.md) records what that would take and
+what is still unbuilt — so every other surface is built from source:
 
 ```sh
-git clone https://github.com/anayy09/MarkForge.git
+git clone --branch v0.1.0 https://github.com/anayy09/MarkForge.git
 cd MarkForge
 pnpm install && pnpm build
 ```
+
+[`v0.1.0`](https://github.com/anayy09/MarkForge/releases/tag/v0.1.0) is the current release; drop
+`--branch` to build `main` instead.
 
 Requires Node 22 or later and pnpm 11.
 
@@ -95,12 +99,16 @@ markforge mcp --root .
 ```
 
 ```yaml
-# GitHub Action
+# GitHub Action — MarkForge Document Check
 - uses: anayy09/MarkForge@v0.1.0
   with:
     command: fmt
     paths: "docs/**/*.md"
 ```
+
+Listed as [**MarkForge Document Check**](https://github.com/marketplace/actions/markforge-document-check)
+— a phrase rather than the repository name, because the Marketplace rejects a listing whose name
+matches a GitHub user, and `MarkForge` is one (`docs/OPEN_QUESTIONS.md` §7aq).
 
 `command` is `fmt` or `check`; `convert` and `agentify` are deliberately not offered, since an
 action that rewrote documents on every push is a different kind of thing from one that gates
