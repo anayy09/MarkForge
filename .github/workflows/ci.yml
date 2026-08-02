@@ -289,24 +289,15 @@ jobs:
       - name: The pre-commit hook works, on a real repository
         run: node scripts/check-hook.mjs
 
-      # The shipped templates under --strict. academic-manuscript.docx carries five OMML
-      # equations the Markdown renderer cannot express, so it exits 2 — the SPEC §8 code for
-      # "completed with lossy diagnostics". That exit was incidentally unexercised until now:
-      # it is a real user-visible behaviour of the primary shipped template and belongs in a
-      # job rather than in a paragraph. docs/LIMITS.md §7 records the same fact.
+      # The shipped templates under --strict, and one document that must exit 0.
+      #
+      # This was six lines of inline shell, and that is how it reached main red: gate parity
+      # compares the set of gate *scripts* on each side, and an inline `run:` step is not a
+      # script — so the assertion lived on exactly one of the two sides, which is the
+      # divergence that gate exists to prevent, in a shape it could not see. It is a file now,
+      # and `pnpm verify` runs it.
       - name: The shipped templates report their losses under --strict
-        run: |
-          set +e
-          node packages/cli/dist/index.js convert templates/academic-manuscript.docx             -o /tmp/tpl.md --strict --quiet
-          code=$?
-          set -e
-          test "$code" -eq 2             || (echo "::error::academic-manuscript.docx exited $code under --strict, expected 2" && exit 1)
-          set +e
-          node packages/cli/dist/index.js convert templates/clean-report.docx             -o /tmp/tpl2.md --strict --quiet
-          clean=$?
-          set -e
-          test "$clean" -eq 0             || (echo "::error::clean-report.docx exited $clean under --strict, expected 0" && exit 1)
-          echo "The manuscript template reports its five lossy equations; the clean one reports none."
+        run: node scripts/check-template-strict.mjs
 
       # Surface parity. The same input through the CLI, the HTTP API, the MCP
       # server, and the browser build must produce identical bytes — this is what makes

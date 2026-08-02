@@ -247,6 +247,15 @@ const GATES = [
     },
   },
   {
+    script: "scripts/check-template-strict.mjs",
+    asserts:
+      "All three shipped templates exit 2 under --strict for constructs Markdown cannot express, and a control document exits 0",
+    seenToFail: {
+      control: true,
+      what: "it failed on main as inline CI shell: clean-report.docx exited 2 where the step expected 0, because the adapter had begun recovering the caption and description list it always contained. Its control asserts a document that must exit 0, so a build where every conversion exited 2 would fail rather than pass",
+    },
+  },
+  {
     script: "scripts/check-gates.mjs",
     asserts: "Every gate that runs has a row here, every row runs, every row can fail, and docs/GATES.md matches the ledger",
     seenToFail: { control: true, what: "its first run reported itself as an undocumented gate" },
