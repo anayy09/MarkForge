@@ -71,6 +71,18 @@ export const SHIPPED_FONTS = [
  */
 export const SHIPPED_FONT_FAMILIES = ["LibertinusSerif", "DejaVuSansMono"] as const;
 
+/**
+ * The faces prose is actually set in, which is a smaller set than `SHIPPED_FONTS`.
+ *
+ * The distinction is load-bearing for coverage and was found by CI. Asking "can *any* shipped
+ * face draw this character" says yes for Arabic — `DejaVuSansMono` covers all 45 of the
+ * characters in `fixtures/md/rtl-arabic.md`, while `LibertinusSerif` covers **0**. But Typst
+ * sets body text in the serif face and will not fall back to a monospace one for prose, so it
+ * reaches past both of ours to a system font. Coverage for body text is therefore a question
+ * about the *serif* faces alone; the mono face only widens what a `raw` span can draw.
+ */
+export const SHIPPED_BODY_FONTS = SHIPPED_FONTS.filter((f) => f.startsWith("LibertinusSerif"));
+
 /** `<repo>/fonts`, resolved from this package's own location rather than from `cwd`. */
 export function fontsDir(): string {
   // dist/index.js -> packages/typst-node/dist -> packages/typst-node -> packages -> <repo>

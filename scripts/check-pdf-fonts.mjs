@@ -33,6 +33,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { join } from "node:path";
 import { PDF_UNCOVERED } from "./lib/pdf-coverage.mjs";
+import { shippedCoverage, uncoveredIn } from "./lib/font-coverage.mjs";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const JSON_OUT = process.argv.includes("--json");
@@ -45,13 +46,13 @@ const fail = (m) => {
   !JSON_OUT && console.log(`  FAIL  ${m}`);
 };
 
-// The one list, shared with check-surface-parity.mjs and run-fidelity.mjs. §2 below is what
-// keeps it honest: an entry whose fixture renders closed is rejected. `rtl-hebrew.md` was
-// rejected that way on the first run — Libertinus does cover Hebrew.
+// The one list, shared with check-surface-parity.mjs and run-fidelity.mjs. §2 keeps it honest
+// in both directions: an entry whose fixture is fully drawable is rejected, and a fixture that
+// is *not* listed but contains an undrawable character is rejected too. `rtl-hebrew.md` was
+// rejected by the first rule on the first run — Libertinus does cover Hebrew.
 const UNCOVERED = PDF_UNCOVERED;
 
-const { SHIPPED_FONT_FAMILIES } = await load("typst-node");
-const { createNodePdfRenderer } = await load("typst-node");
+const { SHIPPED_FONT_FAMILIES, SHIPPED_BODY_FONTS, createNodePdfRenderer } = await load("typst-node");
 const { parseMarkdown } = await load("adapters-md");
 const { inferAll } = await load("infer");
 
@@ -105,20 +106,52 @@ try {
   ok(`${closed} fixture(s) render entirely in the shipped set`);
 
   // ------------------------------------------------- 2. declared exceptions, and only those
+  //
+  // Asked of the **font files**, not of a rendered PDF.
+  //
+  // The first version asked "did rendering this pull in a face we do not ship", and CI failed
+  // it on the first push — for the right reason. That question is machine-dependent, which is
+  // the exact property this gate exists to eliminate: on Windows `cjk-chinese.md` substituted
+  // SimSun, and on the Linux runner, which has no CJK face installed, it substituted *nothing*
+  // and looked perfectly closed. Both observations are true and neither is a fact about this
+  // repository. `scripts/lib/font-coverage.mjs` reads the cmaps instead, so the answer is the
+  // same everywhere.
   !JSON_OUT && console.log("\n2. Declared exceptions are real, and are the only ones");
+  // Body faces only. `SHIPPED_FONTS` would include DejaVuSansMono, which covers Arabic that
+  // Libertinus does not — and Typst will not set prose in a mono face, so counting it made
+  // `rtl-arabic.md` look drawable while every machine still substituted for it.
+  const covered = shippedCoverage(join(REPO, "fonts"), SHIPPED_BODY_FONTS);
+  ok(`the shipped body faces draw ${covered.size} code point(s) between them`);
+
   for (const [fixture, why] of Object.entries(UNCOVERED)) {
-    const path = `fixtures/md/${fixture}`;
     if (!fixtures.includes(fixture)) {
       fail(`UNCOVERED names ${fixture}, which is not in fixtures/md — a dead exception`);
       continue;
     }
-    const foreign = substituted(await pdfFor(path));
-    if (foreign.length > 0) {
-      ok(`${fixture} needs ${foreign.join(", ")} — ${why}`);
+    const source = readFileSync(join(REPO, "fixtures/md", fixture), "utf8");
+    const missing = uncoveredIn(source, covered);
+    if (missing.length > 0) {
+      const shown = missing.slice(0, 6).map((c) => JSON.stringify(c)).join(" ");
+      ok(`${fixture} has ${missing.length} character(s) no shipped face draws (${shown}) — ${why}`);
     } else {
       fail(
-        `${fixture} is listed as uncovered but renders entirely in the shipped set. The ` +
-          `exception buys nothing; delete it.`,
+        `${fixture} is listed as uncovered, but every character in it is drawable by the ` +
+          `shipped faces. The exception buys nothing; delete it.`,
+      );
+    }
+  }
+
+  // And the other direction: a fixture that is *not* exempt must be fully drawable, or §1 is
+  // passing only because the machine happened to have a font to substitute.
+  for (const f of fixtures) {
+    if (f in UNCOVERED) continue;
+    const missing = uncoveredIn(readFileSync(join(REPO, "fixtures/md", f), "utf8"), covered);
+    if (missing.length > 0) {
+      fail(
+        `${f} is not exempt but contains ${missing.length} character(s) no shipped face draws ` +
+          `(${missing.slice(0, 6).map((c) => JSON.stringify(c)).join(" ")}). On a machine with a ` +
+          `matching system font this renders and §1 passes; on one without, the glyphs are lost. ` +
+          `Add it to scripts/lib/pdf-coverage.mjs or ship a face that covers it.`,
       );
     }
   }
