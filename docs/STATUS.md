@@ -600,7 +600,7 @@ proposed and agreed before any code was written, and §11 is amended to carry it
 | `@markforge/http` and `markforge serve` | done — `node:http` only, no framework | `scripts/check-http-retention.mjs` |
 | `@markforge/mcp` and `markforge mcp` | done — hand-written JSON-RPC over stdio, `convert`/`fmt`/`agentify` | `pnpm test` (`packages/mcp/test/mcp.test.ts`) |
 | `@markforge/browser` | done — bytes in, bytes out, no filesystem; md/docx/html only | `scripts/check-browser-bundle.mjs` |
-| GitHub Action | done — `action.yml`, and **this repository's own CI consumes it** | ci.yml job `determinism` (`uses: ./`) |
+| GitHub Action | done — `action.yml`, and **this repository's own CI consumes it**, on both halves: the dogfood step runs it against a built tree, and a second job runs it on a clean one so the build path a consumer takes is not the one path nothing tests | ci.yml jobs `determinism` (`uses: ./`) and `The Action builds from source on a clean runner` |
 | Documentation site | **descoped** (§7s) — replaced by quickstarts whose commands run in CI | OPEN_QUESTIONS §7s |
 | Published packages | **struck** (§7r) — contradicts `OPEN_QUESTIONS` §5; nothing un-privated | OPEN_QUESTIONS §7r, `scripts/check-docs.mjs` (all packages private) |
 | ADR-0015 ratified | done — moved off `Proposed`, **amended in three places** | `scripts/check-adr-enforcement.mjs` |

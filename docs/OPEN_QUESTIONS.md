@@ -769,6 +769,36 @@ budget pays for both.
 silent wrong merge, and §2.17 has already measured one silent loss. A capability that changes
 nothing is a limitation; a capability that changes the wrong thing is a defect.
 
+**7aq. `action.yml` is named `MarkForge Document Check`, not `MarkForge`, so the Marketplace will
+accept it. — RULED 2026-08-02.** GitHub Marketplace rejects an action whose `name` matches a GitHub user or
+organisation the publisher does not own. `decisions/PUBLISHING.md` already records the finding —
+`users/MarkForge` is a User account created 2019-03-04, two public repos, not `anayy09` — but
+drew only the npm conclusion from it. It has a second consequence, in a field nothing else in
+the repository reads: `action.yml` line 1.
+
+The fix is a phrase rather than a rename. A GitHub username may not contain a space, so a
+multi-word name cannot collide with one structurally rather than by checking; the derived slug
+`markforge-document-check` is free as a username and unclaimed as a listing, so the derived form
+is safe too. The name now says what the action does instead of repeating the repository name,
+which is what a listing title is for. Unaffected: the repository name, the binary name, the
+`@markforge` scope, `uses: anayy09/MarkForge@v0.1.0`, and every command in
+[`../README.md`](../README.md).
+
+*Also ruled here: the action keeps building the CLI from source.* Measured on `ubuntu-latest` at
+`920e320` — `pnpm install --frozen-lockfile` 4.9s over 273 packages with nothing reused from a
+store, `tsc -b` about five seconds — so the whole cold cost is roughly ten seconds, and
+`actions/cache` would trade a stale-cache failure mode for most of it. Committing `dist/` is
+barred by `check-docs.mjs` §14e in any case, and
+[`decisions/PUBLISHING.md`](decisions/PUBLISHING.md) already owes the
+install-instead-of-build change to the npm gate.
+
+What was wrong was not the cost but the coverage. The dogfood step runs the action in a job that
+has already built, so `action.yml`'s reuse branch short-circuits and `corepack enable`, the
+install and `tsc -b` had never executed in CI — the only path an external consumer can take was
+the one path nothing tested. `ci.yml` now has a job with a clean runner and nothing before it.
+
+*Cost of reversal.* One line in `action.yml`, if the `MarkForge` account is ever transferred.
+
 ---
 
 ## 8. Questions only Phase 1+ can answer — deferred to implementation

@@ -19,7 +19,7 @@ what was lost.
 | --- | --- | --- |
 | Published packages | `OPEN_QUESTIONS.md` §7r | Nothing installs from a registry. Every package stays `private: true`; the GitHub Action builds the CLI from source |
 | Documentation site | `OPEN_QUESTIONS.md` §7s | No browsable docs. Per-surface quickstarts in `README.md`, with their commands executed in CI |
-| Package name, scope, publication as an open question | `OPEN_QUESTIONS.md` §7v | `OPEN_QUESTIONS.md` §5 is closed permanently rather than deferred; the name `markforge` is not checked for availability |
+| Package name, scope, publication as an open question | `OPEN_QUESTIONS.md` §7v | `OPEN_QUESTIONS.md` §5 is closed permanently rather than deferred. The name *was* checked, on 2026-08-01: `markforge` is taken on npm by an unrelated converter, so the CLI would publish as `@markforge/cli` (`decisions/PUBLISHING.md`) |
 | `citation` node type | `OPEN_QUESTIONS.md` §7ab | A Word citation field flattens to its cached result (`MF-DOCX-0053`); the field code does not survive. No Pandoc `[@key]` support |
 | `textBox` node type | `OPEN_QUESTIONS.md` §7ab | A DOCX text box becomes an `unknown` node with a lossy diagnostic. Its text is reported, not placed in reading order |
 | Model registry, routing policy, capability tags | ADR-0009 | Brief §7.2's generated registry does not exist. Three model names in config replace it |

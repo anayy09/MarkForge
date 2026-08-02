@@ -1,7 +1,18 @@
-name: MarkForge
+# The Marketplace rejects an action whose `name` matches a GitHub user or organisation the
+# publisher does not own, and `MarkForge` is a User account created 2019-03-04 that is not
+# `anayy09` — the same collision `docs/decisions/PUBLISHING.md` records for the npm scope,
+# reaching a second field. A phrase cannot collide: a username may not contain a space. Only
+# the Marketplace display name moves; the repository, the binary, the `@markforge` scope and
+# `uses: anayy09/MarkForge@v0.1.0` are all unaffected (OPEN_QUESTIONS §7aq).
+#
+# The description leads with what this *is* rather than with a command, because the Marketplace
+# truncates it and `PUBLISHING.md` already sets that rule for the npm description: the first
+# clause has to disambiguate from the unrelated `markforge` package before any cut.
+name: MarkForge Document Check
 description: >-
-  Run markforge fmt --check or markforge check in CI. Deterministic and offline —
-  no model is consulted and no document leaves the runner.
+  Gate documents in CI — deterministic Markdown formatting and document validation, offline.
+  Runs `markforge fmt --check` or `markforge check`; no model is consulted and no document
+  leaves the runner.
 author: MarkForge contributors
 
 branding:

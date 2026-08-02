@@ -1,6 +1,6 @@
 {
   "name": "markforge-monorepo",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Markdown toolkit: agent context compiler + fidelity-preserving conversion",
   "license": "Apache-2.0",

@@ -8,6 +8,15 @@ below and the answer is not the one the memo assumed.
 Everything in the release-mechanics gate depends on this file. Nothing here is a claim without
 either a check named beside it or an explicit marker that it is not yet enforced.
 
+**The name table below has a second consequence, found 2026-08-02.** Its `GitHub org markforge`
+row exists to settle the npm scope question, but the same fact — `users/MarkForge` is a real User
+account that is not `anayy09` — also decides the **GitHub Marketplace** listing name, because the
+Marketplace rejects an action whose `name` matches a user or organisation the publisher does not
+own. That is why `action.yml` reads `MarkForge Document Check` rather than `MarkForge`. Ruled in
+[`../OPEN_QUESTIONS.md`](../OPEN_QUESTIONS.md) §7aq. Nothing about the npm decision changes: the
+two collisions have one cause and two fields, and only one of them was drawn when this file was
+written.
+
 ## The name is taken, and that changes the install command
 
 Checked against the live npm registry and the GitHub API on 2026-08-01. Recorded with the
