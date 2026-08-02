@@ -36,6 +36,7 @@
 import { createServer as createNodeServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Server } from "node:http";
 import { convert, formatFromPath, isOutputFormat, type Format } from "@markforge/core";
+import { createNodePdfRenderer } from "@markforge/typst-node";
 import type { Diagnostic } from "@markforge/ir";
 
 /**
@@ -69,7 +70,23 @@ const CONTENT_TYPES: Record<string, string> = {
   md: "text/markdown; charset=utf-8",
   html: "text/html; charset=utf-8",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  pdf: "application/pdf",
 };
+
+/**
+ * The PDF writer, module-local rather than a `ServerOptions` field.
+ *
+ * `createServer` is called with no arguments by `markforge serve` and by
+ * `scripts/check-surface-parity.mjs`, so a writer that arrived through options would be absent
+ * in both — a server that silently loses PDF support depending on how it was constructed. That
+ * is the shape that keeps a gate green while the product is broken, so the capability is a
+ * property of the build instead.
+ *
+ * This is *not* an `assist`. The module comment's claim that nothing here populates `assist`
+ * stays literally true: a Typst compiler is neither optional nor a model, and the no-network,
+ * no-LLM property this surface advertises is untouched.
+ */
+const nodePdfRenderer = createNodePdfRenderer();
 
 /** Formats readable as input. Mirrors `@markforge/core`'s `Format` minus nothing. */
 const INPUT_FORMATS: readonly Format[] = ["md", "docx", "html", "pptx", "xlsx", "pdf"];
@@ -143,8 +160,14 @@ async function handleConvert(
   }
 
   try {
-    // No `assist`. This surface has no LLM path; see the module comment.
-    const result = await convert(body, { from, to, ...(filename ? { path: filename } : {}) });
+    // No `assist`. This surface has no LLM path; see the module comment. `pdf` is a renderer,
+    // not assistance — it carries no network and no model.
+    const result = await convert(body, {
+      from,
+      to,
+      pdf: { render: nodePdfRenderer },
+      ...(filename ? { path: filename } : {}),
+    });
     return { bytes: result.bytes, diagnostics: result.diagnostics, from, to };
   // degradation: rethrows
   } catch (e) {

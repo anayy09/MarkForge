@@ -260,15 +260,14 @@ for (const r of records) {
   }
 }
 
-// ---------------------------------------------------------------- 3. render-pdf
-!JSON_OUT && console.log("\n3. Packages ADR-0015 names that do not exist");
-for (const named of ["render-pdf"]) {
-  if (!existsSync(join(REPO, "packages", named))) {
-    note(`${named} is named in ADR-0015's deferred tier and does not exist (ADR-0003, Typst WASM)`);
-  } else {
-    ok(`${named} exists and is covered by the probe above`);
-  }
-}
+// Section 3 was "Packages ADR-0015 names that do not exist" and is deleted as of 2026-08-02.
+//
+// It looped over a one-element list — `render-pdf` — asking whether the directory existed.
+// It has since 2026-08-01, so the check took its `ok` branch on every run and could no longer
+// fail for the reason it was written. Its heading was also simply false by then. A gate that
+// cannot fail is not a gate, and leaving it in place made the section count look like
+// coverage; `docs/STATUS.md` was meanwhile citing it as evidence for the opposite claim.
+// Section 2's tier probe covers `render-pdf` properly, by bundling it.
 
 // ---------------------------------------------------------------- 4. negative controls
 !JSON_OUT && console.log("\n4. Negative controls — each check must be able to fail");

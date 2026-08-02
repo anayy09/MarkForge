@@ -65,8 +65,15 @@ function inline(node: AnyNode, ctx: Ctx): string {
       return `#raw(${str(String(node["value"] ?? ""))})`;
     case "break":
       return " \\\n";
-    case "inlineMath":
-      return `$${String(node["value"] ?? "")}$`;
+    case "inlineMath": {
+      // `inlineMath` holds **TeX** (docs/LIMITS.md §2), and Typst math is not TeX. Emitted
+      // bare as `$…$` until 2026-08-02, which was not a fidelity compromise but a compile
+      // failure: `$t_{ack} = d / r$` in `flavor-probe.md` made Typst read `{ack}` as a
+      // subscripted *variable* and abort the whole document with `unknown variable: ack`.
+      // One inline formula took the entire PDF with it.
+      ctx.lost.push({ type: "inlineMath", reason: "TeX is not Typst math and no converter exists" });
+      return `#raw(${str(String(node["value"] ?? ""))})`;
+    }
     case "link": {
       const url = String(node["url"] ?? "");
       return `#link(${str(url)})[${kids()}]`;
@@ -173,7 +180,15 @@ function block(node: AnyNode, ctx: Ctx, depth = 0): string {
       const cap = caption ? `, caption: [${(caption.children ?? []).map((c) => inline(c as AnyNode, ctx)).join("")}]` : "";
       // Typst's own `figure` handles placement and numbering, which is SPEC §4.3's
       // "figure and caption placement" requirement met by the engine rather than by us.
-      return `#figure(\n${body || '""'}${cap}\n)${anchor}`;
+      //
+      // The body is wrapped in `[...]` because `block()` returns **markup**, and a function
+      // argument is **code** context where a leading `#` is a syntax error. Emitted bare until
+      // 2026-08-02, which made every document containing a figure fail to compile — with
+      // Typst reporting only `Error`, so the CLI printed `markforge: ` and nothing else. No
+      // fixture caught it: `check-pdf-determinism.mjs` runs four Markdown files and none has
+      // a figure. `fixtures/html/semantic-structure.html` does, and found it the first time
+      // the PDF column was added to the surface-parity matrix.
+      return `#figure(\n  [${body || ""}]${cap}\n)${anchor}`;
     }
 
     case "caption":
@@ -186,11 +201,12 @@ function block(node: AnyNode, ctx: Ctx, depth = 0): string {
 
     case "equationBlock": {
       const notation = node["notation"];
-      if (notation === "tex" && typeof node["source"] === "string") {
-        // Typst math is not TeX, but the common subset round-trips well enough that
-        // emitting it beats dropping it. Anything else is reported.
-        return `$ ${String(node["source"])} $`;
-      }
+      // The TeX branch used to emit `$ … $` on the reasoning that "the common subset
+      // round-trips well enough that emitting it beats dropping it". That was an assumption,
+      // and the inline case above falsified it: TeX subscript grouping is a Typst *variable
+      // reference*, so a formula well inside the "common subset" aborts compilation. Emitting
+      // something that does not compile is worse than reporting a loss, so both notations now
+      // take the same path.
       ctx.lost.push({
         type: "equationBlock",
         reason: `${String(notation)} is not Typst math and no converter exists`,
@@ -199,7 +215,12 @@ function block(node: AnyNode, ctx: Ctx, depth = 0): string {
     }
 
     case "math":
-      return `$ ${String(node["value"] ?? "")} $`;
+      // The mdast display-math node, which is where Markdown `$$…$$` lands (`equationBlock`
+      // comes from DOCX OMML instead). Same TeX-is-not-Typst problem as `inlineMath`, and the
+      // same failure: `$ T = \max(...) $` aborts with `unknown variable: ax`, because Typst
+      // reads `\m` as an escape and `ax` as an identifier. Reported, not emitted.
+      ctx.lost.push({ type: "math", reason: "TeX is not Typst math and no converter exists" });
+      return `#raw(block: true, ${str(String(node["value"] ?? ""))})`;
 
     case "footnoteDefinition": {
       const body = kids();

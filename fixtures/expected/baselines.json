@@ -26,7 +26,7 @@
     },
     {
       "fixture": "cjk-chinese",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -70,7 +70,7 @@
     },
     {
       "fixture": "cjk-japanese",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -114,7 +114,7 @@
     },
     {
       "fixture": "clean-report",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -133,6 +133,53 @@
       "tableContentF1": 1,
       "spanF1": 1,
       "census": []
+    },
+    {
+      "fixture": "clean-report",
+      "loop": "md->pdf->md",
+      "structural": 0.5789,
+      "textSensitive": 0.9558,
+      "textInsensitive": 0.9933,
+      "tableF1": 0,
+      "tableContentF1": 0,
+      "spanF1": 0,
+      "census": [
+        {
+          "nodeType": "text",
+          "expected": 32,
+          "actual": 14
+        },
+        {
+          "nodeType": "tableCell",
+          "expected": 16,
+          "actual": 0
+        },
+        {
+          "nodeType": "tableRow",
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "nodeType": "heading",
+          "expected": 5,
+          "actual": 4
+        },
+        {
+          "nodeType": "paragraph",
+          "expected": 9,
+          "actual": 10
+        },
+        {
+          "nodeType": "strong",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "table",
+          "expected": 1,
+          "actual": 0
+        }
+      ]
     },
     {
       "fixture": "flavor-probe",
@@ -184,7 +231,7 @@
     },
     {
       "fixture": "flavor-probe",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -251,6 +298,88 @@
       ]
     },
     {
+      "fixture": "flavor-probe",
+      "loop": "md->pdf->md",
+      "structural": 0.4375,
+      "textSensitive": 0.803,
+      "textInsensitive": 0.8425,
+      "tableF1": 0,
+      "tableContentF1": 0,
+      "spanF1": 0,
+      "census": [
+        {
+          "nodeType": "text",
+          "expected": 19,
+          "actual": 7
+        },
+        {
+          "nodeType": "tableCell",
+          "expected": 9,
+          "actual": 0
+        },
+        {
+          "nodeType": "tableRow",
+          "expected": 3,
+          "actual": 0
+        },
+        {
+          "nodeType": "inlineCode",
+          "expected": 2,
+          "actual": 0
+        },
+        {
+          "nodeType": "admonition",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "emphasis",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "footnoteDefinition",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "footnoteReference",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "inlineMath",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "math",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "paragraph",
+          "expected": 5,
+          "actual": 6
+        },
+        {
+          "nodeType": "strong",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "table",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "yaml",
+          "expected": 1,
+          "actual": 0
+        }
+      ]
+    },
+    {
       "fixture": "generated-profile-source",
       "loop": "md->md",
       "structural": 1,
@@ -274,7 +403,7 @@
     },
     {
       "fixture": "generated-profile-source",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -295,6 +424,58 @@
       "census": []
     },
     {
+      "fixture": "generated-profile-source",
+      "loop": "md->pdf->md",
+      "structural": 0.5846,
+      "textSensitive": 0.9519,
+      "textInsensitive": 0.9845,
+      "tableF1": 0,
+      "tableContentF1": 0,
+      "spanF1": 0,
+      "census": [
+        {
+          "nodeType": "text",
+          "expected": 18,
+          "actual": 8
+        },
+        {
+          "nodeType": "tableCell",
+          "expected": 6,
+          "actual": 0
+        },
+        {
+          "nodeType": "tableRow",
+          "expected": 3,
+          "actual": 0
+        },
+        {
+          "nodeType": "listItem",
+          "expected": 4,
+          "actual": 2
+        },
+        {
+          "nodeType": "emphasis",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "list",
+          "expected": 2,
+          "actual": 1
+        },
+        {
+          "nodeType": "strong",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "table",
+          "expected": 1,
+          "actual": 0
+        }
+      ]
+    },
+    {
       "fixture": "inline-marks",
       "loop": "md->md",
       "structural": 1,
@@ -318,7 +499,7 @@
     },
     {
       "fixture": "inline-marks",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -337,6 +518,58 @@
       "tableContentF1": 1,
       "spanF1": 1,
       "census": []
+    },
+    {
+      "fixture": "inline-marks",
+      "loop": "md->pdf->md",
+      "structural": 0.325,
+      "textSensitive": 0.9615,
+      "textInsensitive": 0.9935,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 0,
+      "census": [
+        {
+          "nodeType": "text",
+          "expected": 18,
+          "actual": 3
+        },
+        {
+          "nodeType": "paragraph",
+          "expected": 5,
+          "actual": 2
+        },
+        {
+          "nodeType": "emphasis",
+          "expected": 2,
+          "actual": 0
+        },
+        {
+          "nodeType": "strong",
+          "expected": 2,
+          "actual": 0
+        },
+        {
+          "nodeType": "break",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "delete",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "inlineCode",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "link",
+          "expected": 1,
+          "actual": 0
+        }
+      ]
     },
     {
       "fixture": "nested-restarting-lists",
@@ -362,7 +595,7 @@
     },
     {
       "fixture": "nested-restarting-lists",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -381,6 +614,38 @@
       "tableContentF1": 1,
       "spanF1": 1,
       "census": []
+    },
+    {
+      "fixture": "nested-restarting-lists",
+      "loop": "md->pdf->md",
+      "structural": 0.1646,
+      "textSensitive": 0.8458,
+      "textInsensitive": 0.9049,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": [
+        {
+          "nodeType": "paragraph",
+          "expected": 22,
+          "actual": 2
+        },
+        {
+          "nodeType": "text",
+          "expected": 23,
+          "actual": 3
+        },
+        {
+          "nodeType": "listItem",
+          "expected": 16,
+          "actual": 0
+        },
+        {
+          "nodeType": "list",
+          "expected": 9,
+          "actual": 0
+        }
+      ]
     },
     {
       "fixture": "rtl-arabic",
@@ -406,7 +671,7 @@
     },
     {
       "fixture": "rtl-arabic",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -450,7 +715,7 @@
     },
     {
       "fixture": "rtl-hebrew",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -471,6 +736,58 @@
       "census": []
     },
     {
+      "fixture": "rtl-hebrew",
+      "loop": "md->pdf->md",
+      "structural": 0.6154,
+      "textSensitive": 0.3904,
+      "textInsensitive": 0.4107,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 0,
+      "census": [
+        {
+          "nodeType": "text",
+          "expected": 15,
+          "actual": 8
+        },
+        {
+          "nodeType": "listItem",
+          "expected": 3,
+          "actual": 0
+        },
+        {
+          "nodeType": "paragraph",
+          "expected": 8,
+          "actual": 5
+        },
+        {
+          "nodeType": "blockquote",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "inlineCode",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "link",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "list",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "strong",
+          "expected": 1,
+          "actual": 0
+        }
+      ]
+    },
+    {
       "fixture": "scanned-source",
       "loop": "md->md",
       "structural": 1,
@@ -494,7 +811,7 @@
     },
     {
       "fixture": "scanned-source",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -513,6 +830,28 @@
       "tableContentF1": 1,
       "spanF1": 1,
       "census": []
+    },
+    {
+      "fixture": "scanned-source",
+      "loop": "md->pdf->md",
+      "structural": 0.8974,
+      "textSensitive": 0.9981,
+      "textInsensitive": 0.9988,
+      "tableF1": 1,
+      "tableContentF1": 1,
+      "spanF1": 1,
+      "census": [
+        {
+          "nodeType": "paragraph",
+          "expected": 9,
+          "actual": 10
+        },
+        {
+          "nodeType": "text",
+          "expected": 15,
+          "actual": 16
+        }
+      ]
     },
     {
       "fixture": "tables",
@@ -538,7 +877,7 @@
     },
     {
       "fixture": "tables",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -557,6 +896,58 @@
       "tableContentF1": 1,
       "spanF1": 1,
       "census": []
+    },
+    {
+      "fixture": "tables",
+      "loop": "md->pdf->md",
+      "structural": 0.3625,
+      "textSensitive": 0.8238,
+      "textInsensitive": 0.9894,
+      "tableF1": 0,
+      "tableContentF1": 0,
+      "spanF1": 0,
+      "census": [
+        {
+          "nodeType": "tableCell",
+          "expected": 20,
+          "actual": 0
+        },
+        {
+          "nodeType": "text",
+          "expected": 23,
+          "actual": 8
+        },
+        {
+          "nodeType": "tableRow",
+          "expected": 9,
+          "actual": 0
+        },
+        {
+          "nodeType": "paragraph",
+          "expected": 3,
+          "actual": 7
+        },
+        {
+          "nodeType": "table",
+          "expected": 3,
+          "actual": 0
+        },
+        {
+          "nodeType": "inlineCode",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "link",
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "nodeType": "strong",
+          "expected": 1,
+          "actual": 0
+        }
+      ]
     },
     {
       "fixture": "unicode-edge-cases",
@@ -582,7 +973,7 @@
     },
     {
       "fixture": "unicode-edge-cases",
-      "loop": "docx->md->docx",
+      "loop": "docx->md->docx->md",
       "structural": 1,
       "textSensitive": 1,
       "textInsensitive": 1,
@@ -1345,16 +1736,13 @@
       "tableF1": 0,
       "tableContentF1": 0,
       "spanF1": 0,
-      "census": {
-        "gained": [],
-        "lost": [
-          {
-            "type": "*",
-            "count": 0,
-            "note": "the file could not be read"
-          }
-        ]
-      }
+      "census": [
+        {
+          "nodeType": "(whole document)",
+          "expected": 1,
+          "actual": 0
+        }
+      ]
     },
     {
       "fixture": "scanned-150dpi",

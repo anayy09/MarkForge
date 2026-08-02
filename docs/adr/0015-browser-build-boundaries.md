@@ -25,8 +25,15 @@ DOCX ↔ Markdown path that is the project's Phase 1 gate, so the privacy story 
 primary use case with no large download.
 
 **Lazy-loaded WASM, fetched only when the user asks for that capability:**
-`render-pdf` (the `typst.ts` bundle), `adapters-pdf` (`pdfjs-dist`), `adapters-ocr`
-(the Tesseract bundle and its language data).
+`render-pdf`, `adapters-pdf` (`pdfjs-dist`), `adapters-ocr` (the Tesseract bundle and its
+language data).
+
+> **Amended 2026-08-02.** This entry read *"`render-pdf` (the `typst.ts` bundle)"*, naming the
+> wrong artifact: the package contains **no Typst at all** — 358 KB of renderer, measured —
+> because ADR-0003's compile seam is injected. Correction 3 below already established that the
+> package is the wrong unit for weight; this is the same error one line higher up. The Typst
+> WASM artifact is real and is lazy, but it lives behind `@markforge/browser/pdf`, a separate
+> entry point the caller loads, not behind this package.
 
 **Zip handling uses `fflate`** (0.8.3, MIT, 2026-05-16) rather than `jszip` — smaller, actively
 maintained, and avoids `jszip`'s dual MIT/GPL-3.0-or-later licence in an Apache-2.0 tree
@@ -142,6 +149,40 @@ real event loop — so the entity-decoding hazard recorded above, where a browse
 decoding through the *host's HTML parser*, would be caught by the bundler-condition check and
 **not** by executing the bundle, because there is no parser in `vm` to route to. The label is
 corrected rather than the check weakened.
+
+**Amended 2026-08-02: the sandbox now grants `WebAssembly`, opt-in.** The PDF leg needs it to
+instantiate the Typst compiler, so `webPlatformSandbox()` takes `{ wasm: true }` and the parity
+harness is the only caller that passes it. It is opt-in rather than default because the *same*
+function is the eager-package evaluation probe in `check-browser-bundle.mjs`, where the short
+global list is the point: every global added is a global an eager package could reach without
+the probe noticing. Widening the default would have quietly weakened an unrelated gate.
+
+One limit of the PDF leg specifically, stated because the paragraph above exists to state
+limits: the compiler *module* is handed to the sandbox from the host realm, since a `vm`
+context cannot resolve a package. The renderer, the font wiring and `renderPdf` are all the
+bundled browser code, so byte equality is a real claim about what a page would produce — but
+the WASM is instantiated next door. This is the leg Playwright would improve on most.
+
+## Fourth correction, 2026-08-02: PDF output is reachable in a browser
+
+The three corrections above concern what the tiers *said*. This one concerns what the build can
+do. `convertInBrowser` writes PDF, and the reason it can without violating anything above is
+that the compiler is a **caller-supplied argument** rather than an import — ADR-0015's own
+"browser entry points take bytes and an explicit config object", applied to a compiler instead
+of a document.
+
+The first attempt did violate it, and the gate caught it in one run: `pdf: { compile }` with a
+dynamic `import("@markforge/render-pdf")` inside `index.ts` failed with *"browser (eager)
+reaches render-pdf, which is not eager"*. That is the measurement `@markforge/core` already
+records for `PdfReader` — **a bundler follows a dynamic import like any other** — arriving a
+second time, in a file whose own module comment cites it. The renderer is now assembled
+entirely inside `@markforge/browser/pdf` and arrives as an opaque function, so the main entry
+names `render-pdf` nowhere.
+
+Two properties the caller must supply, both measured and both silent failures otherwise: the
+shipped font set (without it the compiler emits a PDF with zero embedded fonts and zero
+extractable text) and `assets: false` (without it `typst.ts` fetches fonts from a jsdelivr CDN
+at init — a runtime network call, pinned to a different Typst version than the Node surfaces).
 
 ## Consequences
 

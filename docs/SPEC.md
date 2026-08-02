@@ -1063,7 +1063,7 @@ export default defineConfig({
     traceability: { required: 1.0 },
   },
 
-  fidelity: { baseline: "./fidelity/baselines.json", tolerance: 0.005 },
+  fidelity: { baseline: "./fixtures/expected/baselines.json", tolerance: 0.005 },
 });
 ```
 
@@ -1181,9 +1181,22 @@ Required loops (brief §10), for every applicable fixture:
 | `md → pdf → md` | The PDF loop. **The return leg uses our own PDF adapter**, so this number is a joint measure of the renderer and the extractor and must never be quoted as a renderer-only score |
 | `docx → md → docx → md` | Second-generation stability; scores must not decay further |
 
+**All four are measured as of 2026-08-02**, in `docs/FIDELITY.md`. Two were not, and the second
+one is the more interesting failure. `md → pdf → md` was simply absent. `docx → md → docx → md`
+was *implemented and mislabelled*: `run-fidelity.mjs` compared first generation against second
+— which is this row — and pushed the result under the name `docx → md → docx`, the row above,
+which a different call site also used for the genuine first-generation comparison. Two
+structurally different measurements shared one label, so the generated scoreboard gave a reader
+no way to tell them apart, and this table looked satisfied by a row that was measuring
+something else.
+
+Four fixtures carry no `md → pdf → md` row because the shipped font set cannot render them;
+`scripts/lib/pdf-coverage.mjs` names them and `scripts/check-pdf-fonts.mjs` proves each
+exclusion rather than accepting it.
+
 ### 9.6 Baselines, property tests, visual regression
 
-**Baselines**: `fidelity/baselines.json`, one record per (fixture, loop, metric) with the
+**Baselines**: `fixtures/expected/baselines.json`, one record per (fixture, loop, metric) with the
 recorded score. CI recomputes and fails on any drop beyond `fidelity.tolerance` (default
 0.005), exit 4. Improvements require an explicit baseline update commit, so a score change is
 always visible in review.

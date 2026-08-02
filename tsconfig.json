@@ -63,6 +63,9 @@
     },
     {
       "path": "packages/browser"
+    },
+    {
+      "path": "packages/typst-node"
     }
   ]
 }

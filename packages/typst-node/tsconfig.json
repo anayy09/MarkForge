@@ -13,9 +13,6 @@
       "path": "../ir"
     },
     {
-      "path": "../core"
-    },
-    {
       "path": "../render-pdf"
     }
   ]

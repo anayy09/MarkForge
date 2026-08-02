@@ -59,7 +59,7 @@ describe("GET /health", () => {
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.stateless).toBe(true);
     expect(body.documentRetention).toBe("none");
-    expect(body.outputFormats).toEqual(["md", "docx", "html"]);
+    expect(body.outputFormats).toEqual(["md", "docx", "html", "pdf"]);
   });
 });
 

@@ -35,6 +35,38 @@ const { renderHtml } = await load("render-html");
 // loss through the DOCX path.
 const { inferAll } = await load("infer");
 const { compare, compareToBaselines, renderFidelityMarkdown } = await load("fidelity");
+const { parsePdf } = await load("adapters-pdf");
+
+/**
+ * The PDF renderer for loop 5, asserted rather than guarded.
+ *
+ * Deliberately **not** wrapped in `existsSync`-style tolerance the way the OCR path is. The
+ * Typst binding is a pinned dependency, not a downloaded asset, so "it is missing" is a broken
+ * install rather than an environment difference. Guarding would convert that into a *silent
+ * shrink*: the `md->pdf->md` rows would vanish, `docs/FIDELITY.md` would regenerate short, and
+ * CI's staleness diff would then fail complaining about a stale document — which is a true
+ * statement pointing at entirely the wrong cause. Failing here names the real one.
+ */
+const renderPdfNode = await (async () => {
+  try {
+    const { createNodePdfRenderer } = await load("typst-node");
+    const render = createNodePdfRenderer();
+    // Prove it actually compiles before the corpus depends on it, so a broken binding fails
+    // on line one rather than as a confusing absence eleven fixtures later.
+    await render(parseMarkdown("# probe\n", { path: "probe.md" }).document);
+    return render;
+  // degradation: rethrows
+  } catch (e) {
+    throw new Error(
+      `run-fidelity: the Typst compiler did not load, so the md->pdf->md loop cannot run. ` +
+        `It is a pinned dependency (@myriaddreamin/typst-ts-node-compiler), so this is a ` +
+        `broken install rather than a missing optional asset — fix it rather than skipping ` +
+        `the loop, or docs/FIDELITY.md silently loses rows. Cause: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+})();
+
+const { isPdfUncovered } = await import(pathToFileURL(join(REPO, "scripts/lib/pdf-coverage.mjs")).href);
 
 const MD_CORPUS = join(REPO, "fixtures/md");
 const HTML_CORPUS = join(REPO, "fixtures/html");
@@ -80,12 +112,40 @@ for (const file of mdFixtures) {
   // was actually clean. Found by the node-type census, which is the entire argument
   // for having one.
   inferAll(secondParsed);
-  measured.push(entry(name, "docx->md->docx", compare(fromDocx, secondParsed)));
+  // Labelled `docx->md->docx` until 2026-08-02, which was the wrong name for what it does.
+  // This compares *first* generation against *second* — it is SPEC §9.5's second-generation
+  // stability loop, `docx -> md -> docx -> md`. Line ~110 pushes the genuine first-generation
+  // comparison (original vs round-tripped) under the same string, so `docs/FIDELITY.md`
+  // carried two structurally different measurements sharing one label and gave a reader no
+  // way to tell them apart. SPEC §9.5 lists both loops by name; now so does the harness.
+  measured.push(entry(name, "docx->md->docx->md", compare(fromDocx, secondParsed)));
 
   // --- Loop 4: md -> html -> md.
   const html = renderHtml(original, { fullDocument: false }).html;
   const fromHtml = parseHtmlDocument(html).document;
   measured.push(entry(name, "md->html->md", compare(original, fromHtml)));
+
+  // --- Loop 5: md -> pdf -> md. SPEC §9.5's PDF loop, and the last of its four to be built.
+  //
+  // §9.5 is explicit that this is a **joint** measure of the renderer and the extractor, and
+  // it must never be quoted as a renderer-only score. The return leg reconstructs structure
+  // from glyph geometry, so a low number here is as likely to be the reader as the writer.
+  //
+  // Two things this loop does differently from every other one above, both deliberate:
+  //
+  //   - **No `inferAll` on the return leg.** `@markforge/adapters-pdf` does its own inference
+  //     — a documented A5 exception, because a PDF states no structure at all. Running
+  //     `inferAll` over its output would promote a second time on top of decisions already
+  //     made, and the comparison would be between unlike trees. Every *other* binary leg here
+  //     calls `inferAll` precisely because its adapter does not.
+  //   - **`parsePdf`, not `readPdf`.** A Typst-produced PDF always has a text layer, and
+  //     `parsePdf` throws by name if that ever stops being true rather than quietly routing
+  //     to the scan branch and scoring a recogniser we did not ask for.
+  if (!isPdfUncovered(file)) {
+    const pdfBytes = (await renderPdfNode(original)).bytes;
+    const fromPdf = (await parsePdf(pdfBytes, { path: `fixtures/md/${file}.pdf` })).document;
+    measured.push(entry(name, "md->pdf->md", compare(original, fromPdf)));
+  }
 }
 
 // The messy DOCX corpus (§2.3 and §2.15). These start as DOCX, so the loop begins
@@ -250,7 +310,17 @@ if (existsSync(AMBIGUOUS) && existsSync(AMBIGUOUS_TRUTH)) {
   measured.push(entry("ambiguous-headings", "docx->truth", compare(truth, assisted)));
 }
 
-/** A conversion that could not happen at all. Every metric is zero, by definition. */
+/**
+ * A conversion that could not happen at all. Every metric is zero, by definition.
+ *
+ * `census` is a `CensusDelta[]` — `[{ nodeType, expected, actual }]` — matching what `entry`
+ * below produces from `compare`. It was an **object**, `{ gained: [], lost: [...] }`, and the
+ * shape mismatch was silent: `renderFidelityMarkdown` tests `(e.census ?? []).length > 0`, and
+ * an object has no `length`, so `undefined > 0` is false and every zero row was quietly
+ * dropped from *Where the losses are*. The one row this affects —
+ * `scanned-150dpi-nollm` — is the row whose entire point is that everything was lost, so the
+ * losses table omitted precisely the document with the most to report.
+ */
 function zeroEntry(fixture, loop) {
   return {
     fixture,
@@ -261,7 +331,7 @@ function zeroEntry(fixture, loop) {
     tableF1: 0,
     tableContentF1: 0,
     spanF1: 0,
-    census: { gained: [], lost: [{ type: "*", count: 0, note: "the file could not be read" }] },
+    census: [{ nodeType: "(whole document)", expected: 1, actual: 0 }],
   };
 }
 

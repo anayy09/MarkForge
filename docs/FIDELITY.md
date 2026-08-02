@@ -9,36 +9,40 @@ Corpus: 32 fixture(s). Source: fixtures/md, fixtures/html, and fixtures/docx via
 | --- | --- | --: | --: | --: | --: | --: | --: |
 | ambiguous-headings | docx->truth | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | ambiguous-headings-nollm | docx->truth | 96.1% | 100.0% | 100.0% | 100.0% | 100.0% | 0.0% |
-| cjk-chinese | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| cjk-chinese | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | cjk-chinese | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | cjk-chinese | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | cjk-chinese | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| cjk-japanese | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| cjk-japanese | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | cjk-japanese | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | cjk-japanese | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | cjk-japanese | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| clean-report | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| clean-report | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | clean-report | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | clean-report | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | clean-report | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| clean-report | md->pdf->md | 57.9% | 95.6% | 99.3% | 0.0% | 0.0% | 0.0% |
 | comments-anchored | docx->html | 84.6% | 60.9% | 61.3% | 100.0% | 100.0% | 100.0% |
 | comments-anchored | docx->md->docx | 84.6% | 60.9% | 61.3% | 100.0% | 100.0% | 100.0% |
-| flavor-probe | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| flavor-probe | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | flavor-probe | md->docx->md | 94.6% | 99.7% | 100.0% | 100.0% | 100.0% | 50.0% |
 | flavor-probe | md->html->md | 90.5% | 86.9% | 86.4% | 100.0% | 100.0% | 0.0% |
 | flavor-probe | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| flavor-probe | md->pdf->md | 43.8% | 80.3% | 84.3% | 0.0% | 0.0% | 0.0% |
 | generated-no-theme | docx->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | generated-no-theme | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| generated-profile-source | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| generated-profile-source | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | generated-profile-source | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | generated-profile-source | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | generated-profile-source | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| generated-profile-source | md->pdf->md | 58.5% | 95.2% | 98.5% | 0.0% | 0.0% | 0.0% |
 | generated-run-per-word | docx->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | generated-run-per-word | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| inline-marks | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| inline-marks | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | inline-marks | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | inline-marks | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | inline-marks | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| inline-marks | md->pdf->md | 32.5% | 96.2% | 99.4% | 100.0% | 100.0% | 0.0% |
 | manuscript-endnotes-crossrefs | docx->html | 83.3% | 65.7% | 65.3% | 100.0% | 100.0% | 0.0% |
 | manuscript-endnotes-crossrefs | docx->md->docx | 96.2% | 65.9% | 65.5% | 100.0% | 100.0% | 100.0% |
 | manuscript-footnotes-equations | docx->html | 82.3% | 71.4% | 71.3% | 100.0% | 100.0% | 0.0% |
@@ -57,35 +61,39 @@ Corpus: 32 fixture(s). Source: fixtures/md, fixtures/html, and fixtures/docx via
 | messy-mixed-fonts | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | messy-whitespace-as-structure | docx->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | messy-whitespace-as-structure | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| nested-restarting-lists | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| nested-restarting-lists | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | nested-restarting-lists | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | nested-restarting-lists | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | nested-restarting-lists | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| rtl-arabic | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| nested-restarting-lists | md->pdf->md | 16.5% | 84.6% | 90.5% | 100.0% | 100.0% | 100.0% |
+| rtl-arabic | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | rtl-arabic | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | rtl-arabic | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | rtl-arabic | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| rtl-hebrew | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| rtl-hebrew | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | rtl-hebrew | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | rtl-hebrew | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | rtl-hebrew | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| rtl-hebrew | md->pdf->md | 61.5% | 39.0% | 41.1% | 100.0% | 100.0% | 0.0% |
 | scanned-150dpi | scan->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-150dpi-nollm | scan->md | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 | scanned-150dpi-tesseract | scan->md | 14.6% | 95.4% | 96.9% | 100.0% | 100.0% | 100.0% |
-| scanned-source | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| scanned-source | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-source | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-source | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | scanned-source | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| scanned-source | md->pdf->md | 89.7% | 99.8% | 99.9% | 100.0% | 100.0% | 100.0% |
 | semantic-structure | html->docx->html | 96.5% | 95.1% | 96.3% | 100.0% | 100.0% | 100.0% |
 | semantic-structure | html->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | semantic-structure | html->md->html | 94.0% | 100.0% | 100.0% | 100.0% | 100.0% | 88.9% |
 | spans-ground-truth | html->docx->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | spans-ground-truth | html->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | spans-ground-truth | html->md->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| tables | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| tables | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | tables | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | tables | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | tables | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| tables | md->pdf->md | 36.3% | 82.4% | 98.9% | 0.0% | 0.0% | 0.0% |
 | tables-block-content | docx->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | tables-block-content | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | tables-merged-combined | docx->html | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
@@ -98,11 +106,11 @@ Corpus: 32 fixture(s). Source: fixtures/md, fixtures/html, and fixtures/docx via
 | tracked-changes-single-author | docx->md->docx | 71.0% | 84.9% | 85.0% | 100.0% | 100.0% | 100.0% |
 | tracked-changes-two-authors | docx->html | 96.5% | 100.0% | 100.0% | 100.0% | 100.0% | 0.0% |
 | tracked-changes-two-authors | docx->md->docx | 61.9% | 95.8% | 95.7% | 100.0% | 100.0% | 100.0% |
-| unicode-edge-cases | docx->md->docx | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+| unicode-edge-cases | docx->md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->docx->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->html->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
 | unicode-edge-cases | md->md | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
-| **mean** | | 96.2% | 96.3% | 96.3% | 98.9% | 98.9% | 92.0% |
+| **mean** | | 92.6% | 95.4% | 95.8% | 95.1% | 95.1% | 86.8% |
 
 ## Where the losses are
 
@@ -116,6 +124,13 @@ limit — nothing is rounded away.
 | ambiguous-headings-nollm | docx->truth | `heading` | 4 | 5 |
 | ambiguous-headings-nollm | docx->truth | `paragraph` | 8 | 7 |
 | ambiguous-headings-nollm | docx->truth | `strong` | 1 | 0 |
+| clean-report | md->pdf->md | `text` | 32 | 14 |
+| clean-report | md->pdf->md | `tableCell` | 16 | 0 |
+| clean-report | md->pdf->md | `tableRow` | 4 | 0 |
+| clean-report | md->pdf->md | `heading` | 5 | 4 |
+| clean-report | md->pdf->md | `paragraph` | 9 | 10 |
+| clean-report | md->pdf->md | `strong` | 1 | 0 |
+| clean-report | md->pdf->md | `table` | 1 | 0 |
 | comments-anchored | docx->html | `comment` | 2 | 0 |
 | comments-anchored | docx->html | `text` | 7 | 5 |
 | comments-anchored | docx->md->docx | `comment` | 2 | 0 |
@@ -134,6 +149,36 @@ limit — nothing is rounded away.
 | flavor-probe | md->html->md | `superscript` | 0 | 1 |
 | flavor-probe | md->html->md | `text` | 19 | 20 |
 | flavor-probe | md->html->md | `yaml` | 1 | 0 |
+| flavor-probe | md->pdf->md | `text` | 19 | 7 |
+| flavor-probe | md->pdf->md | `tableCell` | 9 | 0 |
+| flavor-probe | md->pdf->md | `tableRow` | 3 | 0 |
+| flavor-probe | md->pdf->md | `inlineCode` | 2 | 0 |
+| flavor-probe | md->pdf->md | `admonition` | 1 | 0 |
+| flavor-probe | md->pdf->md | `emphasis` | 1 | 0 |
+| flavor-probe | md->pdf->md | `footnoteDefinition` | 1 | 0 |
+| flavor-probe | md->pdf->md | `footnoteReference` | 1 | 0 |
+| flavor-probe | md->pdf->md | `inlineMath` | 1 | 0 |
+| flavor-probe | md->pdf->md | `math` | 1 | 0 |
+| flavor-probe | md->pdf->md | `paragraph` | 5 | 6 |
+| flavor-probe | md->pdf->md | `strong` | 1 | 0 |
+| flavor-probe | md->pdf->md | `table` | 1 | 0 |
+| flavor-probe | md->pdf->md | `yaml` | 1 | 0 |
+| generated-profile-source | md->pdf->md | `text` | 18 | 8 |
+| generated-profile-source | md->pdf->md | `tableCell` | 6 | 0 |
+| generated-profile-source | md->pdf->md | `tableRow` | 3 | 0 |
+| generated-profile-source | md->pdf->md | `listItem` | 4 | 2 |
+| generated-profile-source | md->pdf->md | `emphasis` | 1 | 0 |
+| generated-profile-source | md->pdf->md | `list` | 2 | 1 |
+| generated-profile-source | md->pdf->md | `strong` | 1 | 0 |
+| generated-profile-source | md->pdf->md | `table` | 1 | 0 |
+| inline-marks | md->pdf->md | `text` | 18 | 3 |
+| inline-marks | md->pdf->md | `paragraph` | 5 | 2 |
+| inline-marks | md->pdf->md | `emphasis` | 2 | 0 |
+| inline-marks | md->pdf->md | `strong` | 2 | 0 |
+| inline-marks | md->pdf->md | `break` | 1 | 0 |
+| inline-marks | md->pdf->md | `delete` | 1 | 0 |
+| inline-marks | md->pdf->md | `inlineCode` | 1 | 0 |
+| inline-marks | md->pdf->md | `link` | 1 | 0 |
 | manuscript-endnotes-crossrefs | docx->html | `crossReference` | 0 | 2 |
 | manuscript-endnotes-crossrefs | docx->html | `footnoteDefinition` | 2 | 0 |
 | manuscript-endnotes-crossrefs | docx->html | `footnoteReference` | 2 | 0 |
@@ -159,11 +204,26 @@ limit — nothing is rounded away.
 | manuscript-footnotes-equations | docx->md->docx | `paragraph` | 8 | 9 |
 | manuscript-footnotes-equations | docx->md->docx | `text` | 19 | 18 |
 | manuscript-footnotes-equations | docx->md->docx | `unknown` | 1 | 0 |
+| nested-restarting-lists | md->pdf->md | `paragraph` | 22 | 2 |
+| nested-restarting-lists | md->pdf->md | `text` | 23 | 3 |
+| nested-restarting-lists | md->pdf->md | `listItem` | 16 | 0 |
+| nested-restarting-lists | md->pdf->md | `list` | 9 | 0 |
+| rtl-hebrew | md->pdf->md | `text` | 15 | 8 |
+| rtl-hebrew | md->pdf->md | `listItem` | 3 | 0 |
+| rtl-hebrew | md->pdf->md | `paragraph` | 8 | 5 |
+| rtl-hebrew | md->pdf->md | `blockquote` | 1 | 0 |
+| rtl-hebrew | md->pdf->md | `inlineCode` | 1 | 0 |
+| rtl-hebrew | md->pdf->md | `link` | 1 | 0 |
+| rtl-hebrew | md->pdf->md | `list` | 1 | 0 |
+| rtl-hebrew | md->pdf->md | `strong` | 1 | 0 |
+| scanned-150dpi-nollm | scan->md | `(whole document)` | 1 | 0 |
 | scanned-150dpi-tesseract | scan->md | `text` | 15 | 1 |
 | scanned-150dpi-tesseract | scan->md | `paragraph` | 9 | 1 |
 | scanned-150dpi-tesseract | scan->md | `heading` | 6 | 0 |
 | scanned-150dpi-tesseract | scan->md | `listItem` | 5 | 0 |
 | scanned-150dpi-tesseract | scan->md | `list` | 2 | 0 |
+| scanned-source | md->pdf->md | `paragraph` | 9 | 10 |
+| scanned-source | md->pdf->md | `text` | 15 | 16 |
 | semantic-structure | html->docx->html | `figure` | 1 | 0 |
 | semantic-structure | html->docx->html | `image` | 1 | 0 |
 | semantic-structure | html->docx->html | `paragraph` | 11 | 10 |
@@ -176,6 +236,14 @@ limit — nothing is rounded away.
 | semantic-structure | html->md->html | `figure` | 1 | 0 |
 | semantic-structure | html->md->html | `paragraph` | 11 | 12 |
 | semantic-structure | html->md->html | `strong` | 1 | 2 |
+| tables | md->pdf->md | `tableCell` | 20 | 0 |
+| tables | md->pdf->md | `text` | 23 | 8 |
+| tables | md->pdf->md | `tableRow` | 9 | 0 |
+| tables | md->pdf->md | `paragraph` | 3 | 7 |
+| tables | md->pdf->md | `table` | 3 | 0 |
+| tables | md->pdf->md | `inlineCode` | 1 | 0 |
+| tables | md->pdf->md | `link` | 1 | 0 |
+| tables | md->pdf->md | `strong` | 1 | 0 |
 | tracked-changes-single-author | docx->html | `delete` | 0 | 2 |
 | tracked-changes-single-author | docx->html | `deletion` | 2 | 0 |
 | tracked-changes-single-author | docx->md->docx | `text` | 9 | 5 |
@@ -238,6 +306,29 @@ which is which — and so that a row moving *off* this list is visible.
 - **`comments-anchored` structural, from 2026-08-02.** The commented *range* is now wrapped
   by the `comment` node, which the schema always required. That is one extra node per
   comment on one side of the comparison, so the tree shape differs by exactly the fix.
+- **Every `md->pdf->md` row, from 2026-08-02, and the lowest scores in this table.** SPEC
+  §9.5 requires this loop and says what it is: a **joint** measure of the PDF renderer and
+  the PDF *extractor*, which must never be quoted as a renderer-only score. A PDF states no
+  structure at all — it is glyphs at coordinates — so the return leg reconstructs shape from
+  geometry, and what it cannot reconstruct is what these numbers report. The census names it
+  exactly: **tables go to zero** (`table`, `tableRow`, `tableCell` all 0, so table F1 reads
+  0.0% wherever a table existed) and **every inline mark goes to zero** (`strong`,
+  `emphasis`, `delete`, `inlineCode`, `link`), because bold text in a PDF is a different
+  font, not a tagged span. Two of ADR-0012's four clauses — table recovery and
+  figure/caption binding — are *struck* rather than unbuilt (OPEN_QUESTIONS §7af), so these
+  are the measured cost of that ruling rather than a regression against it. `scanned-source`
+  scores highest at 89.7% for the reason that makes the point: it is plain prose, so there
+  is almost no structure to lose.
+- **`nested-restarting-lists` through PDF, at 16.5% structural — the lowest score in this
+  table.** It gets its own entry because it is not the same loss as the row above. Tables
+  and inline marks have no PDF representation at all, so losing them is inherent; a nested
+  list *is* representable and is still lost. The census reads `list` 9 → 0 and `listItem`
+  16 → 0: every one of them comes back as a bare paragraph whose text begins with a bullet
+  or a numeral. Typst renders the markers as glyphs, and on the way back
+  `@markforge/adapters-pdf` sees indented lines of text and no list at all — nesting depth,
+  ordered-versus-unordered, and `restartsAt` are all reconstructible from geometry in
+  principle and reconstructed from none of it today. This is the loop's worst case rather
+  than its typical one, and it is the row to watch if list recovery is ever built.
 
 A low score for a reason *not* listed here is a defect. Fix it, or add it here with its
 reason — those are the only two honest options.

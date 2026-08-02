@@ -70,6 +70,32 @@ export async function buildBrowserBundle() {
 }
 
 /**
+ * The deferred PDF chunk, `@markforge/browser/pdf`.
+ *
+ * A separate bundle because it is a separate entry point, which is the whole reason the PDF
+ * path is reachable from a browser at all without putting Typst in everyone's download. It
+ * carries `@markforge/render-pdf`; the main bundle must not, and
+ * `scripts/check-browser-bundle.mjs` fails it if it does.
+ */
+export async function buildBrowserPdfBundle() {
+  const result = await esbuild.build({
+    entryPoints: [`${REPO}packages/browser/dist/pdf.js`],
+    bundle: true,
+    platform: "browser",
+    format: "iife",
+    globalName: "MarkForgePdf",
+    conditions: BROWSER_CONDITIONS,
+    metafile: true,
+    write: false,
+    logLevel: "silent",
+  });
+  return {
+    code: Buffer.from(result.outputFiles[0].contents).toString("utf8"),
+    metafile: result.metafile,
+  };
+}
+
+/**
  * The web platform, and nothing else.
  *
  * This list is the check. A `vm` context starts with the ECMAScript globals only, so
@@ -84,7 +110,7 @@ export async function buildBrowserBundle() {
  * this does catch is the failure that actually occurs — code reaching for a Node global —
  * without adding a browser-binary dependency to run it.
  */
-export function webPlatformSandbox() {
+export function webPlatformSandbox({ wasm = false } = {}) {
   const sandbox = {
     TextEncoder,
     TextDecoder,
@@ -96,13 +122,26 @@ export function webPlatformSandbox() {
     queueMicrotask,
     console: { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   };
+  // Opt-in, and deliberately NOT part of the default set.
+  //
+  // This same function is the eager-package evaluation probe in
+  // `scripts/check-browser-bundle.mjs`, where the point is that the list is short: every
+  // global added here is a global an eager package can reach without the probe noticing.
+  // Only the parity harness's PDF leg needs `WebAssembly`, so only it asks.
+  if (wasm) sandbox.WebAssembly = WebAssembly;
   sandbox.globalThis = sandbox;
   return vm.createContext(sandbox);
 }
 
 /** Evaluates the bundle in a fresh sandbox and returns the context, with `MarkForge` on it. */
-export function loadInSandbox(code) {
-  const sandbox = webPlatformSandbox();
+export function loadInSandbox(code, options = {}) {
+  const sandbox = webPlatformSandbox(options);
+  vm.runInContext(code, sandbox, { timeout: 60_000 });
+  return sandbox;
+}
+
+/** Evaluates an additional bundle into an existing sandbox — used for the deferred PDF chunk. */
+export function loadAlsoInSandbox(sandbox, code) {
   vm.runInContext(code, sandbox, { timeout: 60_000 });
   return sandbox;
 }
@@ -110,6 +149,9 @@ export function loadInSandbox(code) {
 /** Runs one conversion inside the sandbox and returns the output bytes. */
 export async function convertInSandbox(sandbox, bytes, options) {
   sandbox.__input = new Uint8Array(bytes);
+  // `pdf.render` is a function and must be *referenced*, not copied: a spread keeps the
+  // reference, but anything that serialises (structuredClone, JSON) would silently drop it
+  // and the PDF leg would then fail with "needs a renderer" rather than comparing bytes.
   sandbox.__options = { ...options };
   const result = await vm.runInContext(
     `MarkForge.convertInBrowser(__input, __options)`,

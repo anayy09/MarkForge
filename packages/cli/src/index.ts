@@ -33,6 +33,7 @@ import {
   type Diagnostic,
 } from "@markforge/ir";
 import { readAvailableStyles, reportCoverage } from "@markforge/render-docx";
+import { createNodePdfRenderer } from "@markforge/typst-node";
 import { createTesseractRecognizer } from "@markforge/adapters-ocr";
 import {
   CAPABILITIES_PATH,
@@ -145,6 +146,17 @@ function fail(message: string): void {
 const nodePdfReader: NonNullable<Assist["readPdf"]> = async (bytes, options) =>
   (await import("@markforge/adapters-pdf")).readPdf(bytes, options);
 
+/**
+ * The PDF writer, the mirror of `nodePdfReader` and injected for the same reason.
+ *
+ * Also a platform capability rather than an opt-in: `markforge convert report.md -o report.pdf`
+ * takes no flag. The compiler and the shipped font set both live in `@markforge/typst-node`,
+ * so this surface, the HTTP server, the MCP server, and `scripts/check-pdf-determinism.mjs`
+ * all compile through one configuration. Three copies would drift, and when they drift the
+ * gate stops measuring the path that ships.
+ */
+const nodePdfRenderer = createNodePdfRenderer();
+
 function buildAssist(
   opts: Record<string, unknown>,
   argv: string[],
@@ -237,7 +249,10 @@ const convertCommand = program
   .description("Convert a document between formats")
   .argument("<input>", "input file")
   .requiredOption("-o, --output <path>", "output file")
-  .option("--to <format>", "output format (md, docx, html); inferred from --output otherwise")
+  // Interpolated rather than spelled out: this string said "(md, docx, html)" while the two
+  // error messages below already derived theirs from OUTPUT_FORMATS, so adding a format made
+  // the help text wrong and the errors right.
+  .option("--to <format>", `output format (${OUTPUT_FORMATS.join(", ")}); inferred from --output otherwise`)
   .option("--from <format>", "input format (md, docx, html, pptx, xlsx, pdf); inferred from the input path otherwise")
   .option("--reference-doc <path>", "DOCX reference document supplying named styles")
   .option("--no-infer", "skip structure inference; evidence stays evidence")
@@ -331,6 +346,7 @@ convertCommand
         // The reader is always present in the Node build; anything the user opted into
         // is layered over it. Merged here rather than inside `buildAssist` so that
         // `--no-llm` staying the default and PDFs being readable stay independent.
+        pdf: { render: nodePdfRenderer },
         assist: { readPdf: nodePdfReader, ...assist.assist },
       });
 

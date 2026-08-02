@@ -19,7 +19,8 @@
   "dependencies": {
     "@markforge/agentify": "workspace:*",
     "@markforge/core": "workspace:*",
-    "@markforge/ir": "workspace:*"
+    "@markforge/ir": "workspace:*",
+    "@markforge/typst-node": "workspace:*"
   },
   "markforge": {
     "browserTier": "nodeOnly"

@@ -51,7 +51,10 @@ export interface PdfFont {
  * binding is a single-maintainer wrapper around a well-funded upstream; the risk is the
  * binding, and this is the seam that contains it.
  */
-export type CompileFn = (source: string, fonts: readonly PdfFont[]) => Uint8Array;
+export type CompileFn = (
+  source: string,
+  fonts: readonly PdfFont[],
+) => Uint8Array | Promise<Uint8Array>;
 
 export interface PdfRenderOptions {
   /** The compiler. Required — there is no default, so nothing pulls Typst in implicitly. */
@@ -71,7 +74,19 @@ export interface PdfRenderResult {
   diagnostics: DiagnosticBag;
 }
 
-export function renderPdf(doc: MarkForgeDocument, options: PdfRenderOptions): PdfRenderResult {
+/**
+ * Async because one of the two compilers is.
+ *
+ * The Node NAPI binding returns bytes synchronously; the Typst WASM binding returns a promise.
+ * `CompileFn` therefore permits either, and this function awaits. ADR-0003's seam is unchanged
+ * in substance — it is still `compile(source, fonts) → bytes`, and swapping the binding is
+ * still a one-file change — but a synchronous-only seam would have made the browser compiler
+ * unusable behind it, which was not visible until there were two implementations.
+ */
+export async function renderPdf(
+  doc: MarkForgeDocument,
+  options: PdfRenderOptions,
+): Promise<PdfRenderResult> {
   const diagnostics = new DiagnosticBag(RENDERER);
   const { source, lost } = toTypst(doc, options.title === undefined ? {} : { title: options.title });
 
@@ -95,5 +110,5 @@ export function renderPdf(doc: MarkForgeDocument, options: PdfRenderOptions): Pd
     );
   }
 
-  return { bytes: options.compile(source, fonts), source, diagnostics };
+  return { bytes: await options.compile(source, fonts), source, diagnostics };
 }

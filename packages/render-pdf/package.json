@@ -21,5 +21,9 @@
   },
   "markforge": {
     "browserTier": "deferred"
-  }
+  },
+  "devDependencies": {
+    "@myriaddreamin/typst-ts-node-compiler": "0.7.0"
+  },
+  "devDependenciesComment": "Tests compile their generated Typst rather than asserting its shape: the #figure( defect was a compile failure that produced perfectly plausible-looking source, so a string assertion would have passed through it (brief 13)."
 }

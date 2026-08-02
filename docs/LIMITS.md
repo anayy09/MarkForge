@@ -42,8 +42,9 @@ what was lost.
 
 ## 2. Format limits — the construct cannot survive the target
 
-These are not defects. The target format has no way to express the construct, so the loss is
-inherent and the only question is whether it is reported. All of them are.
+These are not defects, with one exception in the last row. The target format has no way to
+express the construct, so the loss is inherent and the only question is whether it is
+reported — and every row but the last is.
 
 | Construct | Target | Behaviour |
 | --- | --- | --- |
@@ -55,6 +56,7 @@ inherent and the only question is whether it is reported. All of them are.
 | Tracked changes | Markdown | No native syntax. `revisionMode` is honoured as of 2026-08-02 on all three surfaces: `clean` (the default) emits the accepted text and diagnoses each dropped deletion, `showInsertions` marks insertions with `<ins>`, `showAll` adds `~~strikethrough~~`. Until then this renderer ignored the option and emitted both sides of every edit — `fortyfifty`, `someall`. `fixtures/docx/tracked-changes-two-authors.docx` |
 | OMML equations | Markdown, HTML | Markdown math is TeX and HTML math is TeX or MathML; there is no OMML converter here, so the equation's *structure* is lost. The source is retained — a fenced ` ```omml ` block in Markdown, a `<pre>` inside the math div in HTML — and the loss is diagnosed. Both surfaces show it rather than one hiding it, which costs text fidelity on the two manuscript fixtures: `docs/FIDELITY.md` says how much and why |
 | Inline OMML equations | The IR itself | No node type fits: `equationBlock` is block content, `inlineMath` holds TeX. The equation becomes an `unknown` node carrying the markup, with a lossy diagnostic (§7ao) |
+| Cross-references | DOCX | **The exception: unbuilt rather than inherent, and the one unreported loss here.** `SPEC.md` §2.3 maps `crossReference` to a DOCX `REF` field and nothing writes one. `CrossReference` carries no `children`, so it reaches the inline `default` in `@markforge/render-docx`, which recurses only into nodes that have them — the node is skipped and its `label` text is dropped with **no diagnostic at all**. `See [Figure 1] for detail.` renders and reads back as `See for detail.`, with zero lossy diagnostics. The Markdown and HTML renderers do resolve it, so this is the DOCX writer alone |
 
 ---
 
@@ -161,12 +163,27 @@ expected.
 
 ## 7. The PDF renderer
 
-Built 2026-08-01 (ADR-0003). What it does **not** do:
+Built 2026-08-01 (ADR-0003), reachable from all four surfaces 2026-08-02. What it does **not**
+do:
 
-- **No profile fonts are shipped**, so `renderPdf` called without a `fonts` array uses the
-  compiler's bundled faces. Output stays deterministic; it is not the profile's typography, and
-  SPEC §4.3's "embedded fonts, no substitution" is met only when a caller supplies them. The
-  renderer says so with an `info` diagnostic rather than letting silence imply otherwise.
+- ~~**No profile fonts are shipped**~~ — **fixed 2026-08-02, and the reason it had to be is
+  worse than the gap it closed.** `fonts/` now ships Libertinus Serif and DejaVuSansMono
+  (1.6 MB, OFL) and every Node surface supplies them. The old behaviour was not merely "the
+  compiler's bundled faces": with no explicit set, Typst resolved missing glyphs against **the
+  host machine's installed fonts**, so `unicode-edge-cases.pdf` embedded `SimSun`, `ArialMT`
+  and `SegoeUIEmoji` from a Windows box. That is SPEC §4.3's forbidden substitution, and it
+  made output machine-dependent while `check-pdf-determinism.mjs` — which compares two
+  processes on *one* machine — reported determinism. Held now by
+  `scripts/check-pdf-fonts.mjs`.
+- **The shipped set is Latin plus mono, and that is the real coverage limit.** CJK, emoji and
+  Arabic are not covered, so four Markdown fixtures are excluded from the PDF loop and the
+  parity column rather than silently substituting. Rendering such a document still *works* on
+  a machine that happens to have the fonts — and will differ on one that does not, which is
+  exactly why it is not measured.
+- **Style profiles do not reach this renderer at all.** ADR-0003's *Consequences* promise a
+  Typst template per shipped profile; there are **no `.typ` files in the repository**, and
+  `typst.ts:348` builds one hard-coded preamble. All three profiles render identically, so
+  `markforge.config.ts`'s `pdf.theme` is accepted and ignored. `pdf.standard` likewise.
 - **Images are not embedded.** `image` nodes are resource-referenced and this renderer has no
   resource resolver, so the alt text is emitted and the loss is reported.
 - **PDF/A and PDF/UA are unmeasured.** The compiler accepts a `pdfStandard` argument and
@@ -174,9 +191,21 @@ Built 2026-08-01 (ADR-0003). What it does **not** do:
   not. Typst's accessibility support arrived in 0.14 and tagged-PDF quality has never been
   checked here — the measurement task ADR-0003's *Consequences* named in Phase 2 and that is
   still open.
-- **`md → pdf → md` scores 57.9% structural and 86.5% text** on `clean-report.md`. Per SPEC
-  §9.5 that is a **joint** measure of this renderer and the PDF *extractor*, and it must never
-  be quoted as a renderer-only number.
+- **`md → pdf → md` is measured as of 2026-08-02**, over 8 fixtures, in `docs/FIDELITY.md`.
+  Per SPEC §9.5 it is a **joint** measure of this renderer and the PDF *extractor* and must
+  never be quoted as a renderer-only number. `clean-report.md` scores **57.9% structural**,
+  95.6% text; the floor is `nested-restarting-lists.md` at **16.5% structural**, where 9 lists
+  and 16 list items flatten to paragraphs. **Table F1 is 0.0% on every fixture that has a
+  table**, and span F1 is 0.0% wherever inline marks exist: a PDF has no table model and no
+  tagged spans. This entry previously read "57.9% structural and 86.5% text" as prose with
+  nothing computing it — the structural figure survived re-measurement and the text figure did
+  not (see ADR-0003).
+- **Four Markdown fixtures have no `md → pdf → md` row at all.** `unicode-edge-cases`,
+  `cjk-chinese`, `cjk-japanese` and `rtl-arabic` need fonts `fonts/` does not ship, so Typst
+  resolves those glyphs against the *host machine* and the score would move with the runner.
+  They are excluded by `scripts/lib/pdf-coverage.mjs` and each exclusion is proved — not
+  asserted — by `scripts/check-pdf-fonts.mjs` §2, which rejects an entry whose fixture renders
+  closed. `rtl-hebrew` was rejected that way: Libertinus covers Hebrew.
 - **OMML equations reaching the PDF renderer are not converted.** Typst math is not OMML; the
   source is emitted as a raw block and the loss is reported.
 

@@ -196,7 +196,10 @@ manual cleanup, verified by inspection against the fidelity report.
 | XLSX adapter | done | `pnpm test`, `scripts/run-fidelity.mjs` |
 | PDF adapter, text layer | done — extraction, line and block assembly, column order, hyphenation repair, scan detection. **Four clauses of ADR-0012 are unbuilt**: furniture routing, ligature repair, figure/caption binding, and table recovery. Enumerated in the ADR rather than implied by a missing test | `pnpm test` (`packages/adapters-pdf/test/pdf.test.ts`), ADR-0012 |
 | Deterministic structure inference | done — headings, lists, blockquotes | `pnpm test`, `scripts/run-fidelity.mjs` |
-| PDF renderer | **done** — `@markforge/render-pdf`, IR to Typst to PDF. Byte-identical across separate processes; the wall-clock `/CreationDate` Typst writes by default is omitted via `#set document(date: none)`, because the compiler's `creationTimestamp` option does not override it | `scripts/check-pdf-determinism.mjs` |
+| PDF renderer | **done, and reachable as of 2026-08-02** — `@markforge/render-pdf`, IR to Typst to PDF, byte-identical across separate processes and across all four surfaces. The wall-clock `/CreationDate` is omitted via `#set document(date: none)`, because the compiler's `creationTimestamp` option does not override it. **This row read `done` from 2026-08-01 while nothing imported the package except its own gate**: `core`'s dispatch threw *"not built yet"* for `pdf`, so no surface could produce one. `done` meant *built*, `README.md` meanwhile said *not built*, and both were locally defensible — a package that compiles and passes a gate is not a delivered capability, and no gate distinguished the two | `scripts/check-pdf-determinism.mjs`, `scripts/check-surface-parity.mjs`, `scripts/check-pdf-fonts.mjs` |
+| PDF output on all four surfaces | done — 39 conversions × 4 surfaces, byte-identical, PDF included on 9 of 10 inputs | `scripts/check-surface-parity.mjs` |
+| PDF font closure | done — every embedded face is one `fonts/` ships; four fixtures excluded, each exclusion proved rather than asserted | `scripts/check-pdf-fonts.mjs` |
+| `md → pdf → md` measured (SPEC §9.5) | done — 8 fixtures. Structural 57.9% on `clean-report`, 16.5% floor on `nested-restarting-lists`. ADR-0003 had asserted 57.9%/86.5% with nothing computing either; structural reproduced, the text figure did not | `scripts/run-fidelity.mjs` (docs/FIDELITY.md) |
 | Visual regression suite | **struck** — OPEN_QUESTIONS §7ad. Nothing catches a change that is visually wrong and structurally identical; the PDF path has byte-identity instead, which is stronger about change and silent about quality | OPEN_QUESTIONS §7ad, `docs/LIMITS.md` |
 | Real-world messy PDF converts cleanly | **struck** — OPEN_QUESTIONS §7an. It depends on `CORPUS.md` §2.6, itself struck (§7ac); a criterion resting on a struck category is struck, not pending. No claim is made about PDFs we did not generate | OPEN_QUESTIONS §7an, `docs/LIMITS.md` |
 | Real-world messy DOCX converts cleanly | **verified on authored equivalents** — `CORPUS.md` §2.3 built; no committable real specimen | `scripts/build-messy-fixtures.mjs --check` |
@@ -621,8 +624,13 @@ matches `node:crypto` over 306 inputs.
 
 Three claims are amended rather than quietly narrowed:
 
-- **`render-pdf` is named in the lazy tier and does not exist** (ADR-0003, Typst WASM), so
-  that tier is ratified for two of its three members. The gate says so on every run.
+- ~~**`render-pdf` is named in the lazy tier and does not exist**~~ — **stale from Phase 5
+  until 2026-08-02.** It was built 2026-08-01, so the sentence was already false when the
+  paragraph beneath it was being read, and its second half — *"the gate says so on every
+  run"* — was false too: `check-browser-bundle.mjs` §3 took the `ok` branch and said the
+  opposite. Two wrong claims in one bullet, in the section about amending claims rather than
+  quietly narrowing them. The tier is ratified for all three members, and §3 is deleted
+  rather than left as a loop over a one-element list that can no longer fail.
 - **"Lazy" and "browser-capable" are different properties.** The deferred `adapters-pdf`
   chunk still imports `node:module`, `node:path`, and `node:zlib`. Deferring it means a user
   converting DOCX to Markdown does not download it — that argument holds. It does not mean
@@ -766,33 +774,6 @@ which was not true of 4 or 5 before this pass (§7ak, §7al).
 | `mcp` | **done** (Phase 5) — not in SPEC §8's seven; `serve` is HTTP and an MCP client on stdio needs its own command (§7u) | `pnpm test` (`packages/cli/test/cli.test.ts`) |
 | `diff`, `init` | **done** — `diff` is a semantic IR diff with `--metric` (the second consumer `OPEN_QUESTIONS` §7a promised `@markforge/fidelity` would have); `init` scaffolds config and lint config with `--print-config` and refuses to overwrite | `pnpm test` (`packages/cli/test/cli.test.ts`) |
 
-## Renderer gaps that lose content today
-
-Each emits a diagnostic — but that was **not true when this section was first written**, and
-the claim is worth correcting rather than quietly fixing. Through `html -> docx -> html` the
-DOCX writer dropped nine node types while emitting exactly one diagnostic, and the Markdown
-writer degraded figures, captions, and description lists in silence. Both now report. Neither
-was found by a test; the node-type census found them.
-
-A diagnostic is still not a feature.
-
-| Gap | Effect | Reported | Verified by |
-| --- | --- | --- | --- |
-| Images are not embedded in DOCX output | an image becomes `[alt text]` | yes | `scripts/run-fidelity.mjs` (docs/FIDELITY.md census) |
-| Footnotes are not written to `footnotes.xml` | footnote bodies become body paragraphs | yes | `scripts/run-fidelity.mjs` (docs/FIDELITY.md census) |
-| Cross-references are not resolved on write | become plain links | yes | `scripts/run-fidelity.mjs` (docs/FIDELITY.md census) |
-| Tracked changes are read but not written | `revisionMode` affects reading only | yes | `scripts/run-fidelity.mjs` (docs/FIDELITY.md census) |
-| DOCX has no figure, caption, or description list | text survives, the construct does not | yes, since this session | `scripts/run-fidelity.mjs` (docs/FIDELITY.md census) |
-| Markdown has no figure, caption, or description list | same, and it is a format limit rather than a gap | yes, since this session | `scripts/run-fidelity.mjs` (docs/FIDELITY.md census) |
-| ~~`code` and `thematicBreak` written to DOCX but not read back~~ | **fixed** — `inferCodeAndBreaks` reads both back from the style name and the paragraph border, exactly as blockquotes already were. `html -> docx -> html` text fidelity 89.7% to 96.2%, structural 91.2% to 93.8%, and both node types left the loss census | n/a | `scripts/run-fidelity.mjs` (docs/FIDELITY.md census) |
-
-The last row was the tractable one and is now done. Fixing it needed three changes rather
-than one, which is the interesting part: the inference pass was the easy third. The cascade
-recorded no border at all, so `thematicBreak` had no evidence to be recovered *from* — and
-`normalize` was deleting the empty bordered paragraph as spacing before inference ever saw
-it. A construct can be written correctly, be readable in principle, and still be destroyed
-in between by a rule that was right about every other empty paragraph.
-
 ## Reader gaps the Phase 6 corpus exposed
 
 `CORPUS.md` §2.2 and §2.12 had never been built, so no committed fixture contained a
@@ -901,28 +882,7 @@ three phases, and the local one was believed. Every gate in `.github/workflows/c
 should be assumed unverified until it has been seen to pass *and* seen to fail for the
 right reason.
 
-## What to fix first
-
-In the order that removes the most risk:
-
-1. **Figures, description lists, and captions in the DOCX writer.** The top item,
-   and the largest remaining measured loss. `docs/FIDELITY.md` **Where the losses are**
-   names it exactly: through `html -> docx -> html`, `figure`, `caption`, `image`,
-   `code`, `thematicBreak`, and all three `description*` node types go to zero. DOCX
-   has no description list, so this needs a style convention plus inference the way
-   blockquotes got one. Markdown genuinely cannot express a figure or a description
-   list, so those rows are a format limit — but they are now *reported* rather than
-   silent, which they were not until the census found them.
-2. **`word-to-markdown-js` in the scoreboard.** It is the project's stated baseline and is
-   absent from the comparison.
-3. **Images and footnotes in the DOCX writer.** Both currently degrade real content.
-4. **`check --reference-doc`.** Two specification documents describe it as though it
-   exists.
-5. **`CORPUS.md` §2.12 (tracked changes) and §2.2 (scanned documents).** The two remaining
-   categories that block a stated done-criterion rather than a nice-to-have.
-
-Completed since this document was first written: `CORPUS.md` §2.3 and §2.15, and the
-per-node-type census, which were items 1 and 2.
+## What the census found
 
 The census earned its place immediately. Added to `@markforge/fidelity` and reported in
 `docs/FIDELITY.md`, it found four things the aggregate scores had hidden behind means of
