@@ -1,35 +1,39 @@
 import type { NextConfig } from "next";
-import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 const APP = fileURLToPath(new URL(".", import.meta.url));
 
 /**
- * pdf.js's real directory, resolved the way the adapter resolves it at runtime.
+ * pdf.js, traced to the path the adapter will look in rather than the path it lives at.
  *
  * `packages/adapters-pdf/src/index.ts` computes `standardFontDataUrl` from
- * `createRequire(import.meta.url).resolve("pdfjs-dist/package.json")`. Node follows symlinks,
- * so under pnpm that lands in `node_modules/.pnpm/pdfjs-dist@<version>/...` rather than at
- * either of the two symlinks pointing there. Hand-writing that glob would pin a version and a
- * store layout; asking the resolver gives the same answer the adapter will get.
+ * `createRequire(import.meta.url).resolve("pdfjs-dist/package.json")`, evaluated from
+ * `packages/adapters-pdf/dist/index.js` inside the function. Node's resolver walks up from
+ * there looking for `node_modules/pdfjs-dist`, so what has to exist in the deployed function
+ * is `packages/adapters-pdf/node_modules/pdfjs-dist` and nothing else will do.
  *
- * Globs here are relative to this directory, not to the repository and not absolute. An
- * absolute path is silently treated as relative and produces
- * `/vercel/path0/apps/web/vercel/path0/node_modules/...`, which is how this was first written.
+ * An earlier version asked the resolver for the answer and traced that, which is the real
+ * path under `node_modules/.pnpm/pdfjs-dist@<version>/`. The font data arrived and the
+ * package was still unresolvable: `Cannot find module 'pdfjs-dist/package.json'`, because
+ * the resolver never looks inside the pnpm store. Correct location, wrong question.
+ *
+ * Scoped to three entries rather than the whole package. `package.json` is what the resolve
+ * call names, `standard_fonts` is the data whose absence drops glyphs silently, and
+ * `legacy/build` is the DOM-free build the adapter imports.
+ *
+ * Globs are relative to this directory. An absolute path is not rejected, it is appended,
+ * which produced `/vercel/path0/apps/web/vercel/path0/node_modules/...` on the first attempt.
  */
-const pdfjsGlobs = ((): string[] => {
-  try {
-    const dir = dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"));
-    const rel = (p: string) => relative(APP, p).split(sep).join("/");
-    return [`${rel(join(dir, "standard_fonts"))}/**`, `${rel(join(dir, "legacy/build"))}/**`];
-  } catch {
-    // A build without pdf.js installed is a build where /api/read cannot read a PDF anyway,
-    // and failing the whole config for it would be worse than tracing nothing.
-    return [];
-  }
-})();
+const PDFJS = "../../packages/adapters-pdf/node_modules/pdfjs-dist";
+
+const pdfjsGlobs = existsSync(join(APP, PDFJS, "package.json"))
+  ? [`${PDFJS}/package.json`, `${PDFJS}/standard_fonts/**`, `${PDFJS}/legacy/build/**`]
+  : // A build without pdf.js is a build where /api/read cannot read a PDF anyway. Tracing
+    // nothing beats failing the whole config, and the route already refuses by name.
+    [];
 
 /**
  * Next configuration, and the two things here that are load-bearing rather than taste.
