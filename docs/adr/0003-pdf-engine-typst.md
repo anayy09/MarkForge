@@ -91,11 +91,27 @@ capability, which is more than can be said for `adapters-pdf` in the same tier.
 survives and the construct's semantics are declared lost, which is adapter rule A6's shape
 applied to a renderer.
 
-**What is not claimed.** `md → pdf → md` scores 57.9% structural and 86.5% text on
-`clean-report.md`, and per SPEC §9.5 that is a joint measure of this renderer *and* the PDF
-extractor — it must never be quoted as a renderer-only number. PDF/A and PDF/UA are selectable
-per profile and are **not** measured; tagged-PDF quality is still the unverified claim this
-ADR's *Consequences* flagged.
+**What is not claimed.** `md → pdf → md` is a joint measure of this renderer *and* the PDF
+extractor (SPEC §9.5) and must never be quoted as a renderer-only number. PDF/A and PDF/UA are
+selectable per profile and are **not** measured; tagged-PDF quality is still the unverified
+claim this ADR's *Consequences* flagged.
+
+> **Measured 2026-08-02; this paragraph used to assert the number instead.** It read
+> *"57.9% structural and 86.5% text on `clean-report.md`"* with nothing computing either
+> figure — `packages/render-pdf/test/` was empty, no script produced them, and
+> `docs/FIDELITY.md` had no PDF row at all. `scripts/run-fidelity.mjs` now measures the loop
+> over 8 fixtures, so the numbers are regenerated rather than remembered.
+>
+> **Structural reproduces exactly: 57.9%.** The text figure does not — the loop scores
+> **95.6%** whitespace-sensitive and **99.3%** whitespace-insensitive, and 86.5% is neither.
+> Whatever it measured is not what the harness measures, and it sat in two documents as
+> though it were.
+>
+> The honest summary is that structure is where this loop loses, and the census says exactly
+> where: **tables go to zero and every inline mark goes to zero.** A PDF has no table model
+> and no tagged spans — bold is a different font, a table is ruled lines. Both are the
+> measured cost of ADR-0012's struck table-recovery clause (OPEN_QUESTIONS §7af) rather than a
+> defect in this renderer. The floor is `nested-restarting-lists.md` at 16.5%.
 
 ## Consequences
 

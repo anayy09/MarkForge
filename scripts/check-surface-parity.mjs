@@ -35,8 +35,16 @@ import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
-import { fileURLToPath } from "node:url";
-import { buildBrowserBundle, loadInSandbox, convertInSandbox } from "./lib/browser-bundle.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import vm from "node:vm";
+import {
+  buildBrowserBundle,
+  buildBrowserPdfBundle,
+  loadInSandbox,
+  loadAlsoInSandbox,
+  convertInSandbox,
+} from "./lib/browser-bundle.mjs";
+import { PDF_UNCOVERED as SHARED_PDF_UNCOVERED } from "./lib/pdf-coverage.mjs";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const CLI = join(REPO, "packages/cli/dist/index.js");
@@ -72,7 +80,25 @@ const INPUTS = [
     from: "docx",
   })),
 ];
-const OUTPUTS = ["md", "html", "docx"];
+const OUTPUTS = ["md", "html", "docx", "pdf"];
+
+/**
+ * Fixtures excluded from the **pdf** column, with the reason each is excluded.
+ *
+ * Not a convenience list, and §4c proves it: a fixture may only sit here if the shipped font
+ * set genuinely cannot render it, measured by rendering it and finding a face we do not ship.
+ * Park a covered fixture here and the control fails.
+ *
+ * `unicode-edge-cases.md` carries CJK, emoji, Arabic and Hebrew. `fonts/` ships Libertinus
+ * Serif and DejaVuSansMono, which cover none of them, so the Node compiler resolves those
+ * glyphs against **the host machine's fonts** — measured 2026-08-02, it embedded `SimSun`,
+ * `ArialMT` and `SegoeUIEmoji` on Windows. The browser compiler has no such fallback, so the
+ * two cannot agree, and on a Linux runner the Node side would not agree with itself either.
+ * That is a determinism limit rather than a parity one; `scripts/check-pdf-fonts.mjs` holds
+ * it and `docs/LIMITS.md` records it.
+ */
+const PDF_UNCOVERED = Object.entries(SHARED_PDF_UNCOVERED).map(([fixture, why]) => ({ fixture, why }));
+const pdfUncovered = new Set(Object.keys(SHARED_PDF_UNCOVERED));
 
 const work = mkdtempSync(join(tmpdir(), "markforge-parity-"));
 
@@ -152,7 +178,61 @@ await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const httpBase = `http://127.0.0.1:${server.address().port}`;
 
 const { code: bundle } = await buildBrowserBundle();
-const sandbox = loadInSandbox(bundle);
+// `wasm: true` is asked for here and nowhere else. See `webPlatformSandbox`: the same
+// function is the eager-package probe, where a short global list is the point.
+const sandbox = loadInSandbox(bundle, { wasm: true });
+
+// The deferred PDF chunk, evaluated into the same sandbox. Loading it separately is not a
+// harness convenience — it is the property under test: `@markforge/render-pdf` must be
+// reachable from this bundle and from no part of the main one.
+const { code: pdfBundle } = await buildBrowserPdfBundle();
+loadAlsoInSandbox(sandbox, pdfBundle);
+
+/**
+ * The browser PDF renderer, built from the bundled `/pdf` chunk.
+ *
+ * **What this does and does not prove.** The renderer, the font wiring and `renderPdf` are all
+ * the bundled browser code, so byte equality here is a real claim about what a page would
+ * produce. The Typst *compiler module* is handed in from the host realm, because a `vm`
+ * context cannot resolve a package — so the WASM is instantiated by the host. That is the same
+ * limitation `docs/LIMITS.md` already records for this sandbox generally, and it is why
+ * ADR-0015's Playwright leg would still be worth more than this one.
+ */
+const typstCompilerModule = await (async () => {
+  const { createRequire } = await import("node:module");
+  const req = createRequire(pathToFileURL(join(REPO, "package.json")).href);
+  const cjs = req.resolve("@myriaddreamin/typst.ts/compiler");
+  const esm = cjs.replace(/dist[\\/]cjs[\\/]compiler\.cjs$/, "dist/esm/compiler.mjs");
+  const compiler = await import(pathToFileURL(esm).href);
+  const init = await import(pathToFileURL(esm.replace(/compiler\.mjs$/, "options.init.mjs")).href);
+  return {
+    createTypstCompiler: compiler.createTypstCompiler,
+    CompileFormatEnum: compiler.CompileFormatEnum,
+    loadFonts: init.loadFonts,
+  };
+})();
+
+const shippedFonts = (await import(
+  pathToFileURL(join(REPO, "packages/typst-node/dist/index.js")).href
+)).SHIPPED_FONTS.map((file) => ({
+  family: file.replace(/\.(otf|ttf)$/, ""),
+  bytes: new Uint8Array(readFileSync(join(REPO, "fonts", file))),
+}));
+
+sandbox.__pdfArgs = {
+  wasm: new Uint8Array(
+    readFileSync(
+      join(REPO, "node_modules/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm"),
+    ),
+  ),
+  fonts: shippedFonts,
+  compilerModule: typstCompilerModule,
+};
+const browserPdf = await vm.runInContext(
+  "MarkForgePdf.loadPdfRenderer(__pdfArgs)",
+  sandbox,
+  { timeout: 120_000 },
+);
 
 let compared = 0;
 let controlChecks = 0;
@@ -161,13 +241,19 @@ try {
     const bytes = new Uint8Array(readFileSync(join(REPO, input.path)));
     const name = basename(input.path);
     for (const to of OUTPUTS) {
+      if (to === "pdf" && pdfUncovered.has(name)) continue; // see PDF_UNCOVERED; §4c proves it
       const tag = `${name.replace(/\W/g, "_")}-${to}`;
       let cli, http, mcpOut, browser;
       try {
         cli = viaCli(input.path, to, tag);
         http = await viaHttp(httpBase, bytes, input.from, to, name);
         mcpOut = await viaMcp(mcp, REPO, input.path, to, tag);
-        browser = await convertInSandbox(sandbox, bytes, { from: input.from, to, path: name });
+        browser = await convertInSandbox(sandbox, bytes, {
+          from: input.from,
+          to,
+          path: name,
+          ...(to === "pdf" ? { pdf: { render: browserPdf.render } } : {}),
+        });
       } catch (e) {
         fail(`${name} → ${to}: ${e.message}`);
         continue;
@@ -420,15 +506,74 @@ for (const [surface, pkg] of [["HTTP", "http"], ["MCP", "mcp"], ["browser", "bro
   }
 }
 
+// ------------------------------------------- 4. the PDF exemption must be earned
+//
+// A per-format exemption is a hole in a gate, so it needs the same treatment as
+// `check-gate-parity.mjs` gives `ONE_SIDED`: the entry must be *justified by measurement*,
+// not by assertion. A fixture may sit in PDF_UNCOVERED only if rendering it actually reaches
+// a font we do not ship — park a covered fixture there and this fails.
+!JSON_OUT && console.log("\n4. Every PDF exemption is justified by measurement");
+{
+  const shippedFamilies = new Set(
+    (await import(pathToFileURL(join(REPO, "packages/typst-node/dist/index.js")).href))
+      .SHIPPED_FONT_FAMILIES,
+  );
+  const facesIn = (pdfBytes) => {
+    const s = Buffer.from(pdfBytes).toString("latin1");
+    return [...new Set(s.match(/\/BaseFont\s*\/[A-Z]{6}\+[A-Za-z0-9\-]+/g) ?? [])].map((x) =>
+      x.replace(/^\/BaseFont\s*\/[A-Z]{6}\+/, ""),
+    );
+  };
+  const foreign = (pdfBytes) =>
+    facesIn(pdfBytes).filter((f) => ![...shippedFamilies].some((fam) => f.startsWith(fam)));
+
+  for (const entry of PDF_UNCOVERED) {
+    const input = INPUTS.find((i) => basename(i.path) === entry.fixture);
+    // Not every shared entry is in *this* matrix — it hand-picks 10 inputs while the list
+    // covers all of `fixtures/md/`. An absent one is skipped rather than failed, because the
+    // "is this exemption real, and is it dead?" question is answered by
+    // `scripts/check-pdf-fonts.mjs`, which sweeps every fixture and is the only consumer that
+    // can see the whole set. Failing here instead just punished the shared list for being
+    // shared.
+    if (!input) continue;
+    const out = viaCli(input.path, "pdf", `uncovered-${entry.fixture.replace(/\W/g, "_")}`);
+    const substituted = foreign(out);
+    if (substituted.length > 0) {
+      ok(`${entry.fixture} genuinely needs ${substituted.join(", ")}, which fonts/ does not ship`);
+    } else {
+      fail(
+        `${entry.fixture} is exempt from the pdf column but renders entirely in the shipped ` +
+          `set — the exemption buys nothing and should be deleted`,
+      );
+    }
+  }
+
+  // The positive half: a covered fixture must NOT look exempt, or the predicate above would
+  // accept anything.
+  const covered = viaCli("fixtures/md/clean-report.md", "pdf", "uncovered-control");
+  if (foreign(covered).length === 0) {
+    ok("a covered fixture reports no substituted font, so the predicate discriminates");
+  } else {
+    fail(`clean-report.md reports substituted fonts ${foreign(covered).join(", ")} — predicate is wrong`);
+  }
+}
+
 // ---------------------------------------------------------------- report
 rmSync(work, { recursive: true, force: true });
 
-const skipped = ["pdf", "pptx", "xlsx"];
+// This note said "pdf, pptx, xlsx are absent from the matrix" and was about *inputs* — which
+// stopped being obvious the moment `pdf` became an output column. Both halves are stated
+// separately now, because a reader uses this line to know what the gate does not cover.
+const skippedInputs = ["pdf", "pptx", "xlsx"];
 !JSON_OUT &&
   console.log(
-    `\n  note  ${skipped.join(", ")} are absent from the matrix: @markforge/browser refuses them ` +
-      `by name, so there is no four-way comparison to make (ADR-0015)`,
+    `\n  note  ${skippedInputs.join(", ")} are absent as *inputs*: @markforge/browser refuses ` +
+      `them by name, so there is no four-way comparison to make (ADR-0015). PDF is a full ` +
+      `output column.`,
   );
+for (const e of PDF_UNCOVERED) {
+  !JSON_OUT && console.log(`  note  ${e.fixture} has no pdf column: ${e.why}`);
+}
 
 if (JSON_OUT) {
   console.log(JSON.stringify({ ok: failures.length === 0, compared, failures, rows }, null, 2));

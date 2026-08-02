@@ -13,7 +13,7 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 
 ---
 
-## Status: six formats read, three written, on four surfaces that agree byte for byte
+## Status: six formats read, four written, on four surfaces that agree byte for byte
 
 `markforge convert`, `markforge fmt`, and `markforge check` are real, and every number in
 [docs/FIDELITY.md](docs/FIDELITY.md) is measured rather than claimed.
@@ -25,12 +25,24 @@ edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped 
 | HTML | yes | yes |
 | PPTX | yes | — |
 | XLSX | yes | — |
-| PDF | yes | — |
+| PDF | yes | yes |
 
-PPTX, XLSX, and PDF are read-only. For the first two, nobody asked MarkForge to *generate* a
-spreadsheet and building it on speculation would be machinery with no user. PDF output needs a
-layout engine — [ADR-0003](docs/adr/0003-pdf-engine-typst.md) chose Typst — and is not built
-yet. `--to xlsx` and `--to pdf` say so by name instead of failing somewhere internal.
+PPTX and XLSX are read-only: nobody asked MarkForge to *generate* a spreadsheet, and building
+it on speculation would be machinery with no user. `--to xlsx` says so by name instead of
+failing somewhere internal.
+
+**PDF output landed 2026-08-02**, via Typst ([ADR-0003](docs/adr/0003-pdf-engine-typst.md)), and
+is byte-identical across all four surfaces. Two things about it are worth knowing before you
+rely on it, because both are limits rather than bugs:
+
+- **The shipped font set is Latin plus mono** — Libertinus Serif and DejaVuSansMono, in
+  `fonts/`, about 1.6 MB. A document needing CJK, emoji, or Arabic is **not** covered, and
+  rather than silently substituting a font from your machine (which is what happened before
+  this set existed, and which made output depend on the host), `scripts/check-pdf-fonts.mjs`
+  reports it. See [docs/LIMITS.md](docs/LIMITS.md) §7.
+- **Style profiles do not reach the PDF renderer yet.** ADR-0003 promises a Typst template per
+  profile; none exists, so all three profiles render the same. Images are not embedded either.
+  Both are reported by a diagnostic rather than left silent.
 
 Reading a PDF is the one place an *adapter* infers rather than recording evidence, because a
 PDF states no structure at all: it has glyphs at coordinates. That inference is deterministic,
@@ -98,13 +110,16 @@ node packages/cli/dist/index.js mcp --root .
 The browser build (`@markforge/browser`) takes bytes and an explicit config object: no
 filesystem, no ambient config, no `node:` builtin anywhere in the bundle
 ([ADR-0015](docs/adr/0015-browser-build-boundaries.md)). It reads and writes Markdown, DOCX,
-and HTML; PDF, PPTX, and XLSX refuse by name there rather than failing somewhere internal.
+and HTML, and writes PDF when the page supplies a Typst WASM compiler via
+`@markforge/browser/pdf` — a separate entry point, so the artifact is not in the primary
+download. Reading PDF, PPTX, and XLSX refuses by name there rather than failing internally.
 
 **No surface but the CLI can reach a model.** `@markforge/http`, `@markforge/mcp`, and
 `@markforge/browser` do not depend on `@markforge/llm` at all, so `--no-llm` holds on them by
 construction rather than by discipline — and the parity gate asserts that too.
 
-Not yet built: PDF *output* (still needing Typst WASM), the visual regression suite, and
+Not yet built: per-profile Typst templates and image embedding in the PDF renderer, the
+visual regression suite, and
 Playwright running the browser build against the same fixtures — ADR-0015 promises that and it
 remains unbuilt; today the bundle is exercised in a `vm` context holding only web-platform
 globals, which is a weaker check and is labelled as one. `diff` and `init` exist in `--help`

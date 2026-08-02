@@ -229,6 +229,15 @@ const GATES = [
     },
   },
   {
+    script: "scripts/check-pdf-fonts.mjs",
+    asserts:
+      "Every font embedded in a rendered PDF is one fonts/ ships, so output cannot depend on the host machine's installed faces (SPEC §4.3), and every declared exception is proved to need a font we do not ship",
+    seenToFail: {
+      control: true,
+      what: "its first run found unicode-edge-cases, cjk-chinese and cjk-japanese embedding SimSun, ArialMT, YuGothic and SegoeUIEmoji from the developer's Windows machine — invisible to the determinism gate, which compares two processes on one host — and then rejected rtl-hebrew.md as an unearned exemption, because Libertinus does cover Hebrew",
+    },
+  },
+  {
     script: "scripts/check-hook.mjs",
     asserts:
       "The shipped pre-commit hook rejects unformatted staged Markdown, accepts it once formatted, ignores non-Markdown, and reads the index rather than the working tree",

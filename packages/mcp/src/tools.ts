@@ -20,7 +20,11 @@
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { convert, parse, formatMarkdownSync, formatFromPath, isOutputFormat, type Format } from "@markforge/core";
+import { convert, parse, formatMarkdownSync, formatFromPath, isOutputFormat, OUTPUT_FORMATS, type Format } from "@markforge/core";
+import { createNodePdfRenderer } from "@markforge/typst-node";
+
+/** See `@markforge/http`'s note: module-local, a build property rather than a caller's option. */
+const nodePdfRenderer = createNodePdfRenderer();
 import type { Diagnostic } from "@markforge/ir";
 import { compile, loadRegistry, authorityOf, type SourceDocument } from "@markforge/agentify";
 import { toolError, toolText, type ToolDefinition, type ToolResult } from "./protocol.js";
@@ -64,7 +68,7 @@ export const TOOLS: ToolDefinition[] = [
     name: "convert",
     title: "Convert a document",
     description:
-      "Convert a document between Markdown, DOCX, and HTML (also reads PPTX, XLSX, and PDF). " +
+      "Convert a document between Markdown, DOCX, HTML, and PDF (also reads PPTX and XLSX). " +
       "Deterministic and offline: no model is consulted. Returns the diagnostics too, so a " +
       "degradation is visible rather than silent.",
     inputSchema: {
@@ -73,7 +77,10 @@ export const TOOLS: ToolDefinition[] = [
         input: { type: "string", description: "Path to the input document, relative to the server root." },
         output: { type: "string", description: "Path to write, relative to the server root. Omit to return text inline." },
         from: { type: "string", enum: FORMATS, description: "Input format. Inferred from the input extension if omitted." },
-        to: { type: "string", enum: ["md", "docx", "html"], description: "Output format. Inferred from the output extension if omitted." },
+        // Derived, not restated. This was a literal `["md","docx","html"]` and would have gone
+        // on refusing `pdf` after core gained it — a three-of-four asymmetry no gate reports,
+        // because `check-surface-parity.mjs` enumerates its own output list too.
+        to: { type: "string", enum: OUTPUT_FORMATS, description: "Output format. Inferred from the output extension if omitted." },
       },
       required: ["input"],
       additionalProperties: false,
@@ -171,8 +178,14 @@ async function runConvert(args: Record<string, unknown>, ctx: ToolContext): Prom
   }
 
   const bytes = new Uint8Array(await readFile(inputPath));
-  // No `assist`: this surface has no model path at all. See the module comment.
-  const result = await convert(bytes, { from, to, path: input });
+  // No `assist`: this surface has no model path at all. See the module comment. `pdf` is a
+  // renderer rather than assistance — no network, no model.
+  const result = await convert(bytes, {
+    from,
+    to,
+    pdf: { render: nodePdfRenderer },
+    path: input,
+  });
 
   if (outputArg) {
     const outputPath = resolveInRoot(ctx.root, outputArg);
@@ -184,9 +197,12 @@ async function runConvert(args: Record<string, unknown>, ctx: ToolContext): Prom
     );
   }
 
-  if (to === "docx") {
+  // `pdf` joins `docx` here, and it had to: without it the Buffer below would
+  // `toString("utf8")` a PDF and hand the client mojibake that looks like a successful
+  // conversion.
+  if (to === "docx" || to === "pdf") {
     return toolError(
-      "docx output is binary and cannot be returned inline — pass `output` to write it to a file",
+      `${to} output is binary and cannot be returned inline — pass \`output\` to write it to a file`,
     );
   }
   return toolText(

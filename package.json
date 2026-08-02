@@ -30,7 +30,7 @@
     "check:mammoth": "node scripts/diff-mammoth.mjs --check",
     "codegen": "node scripts/codegen-types.mjs",
     "fidelity": "node scripts/run-fidelity.mjs",
-    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run check:corpus-docx && pnpm run check:agentify-corpus && pnpm run typecheck && pnpm run check:markdown && pnpm run check:mammoth && pnpm run test && pnpm run build && pnpm run check:scanned-corpus && pnpm run check:templates && pnpm run check:agentify && pnpm run check:browser && pnpm run check:retention && pnpm run check:parity && pnpm run check:degradation && pnpm run check:merge-predicate && pnpm run check:contamination && pnpm run check:tests && pnpm run check:adr && pnpm run check:status && pnpm run check:target-docs && pnpm run check:gate-parity && pnpm run check:gates && pnpm run check:node-types && pnpm run check:ir-structure && pnpm run check:flavors && pnpm run check:pdf && pnpm run check:hook && pnpm run check:producers && pnpm run check:templates-strict && pnpm run check:fidelity",
+    "verify": "pnpm run check:docs && pnpm run check:schemas && pnpm run check:fixtures && pnpm run check:corpus && pnpm run check:corpus-docx && pnpm run check:agentify-corpus && pnpm run typecheck && pnpm run check:markdown && pnpm run check:mammoth && pnpm run test && pnpm run build && pnpm run check:scanned-corpus && pnpm run check:templates && pnpm run check:agentify && pnpm run check:browser && pnpm run check:retention && pnpm run check:parity && pnpm run check:degradation && pnpm run check:merge-predicate && pnpm run check:contamination && pnpm run check:tests && pnpm run check:adr && pnpm run check:status && pnpm run check:target-docs && pnpm run check:gate-parity && pnpm run check:gates && pnpm run check:node-types && pnpm run check:ir-structure && pnpm run check:flavors && pnpm run check:pdf && pnpm run check:hook && pnpm run check:producers && pnpm run check:templates-strict && pnpm run check:pdf-fonts && pnpm run check:fidelity",
     "check:scanned-corpus": "node scripts/build-scanned-fixtures.mjs --check",
     "check:gate-parity": "node scripts/check-gate-parity.mjs",
     "check:gates": "node scripts/check-gates.mjs",
@@ -49,10 +49,13 @@
     "check:status": "node scripts/check-status-claims.mjs",
     "check:target-docs": "node scripts/check-target-docs.mjs",
     "check:contamination": "node scripts/check-fixture-contamination.mjs",
-    "check:tests": "node scripts/check-test-collection.mjs"
+    "check:tests": "node scripts/check-test-collection.mjs",
+    "check:pdf-fonts": "node scripts/check-pdf-fonts.mjs"
   },
   "devDependencies": {
     "@myriaddreamin/typst-ts-node-compiler": "0.7.0",
+    "@myriaddreamin/typst-ts-web-compiler": "0.7.0",
+    "@myriaddreamin/typst.ts": "0.7.0",
     "@types/node": "^22.10.2",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",

@@ -280,6 +280,15 @@ jobs:
       - name: PDF output is byte-identical across processes (ADR-0003)
         run: node scripts/check-pdf-determinism.mjs
 
+      # The determinism gate above compares two processes on ONE machine, so it is
+      # structurally blind to output that depends on which fonts are installed. It was:
+      # unicode-edge-cases.pdf embedded SimSun, ArialMT and SegoeUIEmoji from a Windows box,
+      # and CI — with none of those present — produced different bytes and passed. This is the
+      # check that sees it, and the reason it matters most in CI is that the runner's font set
+      # is not the developer's.
+      - name: Every embedded PDF font is one we ship (SPEC §4.3)
+        run: node scripts/check-pdf-fonts.mjs
+
       # SPEC §8 lists a pre-commit hook alongside the GitHub Action. Shipping the script
       # would not have been the feature: a hook nobody runs is discovered broken by the first
       # contributor who installs it. This drives it through five commits in a throwaway
@@ -448,13 +457,17 @@ jobs:
           set -e
           echo "$out" | grep -q "input format only" || (echo "::error::--to xlsx did not refuse by name" && exit 1)
           test "$code" -eq 1 || (echo "::error::--to xlsx exited $code, expected 1" && exit 1)
-          set +e
-          out=$(node packages/cli/dist/index.js convert fixtures/md/clean-report.md -o /tmp/x.pdf 2>&1)
-          code=$?
-          set -e
-          echo "$out" | grep -q "input format only" || (echo "::error::--to pdf did not refuse by name" && exit 1)
-          test "$code" -eq 1 || (echo "::error::--to pdf exited $code, expected 1" && exit 1)
           echo "Input-only formats refuse with exit 1 and a named reason."
+
+          # PDF was in the list above until 2026-08-02, asserting that `--to pdf` refuses.
+          # It no longer does, so the arm is inverted rather than deleted: deleting it would
+          # halve a control that still holds for xlsx, and would stop anyone noticing if PDF
+          # output regressed back into a refusal.
+          node packages/cli/dist/index.js convert fixtures/md/clean-report.md -o /tmp/x.pdf
+          test -s /tmp/x.pdf || (echo "::error::--to pdf produced no file" && exit 1)
+          head -c 5 /tmp/x.pdf | grep -q '%PDF-' \
+            || (echo "::error::--to pdf did not produce a PDF header" && exit 1)
+          echo "PDF output writes a real PDF."
 
       # Reproducibility, both halves: `--no-llm` and a cached-LLM run must both be
       # byte-reproducible. The LLM half runs with **no API key in the environment at all** and

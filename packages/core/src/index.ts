@@ -54,7 +54,7 @@ export interface Host {
 export type Format = "md" | "docx" | "html" | "pptx" | "xlsx" | "pdf";
 
 /** Formats that can be written, as opposed to only read. */
-export const OUTPUT_FORMATS = ["md", "docx", "html"] as const;
+export const OUTPUT_FORMATS = ["md", "docx", "html", "pdf"] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
 export const isOutputFormat = (f: Format): f is OutputFormat =>
@@ -136,6 +136,31 @@ export type PdfReader = (
   | { kind: "scan"; pages: PageImage[]; charsPerPage: number; pageCount: number; diagnostics: DiagnosticBag }
 >;
 
+/**
+ * Writes a PDF. **Injected, not imported** — the mirror of `PdfReader`, and for a sharper
+ * reason on this side.
+ *
+ * `@markforge/render-pdf` is browser-capable (its compiler is injected, ADR-0003), so the
+ * problem is not that it reaches `node:` builtins. The problem is weight and tiering: it sits
+ * in ADR-0015's deferred tier, and `scripts/check-browser-bundle.mjs` fails an eager package
+ * that reaches a non-eager one. A static import here would put it in the browser entry chunk;
+ * a dynamic one would too, for the reason `PdfReader` above records — **a bundler follows a
+ * dynamic import like any other**, including under `splitting: true`.
+ *
+ * So the renderer arrives with its compiler already bound. ADR-0003's
+ * `compile(source, fonts) → bytes` seam survives one level further out, in each surface's
+ * wiring, which strengthens rather than weakens that ADR: every surface names its compiler in
+ * exactly one place. `@markforge/typst-node` is that binding for the three Node surfaces; the
+ * browser supplies a WASM one.
+ *
+ * Deliberately takes no fonts, title, or theme. A knob here is a knob one surface can set and
+ * another can miss, which is the `onMissingStyle` defect recorded at the `docx` case below —
+ * four surfaces, two behaviours. The font set is fixed inside the binding instead.
+ */
+export type PdfRenderer = (
+  document: MarkForgeDocument,
+) => Promise<{ bytes: Uint8Array; diagnostics: DiagnosticBag }>;
+
 export interface ConvertOptions {
   from?: Format;
   to?: Format;
@@ -144,6 +169,8 @@ export interface ConvertOptions {
   markdown?: MarkdownRenderOptions;
   docx?: Omit<DocxRenderOptions, "referenceDoc"> & { referenceDoc?: Uint8Array };
   html?: HtmlRenderOptions;
+  /** The PDF writer. Absent means this build cannot write PDFs, and `render` says so by name. */
+  pdf?: { render: PdfRenderer };
   /** Collect the inference decision log for `--explain`. */
   explain?: boolean;
   /** Optional, opt-in, and off by default. See `Assist`. */
@@ -247,10 +274,11 @@ async function parsePdfOrScan(
 /**
  * Renders the IR into bytes. Throws for input-only formats, by name.
  *
- * Async even though every renderer built so far is synchronous, because the next one is
- * not: ADR-0003 chose Typst, and `typst.ts` needs asynchronous WASM initialisation. A
- * signature that changed the day PDF output landed would break every caller then instead
- * of costing one `await` now (OPEN_QUESTIONS §7j).
+ * Async because the PDF renderer is: ADR-0003 chose Typst, and both bindings initialise
+ * asynchronously — the WASM one loads a module, the Node one a native addon. This signature
+ * was made async in anticipation of exactly that, before there was a caller needing it
+ * (OPEN_QUESTIONS §7j), and PDF output landing on 2026-08-02 cost no caller a change. The
+ * anticipation is recorded because it paid off, which is rarer than the reverse.
  */
 export async function render(
   document: MarkForgeDocument,
@@ -287,14 +315,24 @@ export async function render(
       });
       return { bytes: new TextEncoder().encode(result.html), diagnostics: result.diagnostics };
     }
+    case "pdf": {
+      if (!options.pdf?.render) {
+        throw new Error(
+          `markforge: writing a PDF needs a PDF writer, and this build has none. The Node ` +
+            `surfaces inject @markforge/typst-node; a browser caller supplies a Typst WASM ` +
+            `compiler explicitly (ADR-0015 takes bytes and an explicit config object, never ` +
+            `an ambient one). Convert to md, docx, or html instead.`,
+        );
+      }
+      return await options.pdf.render(document);
+    }
     case "pptx":
     case "xlsx":
-    case "pdf":
       throw new Error(
-        `markforge: ${format} is an input format only. MarkForge reads presentations, ` +
-          `spreadsheets, and PDFs but does not generate them — PDF output needs a layout ` +
-          `engine (ADR-0003 chose Typst) and is not built yet, and nobody asked to ` +
-          `generate a spreadsheet. Convert to md, docx, or html instead.`,
+        `markforge: ${format} is an input format only. MarkForge reads presentations and ` +
+          `spreadsheets but does not generate them, because nobody asked to generate a ` +
+          `spreadsheet and building it on speculation would be machinery with no user. ` +
+          `Convert to md, docx, html, or pdf instead.`,
       );
   }
 }

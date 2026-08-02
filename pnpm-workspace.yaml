@@ -22,7 +22,8 @@ minimumReleaseAgeExclude:
 # to put beside it, which is the rule this comment records rather than an accident of
 # ordering.
 #
-# `render-pdf` is still deliberately not scaffolded: it needs
-# the Typst WASM bundle (ADR-0003), and an empty package is a promise made
-# without need. ADR-0015's lazy tier is therefore ratified for two of its three
-# members, which the browser-bundle gate reports on every run rather than glossing.
+# `render-pdf` was built 2026-08-01 and reached the shipped surfaces 2026-08-02, so this
+# comment's former claim that it "is still deliberately not scaffolded" is retired.
+# `typst-node` joined it as the Node binding; the browser reaches Typst through a
+# caller-supplied WASM compiler behind the `@markforge/browser/pdf` entry point, which is why
+# neither artifact appears in the eager bundle.

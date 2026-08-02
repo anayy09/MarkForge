@@ -176,9 +176,21 @@ Built 2026-08-01 (ADR-0003). What it does **not** do:
   not. Typst's accessibility support arrived in 0.14 and tagged-PDF quality has never been
   checked here — the measurement task ADR-0003's *Consequences* named in Phase 2 and that is
   still open.
-- **`md → pdf → md` scores 57.9% structural and 86.5% text** on `clean-report.md`. Per SPEC
-  §9.5 that is a **joint** measure of this renderer and the PDF *extractor*, and it must never
-  be quoted as a renderer-only number.
+- **`md → pdf → md` is measured as of 2026-08-02**, over 8 fixtures, in `docs/FIDELITY.md`.
+  Per SPEC §9.5 it is a **joint** measure of this renderer and the PDF *extractor* and must
+  never be quoted as a renderer-only number. `clean-report.md` scores **57.9% structural**,
+  95.6% text; the floor is `nested-restarting-lists.md` at **16.5% structural**, where 9 lists
+  and 16 list items flatten to paragraphs. **Table F1 is 0.0% on every fixture that has a
+  table**, and span F1 is 0.0% wherever inline marks exist: a PDF has no table model and no
+  tagged spans. This entry previously read "57.9% structural and 86.5% text" as prose with
+  nothing computing it — the structural figure survived re-measurement and the text figure did
+  not (see ADR-0003).
+- **Four Markdown fixtures have no `md → pdf → md` row at all.** `unicode-edge-cases`,
+  `cjk-chinese`, `cjk-japanese` and `rtl-arabic` need fonts `fonts/` does not ship, so Typst
+  resolves those glyphs against the *host machine* and the score would move with the runner.
+  They are excluded by `scripts/lib/pdf-coverage.mjs` and each exclusion is proved — not
+  asserted — by `scripts/check-pdf-fonts.mjs` §2, which rejects an entry whose fixture renders
+  closed. `rtl-hebrew` was rejected that way: Libertinus covers Hebrew.
 - **OMML equations reaching the PDF renderer are not converted.** Typst math is not OMML; the
   source is emitted as a raw block and the loss is reported.
 

@@ -1,8 +1,8 @@
 {
-  "name": "@markforge/http",
+  "name": "@markforge/typst-node",
   "version": "0.1.0",
   "private": true,
-  "description": "Stateless HTTP API over the conversion pipeline (SPEC §8)",
+  "description": "The Node Typst compiler and the shipped font set, bound behind ADR-0003's narrow seam",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -17,9 +17,9 @@
     "dist"
   ],
   "dependencies": {
-    "@markforge/core": "workspace:*",
     "@markforge/ir": "workspace:*",
-    "@markforge/typst-node": "workspace:*"
+    "@markforge/render-pdf": "workspace:*",
+    "@myriaddreamin/typst-ts-node-compiler": "0.7.0"
   },
   "markforge": {
     "browserTier": "nodeOnly"
