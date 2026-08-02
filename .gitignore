@@ -25,6 +25,15 @@ build/
 out/
 *.tsbuildinfo
 .turbo/
+.next/
+.vercel/
+# Produced by apps/web/scripts/prepare-assets.mjs: the two browser bundles (built by the
+# same functions scripts/check-surface-parity.mjs runs, so the page cannot be running a
+# different build from the one the parity gate measured), the Typst WASM, the shipped font
+# set, and the demo documents copied out of fixtures/. All generated at build time, because
+# a second committed copy is a second thing that can drift — and because check-docs.mjs
+# correctly fails an unignored .docx or .pdf anywhere in the tree.
+apps/web/public/markforge/
 
 # --- Dependencies --------------------------------------------------------------
 node_modules/

@@ -95,6 +95,13 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # `apps/web` is outside the `tsc -b` project graph in tsconfig.json, because Next needs
+      # `noEmit` and TypeScript rejects that alongside `composite`. It is held to the same
+      # strict base regardless, so it typechecks here. This runs after Build because the app
+      # imports `@markforge/*` through their `dist/` exports.
+      - name: Typecheck the web app
+        run: pnpm run typecheck:web
+
       # The messy DOCX corpus is committed rather than built on demand, so a test can
       # run without a build step. That trade only holds if the committed bytes still
       # match the generator — otherwise a fixture drifts and every assertion against

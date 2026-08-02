@@ -1,0 +1,41 @@
+{
+  "name": "@markforge/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The browser workbench: the engine, its diagnostics, and its measurements, on a page",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "prepare:assets": "node scripts/prepare-assets.mjs",
+    "dev": "pnpm run prepare:assets && next dev",
+    "build": "pnpm -w run build && pnpm run prepare:assets && next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@markforge/adapters-pdf": "workspace:*",
+    "@markforge/core": "workspace:*",
+    "@markforge/fidelity": "workspace:*",
+    "@markforge/infer": "workspace:*",
+    "@markforge/ir": "workspace:*",
+    "@myriaddreamin/typst.ts": "0.7.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "geist": "^1.4.2",
+    "motion": "^12.23.12",
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@markforge/browser": "workspace:*",
+    "@myriaddreamin/typst-ts-web-compiler": "0.7.0",
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "esbuild": "^0.28.1",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.7.2"
+  },
+  "dependenciesComment": "@markforge/browser is a devDependency on purpose: the engine reaches the page as a prebuilt IIFE from scripts/lib/browser-bundle.mjs (see scripts/prepare-assets.mjs), and this entry exists only so `import type` resolves. verbatimModuleSyntax erases those imports, so nothing here ever reaches the bundler. @markforge/typst-node is absent for the same kind of reason, inverted: it would drag in 11 platform NAPI binaries for a capability this app does in the browser."
+}

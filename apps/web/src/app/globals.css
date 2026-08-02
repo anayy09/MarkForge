@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+/*
+ * Theme is an attribute on <html>, set before paint by the script in layout.tsx. Tailwind's
+ * default `dark:` variant keys off `prefers-color-scheme`, which cannot express "the user
+ * chose light on a dark machine", so it is replaced rather than supplemented.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * One palette: warm neutrals (stone) and one accent (ember). Every colour on the site is
+ * below. A component that needs a colour not in this list is a component that needs a
+ * different design, not a new hex value.
+ *
+ * The three severity colours are the one apparent exception and are not one: a diagnostic's
+ * severity is real semantic state that the product exists to communicate, so encoding it in
+ * weight alone would be withholding information for the sake of palette tidiness. `info`
+ * carries no colour at all, `warning` reuses the accent, and only `error` adds a hue.
+ */
+:root {
+  --paper: #fafaf9;
+  --surface: #ffffff;
+  --sunken: #f5f5f4;
+  /*
+   * Three text weights, and all three pass WCAG AA against --paper. `faint` started at
+   * stone-400 and measured 2.44:1, which is a colour that looks like restraint and reads
+   * as unreadable. stone-500 gives 4.69:1 and still recedes.
+   *   ink 15.6:1   ink-muted 7.34:1   ink-faint 4.69:1
+   */
+  --ink: #1c1917;
+  --ink-muted: #57534e;
+  --ink-faint: #78716c;
+  --rule: #e7e5e4;
+  --rule-strong: #d6d3d1;
+  --ember: #c2410c;
+  --ember-ink: #ffffff;
+  --ember-wash: color-mix(in oklab, #c2410c 8%, transparent);
+  --danger: #b91c1c;
+  --danger-wash: color-mix(in oklab, #b91c1c 8%, transparent);
+  --shadow-tint: 28 25 23;
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --paper: #1c1917;
+  --surface: #292524;
+  --sunken: #171310;
+  /* Same three steps against the dark --paper: 15.6:1, 6.83:1, 4.64:1. */
+  --ink: #fafaf9;
+  --ink-muted: #a8a29e;
+  --ink-faint: #8b837d;
+  --rule: #44403c;
+  --rule-strong: #57534e;
+  --ember: #fb923c;
+  --ember-ink: #1c1917;
+  --ember-wash: color-mix(in oklab, #fb923c 14%, transparent);
+  --danger: #f87171;
+  --danger-wash: color-mix(in oklab, #f87171 14%, transparent);
+  --shadow-tint: 0 0 0;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-ember: var(--ember);
+  --color-ember-ink: var(--ember-ink);
+  --color-ember-wash: var(--ember-wash);
+  --color-danger: var(--danger);
+  --color-danger-wash: var(--danger-wash);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /*
+   * The shape rule, in two values. Panels and buttons take `panel`, chips and inputs take
+   * `chip`, and nothing on the site takes anything else. Written here so the rule is a
+   * token rather than a convention someone has to remember.
+   */
+  --radius-panel: 6px;
+  --radius-chip: 3px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Every number on this site is monospaced, and tabular so columns of them line up. */
+  code,
+  kbd,
+  pre,
+  samp,
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--ember-wash);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ember);
+    outline-offset: 2px;
+    border-radius: var(--radius-chip);
+  }
+
+  /*
+   * Reduced motion collapses everything to instant rather than to fast. A 0.01ms duration
+   * still fires transitionend, so components that wait on it do not hang.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * The node-type marquee. Translating half the track works because the list is rendered
+   * twice, so the reset lands on an identical frame. Paused on hover, and the component
+   * renders a plain wrapped list instead under prefers-reduced-motion.
+   */
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(calc(-50% - 0.625rem));
+    }
+  }
+
+  /* A hairline that reads as a rule rather than as a border on a box. */
+  .rule-t {
+    border-top: 1px solid var(--rule);
+  }
+  .rule-b {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  /*
+   * The page's one texture: a faint horizontal rhythm behind full-bleed sections, at the
+   * baseline grid. It is a print reference, not decoration for its own sake, and it sits
+   * under content at low enough contrast to be invisible until you look for it.
+   */
+  .press-rule {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      var(--rule) 0,
+      var(--rule) 1px,
+      transparent 1px,
+      transparent 32px
+    );
+    opacity: 0.5;
+  }
+}
