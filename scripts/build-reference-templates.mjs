@@ -313,7 +313,14 @@ function footnotesXml(notes) {
       (text, i) =>
         `<w:footnote w:id="${i + 2}"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr>` +
         `<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>` +
-        `${t(" " + text)}</w:p></w:footnote>`,
+        // `run()`, not a bare `t()`. A `w:t` outside a `w:r` is malformed WordprocessingML —
+        // ECMA-376 puts text inside a run — and every shipped template carried one per
+        // footnote. Word is lenient, so nothing looked wrong; our own reader is not, and once
+        // adapter rule A6 was applied to the phrasing walk the stray element surfaced as an
+        // `unknown` node carrying the footnote's words. That made `convert
+        // templates/clean-report.docx --strict` exit 2, on the template whose entire purpose
+        // is to be the clean one.
+        `${run(" " + text)}</w:p></w:footnote>`,
     )
     .join("");
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:footnotes ${NS}>${sep}${body}</w:footnotes>`;

@@ -47,6 +47,15 @@ const UPDATE = process.argv.includes("--update");
 const OUT = join(REPO, "docs/GATES.md");
 
 const failures = [];
+
+/** Whether this is a shallow clone, which changes what a failed citation means. */
+const shallow = (() => {
+  try {
+    return execFileSync("git", ["rev-parse", "--is-shallow-repository"], { cwd: REPO, encoding: "utf8" }).trim() === "true";
+  } catch {
+    return false;
+  }
+})();
 const ok = (m) => console.log(`  ok    ${m}`);
 const fail = (m) => {
   failures.push(m);
@@ -238,6 +247,15 @@ const GATES = [
     },
   },
   {
+    script: "scripts/check-template-strict.mjs",
+    asserts:
+      "All three shipped templates exit 2 under --strict for constructs Markdown cannot express, and a control document exits 0",
+    seenToFail: {
+      control: true,
+      what: "it failed on main as inline CI shell: clean-report.docx exited 2 where the step expected 0, because the adapter had begun recovering the caption and description list it always contained. Its control asserts a document that must exit 0, so a build where every conversion exited 2 would fail rather than pass",
+    },
+  },
+  {
     script: "scripts/check-gates.mjs",
     asserts: "Every gate that runs has a row here, every row runs, every row can fail, and docs/GATES.md matches the ledger",
     seenToFail: { control: true, what: "its first run reported itself as an undocumented gate" },
@@ -306,7 +324,13 @@ for (const g of GATES) {
     try {
       execFileSync("git", ["cat-file", "-e", `${g.seenToFail.commit}^{commit}`], { cwd: REPO, stdio: "ignore" });
     } catch {
-      fail(`${g.script} cites commit ${g.seenToFail.commit}, which does not resolve in this repository`);
+      // Named, because the usual cause is not a bad citation. A shallow clone —
+      // `actions/checkout` defaults to one commit — cannot resolve any historic sha, so
+      // every citation fails at once and reads as ten fabrications.
+      fail(
+        `${g.script} cites commit ${g.seenToFail.commit}, which does not resolve here` +
+          (shallow ? " — this is a SHALLOW clone, so no historic commit resolves; fetch the history" : ""),
+      );
       continue;
     }
   }

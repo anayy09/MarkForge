@@ -7,13 +7,14 @@ status: draft
 
 A batch that fails validation must be rejected whole[^1].
 
-> [!note]
+> [!NOTE]
+>
 > Sealed records are retained for the statutory period.
 
-| Field | Type | Required |
-| --- | --- | --- |
-| `reference` | string | yes |
-| `sealedAt` | timestamp | yes |
+| Field       | Type      | Required |
+| ----------- | --------- | -------- |
+| `reference` | string    | yes      |
+| `sealedAt`  | timestamp | yes      |
 
 The acknowledgement budget is $t_{ack} = d / r$ under sustained load.
 

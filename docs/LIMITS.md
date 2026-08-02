@@ -184,7 +184,19 @@ Built 2026-08-01 (ADR-0003). What it does **not** do:
 
 ## 8. Shipped artifacts with known losses
 
-**`templates/academic-manuscript.docx` contains five constructs this toolkit cannot round-trip.**
+**All three shipped templates exit 2 under `--strict`, and one of them for a reason that only
+became visible on 2026-08-02.** `clean-report.docx` and `technical-documentation.docx` each
+carry a caption and a description list, and Markdown can express neither (§2). They always
+did; the DOCX adapter began *recovering* them this phase, so the loss became reportable rather
+than silent. The templates are no less clean than they were — the instrument improved.
+
+A separate defect in the same place: the template generator wrote each footnote's text as a
+bare `<w:t>` outside any `<w:r>`, which is malformed WordprocessingML. Word is lenient and
+nothing looked wrong for five phases; our own reader is not, and once adapter rule A6 reached
+the phrasing walk the stray element surfaced as an `unknown` node holding the footnote's words.
+Fixed in `scripts/build-reference-templates.mjs`, and all three templates were regenerated.
+
+**`templates/academic-manuscript.docx` contains five further constructs this toolkit cannot round-trip.**
 Its five OMML display equations survive as `equationBlock` with their markup retained, and the
 Markdown renderer cannot express any of them, so converting the primary shipped template emits
 five lossy diagnostics and **exits 2 under `--strict`**. That is the correct code for
