@@ -14,7 +14,9 @@ Deterministic, offline by default, and identical across every interface.
 
 ## Installation
 
-MarkForge is not published to a registry. Build from source:
+No package is published to a registry — [`docs/decisions/PUBLISHING.md`](docs/decisions/PUBLISHING.md)
+records what that would take and what is still unbuilt. The GitHub Action below is the one
+surface you can consume without a clone; everywhere else, build from source:
 
 ```sh
 git clone https://github.com/anayy09/MarkForge.git
@@ -94,11 +96,18 @@ markforge mcp --root .
 
 ```yaml
 # GitHub Action
-- uses: anayy09/MarkForge@main
+- uses: anayy09/MarkForge@v0.1.0
   with:
     command: fmt
     paths: "docs/**/*.md"
 ```
+
+`command` is `fmt` or `check`; `convert` and `agentify` are deliberately not offered, since an
+action that rewrote documents on every push is a different kind of thing from one that gates
+them. The exit code is exposed as the `exit-code` output, so a workflow can branch on which
+failure occurred rather than only on failure. The Action builds the CLI from source on first
+use, because nothing is published to install — about ten seconds on a cold runner — and it pins
+Node 22 for the remainder of the job.
 
 **Node API** — `@markforge/core` exposes `convert`, `parse`, `render`, and `formatMarkdownSync`.
 

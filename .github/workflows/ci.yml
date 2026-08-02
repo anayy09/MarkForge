@@ -694,6 +694,30 @@ jobs:
           test "$code" -eq 3 || (echo "::error::expected exit 3 for a file needing formatting, got $code" && exit 1)
           echo "The Action's failure path returns exit 3 as SPEC §8 specifies."
 
+  # The action's *build* path, which nothing had ever run.
+  #
+  # The dogfood step above runs `uses: ./` in a job that has already run `pnpm run build`, so
+  # `action.yml`'s `if [ -f packages/cli/dist/index.js ]` short-circuits: the log for 920e320
+  # reads "markforge is already built; reusing it." Every step the action owns on a consumer's
+  # runner — `corepack enable`, `pnpm install --frozen-lockfile`, `tsc -b` — had therefore never
+  # executed in CI at all, on the only code path an external repository can take. The dogfood
+  # step proves the inputs and the exit-code mapping; it cannot prove the half a consumer runs.
+  #
+  # Checkout, then the action, and deliberately nothing in between: no `pnpm/action-setup`, no
+  # install, no build. A step added here to make the job "more realistic" would restore exactly
+  # the short-circuit this exists to escape.
+  action-cold:
+    name: The Action builds from source on a clean runner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the action with no prior install and no prior build
+        uses: ./
+        with:
+          command: fmt
+          paths: fixtures/md/clean-report.md
+
   # SPEC §9: "A separate, non-blocking live job detects model drift." Non-blocking is the
   # whole design — it calls a real gateway, so it can fail for reasons that have nothing to do
   # with this repository, and a required check that goes red when someone else's server is busy
