@@ -314,12 +314,21 @@ which is which — and so that a row moving *off* this list is visible.
   exactly: **tables go to zero** (`table`, `tableRow`, `tableCell` all 0, so table F1 reads
   0.0% wherever a table existed) and **every inline mark goes to zero** (`strong`,
   `emphasis`, `delete`, `inlineCode`, `link`), because bold text in a PDF is a different
-  font, not a tagged span. `nested-restarting-lists` is the floor at 16.5% — 9 lists and 16
-  list items become flat paragraphs. Two of ADR-0012's four clauses, table recovery and
-  figure/caption binding, are *struck* rather than unbuilt (OPEN_QUESTIONS §7af), so these
+  font, not a tagged span. Two of ADR-0012's four clauses — table recovery and
+  figure/caption binding — are *struck* rather than unbuilt (OPEN_QUESTIONS §7af), so these
   are the measured cost of that ruling rather than a regression against it. `scanned-source`
   scores highest at 89.7% for the reason that makes the point: it is plain prose, so there
   is almost no structure to lose.
+- **`nested-restarting-lists` through PDF, at 16.5% structural — the lowest score in this
+  table.** It gets its own entry because it is not the same loss as the row above. Tables
+  and inline marks have no PDF representation at all, so losing them is inherent; a nested
+  list *is* representable and is still lost. The census reads `list` 9 → 0 and `listItem`
+  16 → 0: every one of them comes back as a bare paragraph whose text begins with a bullet
+  or a numeral. Typst renders the markers as glyphs, and on the way back
+  `@markforge/adapters-pdf` sees indented lines of text and no list at all — nesting depth,
+  ordered-versus-unordered, and `restartsAt` are all reconstructible from geometry in
+  principle and reconstructed from none of it today. This is the loop's worst case rather
+  than its typical one, and it is the row to watch if list recovery is ever built.
 
 A low score for a reason *not* listed here is a defect. Fix it, or add it here with its
 reason — those are the only two honest options.

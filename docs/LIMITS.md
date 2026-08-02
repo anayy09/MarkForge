@@ -163,12 +163,27 @@ expected.
 
 ## 7. The PDF renderer
 
-Built 2026-08-01 (ADR-0003). What it does **not** do:
+Built 2026-08-01 (ADR-0003), reachable from all four surfaces 2026-08-02. What it does **not**
+do:
 
-- **No profile fonts are shipped**, so `renderPdf` called without a `fonts` array uses the
-  compiler's bundled faces. Output stays deterministic; it is not the profile's typography, and
-  SPEC §4.3's "embedded fonts, no substitution" is met only when a caller supplies them. The
-  renderer says so with an `info` diagnostic rather than letting silence imply otherwise.
+- ~~**No profile fonts are shipped**~~ — **fixed 2026-08-02, and the reason it had to be is
+  worse than the gap it closed.** `fonts/` now ships Libertinus Serif and DejaVuSansMono
+  (1.6 MB, OFL) and every Node surface supplies them. The old behaviour was not merely "the
+  compiler's bundled faces": with no explicit set, Typst resolved missing glyphs against **the
+  host machine's installed fonts**, so `unicode-edge-cases.pdf` embedded `SimSun`, `ArialMT`
+  and `SegoeUIEmoji` from a Windows box. That is SPEC §4.3's forbidden substitution, and it
+  made output machine-dependent while `check-pdf-determinism.mjs` — which compares two
+  processes on *one* machine — reported determinism. Held now by
+  `scripts/check-pdf-fonts.mjs`.
+- **The shipped set is Latin plus mono, and that is the real coverage limit.** CJK, emoji and
+  Arabic are not covered, so four Markdown fixtures are excluded from the PDF loop and the
+  parity column rather than silently substituting. Rendering such a document still *works* on
+  a machine that happens to have the fonts — and will differ on one that does not, which is
+  exactly why it is not measured.
+- **Style profiles do not reach this renderer at all.** ADR-0003's *Consequences* promise a
+  Typst template per shipped profile; there are **no `.typ` files in the repository**, and
+  `typst.ts:348` builds one hard-coded preamble. All three profiles render identically, so
+  `markforge.config.ts`'s `pdf.theme` is accepted and ignored. `pdf.standard` likewise.
 - **Images are not embedded.** `image` nodes are resource-referenced and this renderer has no
   resource resolver, so the alt text is emitted and the loss is reported.
 - **PDF/A and PDF/UA are unmeasured.** The compiler accepts a `pdfStandard` argument and

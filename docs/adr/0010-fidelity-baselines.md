@@ -14,7 +14,7 @@ lose.
 
 ## Decision
 
-**`fidelity/baselines.json`**, committed: one record per `(fixture, loop, metric)` with the
+**`fixtures/expected/baselines.json`**, committed: one record per `(fixture, loop, metric)` with the
 recorded score, the toolkit version that produced it, and the metric definition version.
 
 CI recomputes every score and fails (exit 4) on any drop beyond `fidelity.tolerance`

@@ -369,6 +369,10 @@ importers:
       '@markforge/ir':
         specifier: workspace:*
         version: link:../ir
+    devDependencies:
+      '@myriaddreamin/typst-ts-node-compiler':
+        specifier: 0.7.0
+        version: 0.7.0
 
   packages/typst-node:
     dependencies:

@@ -467,7 +467,23 @@ jobs:
           test -s /tmp/x.pdf || (echo "::error::--to pdf produced no file" && exit 1)
           head -c 5 /tmp/x.pdf | grep -q '%PDF-' \
             || (echo "::error::--to pdf did not produce a PDF header" && exit 1)
-          echo "PDF output writes a real PDF."
+
+          # DOCX and HTML input too, and not for symmetry's sake.
+          #
+          # The `#figure(` defect — markup handed to a code-context argument, which made Typst
+          # abort with a bare `Error` and the CLI print `markforge: ` and nothing — was
+          # reachable only from HTML, because no Markdown fixture has a figure. A Markdown-only
+          # smoke would have stayed green through all of it. Each input format reaches
+          # constructs the others do not, so each gets a line.
+          for pair in "fixtures/html/semantic-structure.html:/tmp/h.pdf" \
+                      "fixtures/docx/messy-combined.docx:/tmp/d.pdf"; do
+            src="${pair%%:*}"; dst="${pair##*:}"
+            node packages/cli/dist/index.js convert "$src" -o "$dst" --quiet
+            test -s "$dst" || (echo "::error::$src -> pdf produced no file" && exit 1)
+            head -c 5 "$dst" | grep -q '%PDF-' \
+              || (echo "::error::$src -> pdf did not produce a PDF header" && exit 1)
+          done
+          echo "PDF output writes a real PDF from Markdown, HTML, and DOCX."
 
       # Reproducibility, both halves: `--no-llm` and a cached-LLM run must both be
       # byte-reproducible. The LLM half runs with **no API key in the environment at all** and
