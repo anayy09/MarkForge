@@ -387,17 +387,39 @@ if (!/Apache License\s*\n\s*Version 2\.0, January 2004/.test(license)) fail("LIC
 if (!license.includes("END OF TERMS AND CONDITIONS")) fail("LICENSE text is truncated");
 ok(`LICENSE is the full canonical Apache-2.0 text (${license.length} bytes)`);
 
-// The README must be honest about what actually runs: it states what is built and says
-// plainly which subcommands are not, so `--help` and the README cannot disagree.
-if (!/^## Status\b/m.test(readme)) fail("README.md has no '## Status' section summarising what runs");
-if (!/refuse rather than pretend|not yet built|Not yet built/i.test(readme)) {
-  fail("README.md does not disclose which subcommands are unimplemented");
+/*
+ * The README must not oversell. It used to discharge that by carrying a `## Status` section
+ * and the literal phrase "not yet built", which this check required.
+ *
+ * That requirement is retired, and the reason is drift rather than tone. A status summary in
+ * the README is a *second copy* of something `docs/LIMITS.md` and `docs/STATUS.md` already
+ * maintain, and the copy went stale twice in a single day: the README asserted "PDF output
+ * … is not built yet" and marked PDF write as unavailable while both were false, and no check
+ * noticed, because the phrase the gate searched for was present either way. A gate that
+ * greps for a *phrase* verifies vocabulary, not accuracy.
+ *
+ * So the obligation moves to where it is maintained: the README must **link** the limitations
+ * document, and that document must be substantive. `docs/LIMITS.md` is itself gated — every
+ * struck capability there carries a numbered ruling, and `check-status-claims.mjs` holds
+ * STATUS.md's rows to committed measurements.
+ */
+if (!readme.includes("docs/LIMITS.md")) {
+  fail("README.md does not link docs/LIMITS.md, so a reader has no route to the known limits");
+}
+if (!readme.includes("docs/STATUS.md")) {
+  fail("README.md does not link docs/STATUS.md, so a reader has no route to the delivery record");
+}
+{
+  // A link to an empty file would satisfy the two checks above and disclose nothing.
+  const limits = read("docs/LIMITS.md");
+  const rows = (limits.match(/^[-|] /gm) ?? []).length;
+  if (rows < 30) fail(`docs/LIMITS.md has only ${rows} entries — too thin to be the disclosure`);
 }
 for (const d of ["docs/SPEC.md", "docs/PRIOR_ART.md", "docs/CORPUS.md", "docs/TEMPLATES.md", "docs/OPEN_QUESTIONS.md", "docs/FIDELITY.md", "docs/adr/"]) {
   if (!readme.includes(d)) fail(`README.md does not link ${d}`);
 }
 if (!/fixtures\/` is not covered|fixtures\/ is not covered/.test(readme)) fail("README.md does not scope the licence away from fixtures/");
-ok("README.md links every deliverable, states what runs and what is unbuilt, and scopes the licence");
+ok("README.md links every deliverable, routes to the limits and delivery records, and scopes the licence");
 
 // FIDELITY.md is generated from measurements. A repo that ships fidelity claims
 // without the generator having run is claiming something it has not measured.

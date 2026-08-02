@@ -1,186 +1,215 @@
 # MarkForge
 
-A Markdown toolkit with two surfaces on one engine.
+A Markdown toolkit for document conversion and agent context generation, built on a single
+document model.
 
-**Surface A — Agent Context Compiler.** Point it at a pile of heterogeneous documents; get a
-compiled, deduplicated, token-budgeted `AGENTS.md` / `CLAUDE.md` / skill set where **every
-sentence traces back to a source document**. Conflicts between sources are reported, never
-silently resolved.
+- **Convert** between Markdown, DOCX, HTML, and PDF with named styles, preserved list
+  numbering, and reported losses — output that needs no manual cleanup.
+- **Compile agent context** from a folder of mixed documents into `AGENTS.md`, `CLAUDE.md`,
+  and related files, where every generated sentence traces back to a source.
 
-**Surface B — Fidelity-preserving conversion.** Markdown ↔ DOCX / PDF / HTML that needs zero
-manual cleanup. Named styles instead of direct formatting, so changing a heading font is one
-edit rather than four hundred. Numbered lists stay numbered. Nothing is dropped silently.
+Deterministic, offline by default, and identical across every interface.
 
 ---
 
-## Status: six formats read, four written, on four surfaces that agree byte for byte
+## Installation
 
-`markforge convert`, `markforge fmt`, and `markforge check` are real, and every number in
-[docs/FIDELITY.md](docs/FIDELITY.md) is measured rather than claimed.
+MarkForge is not published to a registry. Build from source:
+
+```sh
+git clone https://github.com/anayy09/MarkForge.git
+cd MarkForge
+pnpm install && pnpm build
+```
+
+Requires Node 22 or later and pnpm 11.
+
+```sh
+alias markforge="node $PWD/packages/cli/dist/index.js"
+```
+
+## Quick start
+
+```sh
+# Convert
+markforge convert report.docx -o report.md
+markforge convert report.md   -o report.pdf
+markforge convert deck.pptx   -o deck.md
+
+# Format Markdown in place, or check it in CI
+markforge fmt docs/**/*.md
+markforge fmt docs/**/*.md --check
+
+# Validate a document and report what a conversion would lose
+markforge check report.docx --strict
+
+# Compile agent context files from a document folder
+markforge agentify ./specs --targets claude-md,agents-md
+```
+
+## Formats
 
 | Format | Read | Write |
 | --- | :-: | :-: |
-| Markdown | yes | yes |
-| DOCX | yes | yes |
-| HTML | yes | yes |
-| PPTX | yes | — |
-| XLSX | yes | — |
-| PDF | yes | yes |
+| Markdown | ● | ● |
+| DOCX | ● | ● |
+| HTML | ● | ● |
+| PDF | ● | ● |
+| PPTX | ● | — |
+| XLSX | ● | — |
 
-PPTX and XLSX are read-only: nobody asked MarkForge to *generate* a spreadsheet, and building
-it on speculation would be machinery with no user. `--to xlsx` says so by name instead of
-failing somewhere internal.
+Markdown output supports seven flavour presets — CommonMark, GFM, MDX, Docusaurus, MkDocs
+Material, Obsidian, and Pandoc — selected with `--md-flavor`.
 
-**PDF output landed 2026-08-02**, via Typst ([ADR-0003](docs/adr/0003-pdf-engine-typst.md)), and
-is byte-identical across all four surfaces. Two things about it are worth knowing before you
-rely on it, because both are limits rather than bugs:
+DOCX output is written entirely in named styles against a reference document, so changing a
+heading font is one edit rather than one per heading. Three reference templates ship in
+[`templates/`](templates/); supply your own with `--reference-doc`.
 
-- **The shipped font set is Latin plus mono** — Libertinus Serif and DejaVuSansMono, in
-  `fonts/`, about 1.6 MB. A document needing CJK, emoji, or Arabic is **not** covered, and
-  rather than silently substituting a font from your machine (which is what happened before
-  this set existed, and which made output depend on the host), `scripts/check-pdf-fonts.mjs`
-  reports it. See [docs/LIMITS.md](docs/LIMITS.md) §7.
-- **Style profiles do not reach the PDF renderer yet.** ADR-0003 promises a Typst template per
-  profile; none exists, so all three profiles render the same. Images are not embedded either.
-  Both are reported by a diagnostic rather than left silent.
+## Conversion fidelity
 
-Reading a PDF is the one place an *adapter* infers rather than recording evidence, because a
-PDF states no structure at all: it has glyphs at coordinates. That inference is deterministic,
-every threshold is derived from the document's own measurements rather than hardcoded, and the
-provenance records `confidence: 0.8` so a consumer can tell a reconstructed heading from a
-declared one.
+Round-trip fidelity is measured across a 32-fixture corpus and published in
+[docs/FIDELITY.md](docs/FIDELITY.md), alongside a comparison against Pandoc on the same corpus
+in [docs/SCOREBOARD.md](docs/SCOREBOARD.md). Both are generated from the measurements, and CI
+fails on regression.
 
-```sh
-pnpm install && pnpm build
+Anything a target format cannot express produces a diagnostic naming the construct. `--strict`
+turns any loss into a non-zero exit, so a lossy conversion can fail a pipeline rather than pass
+quietly.
 
-node packages/cli/dist/index.js convert report.md   -o report.docx
-node packages/cli/dist/index.js convert deck.pptx   -o deck.md
-node packages/cli/dist/index.js convert data.xlsx   -o data.html
-node packages/cli/dist/index.js convert paper.pdf   -o paper.md
-node packages/cli/dist/index.js fmt docs/**/*.md --check
-```
+## Interfaces
 
-### The LLM layer is off unless you ask for it
-
-`--no-llm` is the default and the whole deterministic pipeline works offline with no key
-([ADR-0009](docs/adr/0009-llm-openai-compatible-only.md)). When enabled, a model may
-do exactly two things: break a tie between heading levels the deterministic scorer already
-declared too close to call — choosing from *its* candidate set, never inventing one — and
-transcribe a scanned page that has no text layer, because there the deterministic alternative is
-nothing at all.
+The same engine is reachable through a CLI, a Node API, an HTTP server, an MCP server, a
+browser build, and a GitHub Action. The CLI, HTTP, MCP, and browser paths are verified to
+produce byte-identical output for the same input across the corpus.
 
 ```sh
-export MODEL_API_KEY=...                       # the name is config; the value never is
+# HTTP — stateless, no document retention, loopback by default
+markforge serve --port 3000
+curl -X POST --data-binary @report.md \
+  'http://127.0.0.1:3000/convert?from=md&to=docx' -o report.docx
 
-node packages/cli/dist/index.js check --llm     # probe the endpoint, record what it supports
-node packages/cli/dist/index.js convert scan.pdf -o scan.md --llm
-node packages/cli/dist/index.js convert scan.pdf -o scan.md --ocr --tessdata ./tessdata
-
-# From the committed response cache: no key, no network, byte-reproducible.
-node packages/cli/dist/index.js convert scan.pdf -o scan.md --llm --llm-cache-mode readOnly
+# MCP over stdio — convert, fmt, and agentify as tools
+markforge mcp --root .
 ```
 
-Every LLM-influenced node carries `producedBy: {kind: "model", model, promptVersion}` in its
-provenance, so "did a model touch this document?" is a question the document answers itself. A
-failed call is never a failed conversion: the deterministic result stands and a diagnostic says
-what did not happen.
+```yaml
+# GitHub Action
+- uses: anayy09/MarkForge@main
+  with:
+    command: fmt
+    paths: "docs/**/*.md"
+```
 
-## Four surfaces, and they produce the same bytes
+**Node API** — `@markforge/core` exposes `convert`, `parse`, `render`, and `formatMarkdownSync`.
 
-The CLI is one of four ways in. The other three exist so that privacy, automation, and agent
-use do not each get their own slightly different converter — and *that* is checked rather than
-intended: `scripts/check-surface-parity.mjs` runs every corpus fixture through all four and
-compares the output **byte for byte**, with `MODEL_API_KEY` unset. Thirty conversions, four
-surfaces each, identical.
+**Browser** — `@markforge/browser` takes bytes and an explicit config object, with no filesystem
+access and no Node builtins in the bundle. It reads and writes Markdown, DOCX, and HTML, and
+writes PDF when the page supplies a Typst WASM compiler via the `@markforge/browser/pdf` entry
+point.
+
+A pre-commit hook for `fmt` and `check` is available via `pnpm install-hooks`.
+
+## Optional model assistance
+
+MarkForge is deterministic and offline by default. `--no-llm` is the default mode and the full
+conversion pipeline runs without any network access.
+
+When explicitly enabled, a model may do exactly two things: break a tie between heading levels
+the deterministic scorer has already declared too close to call, choosing from that candidate
+set, and transcribe a scanned page that has no text layer.
 
 ```sh
-# HTTP — stateless, no document retention, loopback unless you say otherwise.
-node packages/cli/dist/index.js serve --port 3000
-curl -X POST --data-binary @report.md 'http://127.0.0.1:3000/convert?from=md&to=docx' -o report.docx
-curl http://127.0.0.1:3000/health
+export MODEL_API_KEY=...
 
-# MCP over stdio — convert, fmt, and agentify, for an agent that spawned you.
-node packages/cli/dist/index.js mcp --root .
+markforge check --llm                                   # probe endpoint capabilities
+markforge convert scan.pdf -o scan.md --llm             # vision transcription
+markforge convert scan.pdf -o scan.md --ocr --tessdata ./tessdata   # local OCR
 
-# GitHub Action — this repository's own CI runs it, which is how we know it works.
-#   - uses: anayy09/MarkForge@main
-#     with: { command: fmt, paths: "docs/**/*.md" }
+# Replay from the committed cache: no key, no network, reproducible
+markforge convert scan.pdf -o scan.md --llm --llm-cache-mode readOnly
 ```
 
-The browser build (`@markforge/browser`) takes bytes and an explicit config object: no
-filesystem, no ambient config, no `node:` builtin anywhere in the bundle
-([ADR-0015](docs/adr/0015-browser-build-boundaries.md)). It reads and writes Markdown, DOCX,
-and HTML, and writes PDF when the page supplies a Typst WASM compiler via
-`@markforge/browser/pdf` — a separate entry point, so the artifact is not in the primary
-download. Reading PDF, PPTX, and XLSX refuses by name there rather than failing internally.
+Every model-influenced node records `producedBy: { kind: "model", model, promptVersion }` in
+its provenance. Responses are content-addressed and cacheable, so a cached run is byte-
+reproducible and costs nothing. The HTTP, MCP, and browser interfaces have no model path at
+all.
 
-**No surface but the CLI can reach a model.** `@markforge/http`, `@markforge/mcp`, and
-`@markforge/browser` do not depend on `@markforge/llm` at all, so `--no-llm` holds on them by
-construction rather than by discipline — and the parity gate asserts that too.
+## Agent context compilation
 
-Not yet built: per-profile Typst templates and image embedding in the PDF renderer, the
-visual regression suite, and
-Playwright running the browser build against the same fixtures — ADR-0015 promises that and it
-remains unbuilt; today the bundle is exercised in a `vm` context holding only web-platform
-globals, which is a weaker check and is labelled as one. `diff` and `init` exist in `--help`
-and **refuse rather than pretend** — a command that silently does nothing is worse than one
-that says it does not exist yet. `check` is partial and says so: it validates documents,
-reports a reference document's style coverage, and probes the LLM endpoint, while corpus
-fidelity baselines stay in `scripts/run-fidelity.mjs`.
+`markforge agentify` ingests a folder of documents, classifies them by role, extracts atomic
+context units with provenance, deduplicates them, reports contradictions between sources
+rather than silently resolving them, fits the result to a token budget, and emits agent
+context files.
 
-Nothing is published to npm. Every package is `"private": true`
-([OPEN_QUESTIONS §5](docs/OPEN_QUESTIONS.md)), which is why the Action builds the CLI from
-source rather than installing it.
+Every sentence in the output must trace to a source unit. Unsupported content is dropped and
+logged, and the gate has no bypass flag. Twelve target profiles ship in [`targets/`](targets/),
+covering Claude Code, Codex, Gemini CLI, Copilot, Cursor, Windsurf, Cline, Aider, and a generic
+fallback. Profiles are data, not code — see [docs/TARGETS.md](docs/TARGETS.md).
 
-## What to read, in order
+Output is diff-stable: unchanged sources are detected by content hash, and editing one source
+document produces a minimal change in the generated files.
 
-| Document | What it is |
+## Configuration
+
+A single `markforge.config.ts` controls Markdown flavour, DOCX reference document and style
+mapping, PDF options, whitespace rules, and lint rules. Generate a starting point with
+`markforge init`. The schema is at
+[`schema/markforge.config.v0.schema.json`](schema/markforge.config.v0.schema.json).
+
+## Documentation
+
+| Document | Contents |
 | --- | --- |
-| [docs/SPEC.md](docs/SPEC.md) | The specification. IR, adapter/renderer contracts, config, CLI, fidelity metrics, agentify pipeline |
-| [docs/PRIOR_ART.md](docs/PRIOR_ART.md) | 21 existing projects, each with a steal / benchmark / avoid verdict and verified maintenance status |
-| [docs/adr/](docs/adr/) | 15 architecture decision records — every decision, with the alternatives rejected and why |
-| [docs/CORPUS.md](docs/CORPUS.md) | The golden-corpus plan: 14 fixture categories, each naming the failure mode it catches |
-| [docs/TEMPLATES.md](docs/TEMPLATES.md) | Reference documents: what ships, and how to use a publisher template we cannot ship |
-| [docs/OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md) | Everything unresolved, and every decision made without asking |
-| [docs/FIDELITY.md](docs/FIDELITY.md) | Measured conversion fidelity. Generated; every fixture appears |
-| [docs/SCOREBOARD.md](docs/SCOREBOARD.md) | MarkForge against Pandoc on the same corpus, with the bias disclosed |
-| [docs/STATUS.md](docs/STATUS.md) | Delivered against promised. Names what is missing |
+| [docs/SPEC.md](docs/SPEC.md) | Specification: document model, adapter and renderer contracts, configuration, CLI surface, fidelity metrics |
+| [docs/FIDELITY.md](docs/FIDELITY.md) | Measured conversion fidelity across the corpus |
+| [docs/SCOREBOARD.md](docs/SCOREBOARD.md) | Comparison against Pandoc on the same corpus |
+| [docs/LIMITS.md](docs/LIMITS.md) | Known limitations, format constraints, and uncalibrated figures |
+| [docs/TARGETS.md](docs/TARGETS.md) | Agent target profiles |
+| [docs/TEMPLATES.md](docs/TEMPLATES.md) | Reference documents and how to use your own |
+| [docs/CORPUS.md](docs/CORPUS.md) | The test corpus and the failure mode each fixture covers |
+| [docs/PRIOR_ART.md](docs/PRIOR_ART.md) | Survey of existing tools, with a verdict per project |
+| [docs/adr/](docs/adr/) | Architecture decision records |
+| [docs/OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md) | Unresolved questions and recorded decisions |
+| [docs/STATUS.md](docs/STATUS.md) | Delivery record against specification |
 
-Machine-readable contracts live beside the docs, not inside them:
+Machine-readable contracts live beside the code: the document model at
+`packages/ir/schema/ir.v0.schema.json`, target profiles at
+`packages/agentify/schema/target.v0.schema.json`, and configuration at
+`schema/markforge.config.v0.schema.json`. TypeScript types are generated from these rather
+than hand-written.
 
-- `packages/ir/schema/ir.v0.schema.json` — the intermediate representation (53 node types)
-- `packages/agentify/schema/target.v0.schema.json` — agent-file target profiles
-- `schema/markforge.config.v0.schema.json` — configuration
+## Design principles
 
-TypeScript types will be **generated** from these, never hand-written, so the schema and the
-types cannot drift. Four worked examples are in [docs/examples/](docs/examples/).
+- **Deterministic core.** Identical input produces identical bytes. No wall clock, no RNG, no
+  absolute paths in output; `SOURCE_DATE_EPOCH` is honoured.
+- **One document model, many adapters.** Every input becomes the IR; every output comes from
+  it. There are no format-to-format code paths.
+- **Nothing is lost silently.** Any construct that cannot be represented emits a diagnostic
+  with its source location.
+- **Provenance everywhere.** Every node records its source file, location, and what produced
+  it — an adapter, a rule, OCR, or a model.
+- **Offline by default.** Network access is opt-in and explicit, never a fallback.
 
-## Design commitments
+## Limitations
 
-These are the load-bearing ones. Each is enforced mechanically somewhere, because a principle
-that is only written down is a preference.
+Known limitations are documented in [docs/LIMITS.md](docs/LIMITS.md), including format
+constraints, uncalibrated figures, and capabilities that were specified and deliberately not
+built. Two worth noting up front:
 
-- **Deterministic core.** Same input, same bytes out. No wall clock, no RNG, no absolute paths,
-  `SOURCE_DATE_EPOCH` honoured, canonical JSON with sorted keys.
-- **Offline by default.** Everything works in `--no-llm` mode. Any network call, including every
-  LLM call, is opt-in and explicit — never a default, and never an automatic fallback.
-- **Nothing is lost silently.** Anything an adapter cannot represent emits a diagnostic. A
-  construct that survives with reduced fidelity says so. "It looked fine" is not a test result.
-- **Provenance for every node.** Every node records where it came from and what produced it —
-  an adapter, a rule, a model, or OCR — so *"did a model touch this document?"* is a question you
-  can answer by grepping, not by trusting.
-- **The traceability gate has no bypass flag.** Surface A refuses to emit output whose sentences
-  do not trace to sources. There is deliberately no way to turn this off.
+- **PDF output covers Latin and monospace text.** The shipped font set is Libertinus Serif and
+  DejaVu Sans Mono. Documents requiring CJK, emoji, or Arabic are reported rather than rendered
+  with a substituted system font.
+- **Style profiles do not yet reach the PDF renderer.** All profiles currently produce the same
+  PDF typography.
 
 ## Licence
 
-[Apache-2.0](LICENSE) — chosen over MIT for the patent grant, which matters for a tool
-implementing OOXML and PDF handling ([ADR-0008](docs/adr/0008-license-apache-2.md)).
+[Apache-2.0](LICENSE), chosen for its patent grant.
 
 Two scope notes:
 
-- **`fixtures/` is not covered by this licence.** Fixtures carry their own terms, recorded per
-  file in `fixtures/LICENSES.md`. See [fixtures/README.md](fixtures/README.md).
-- **No third-party document template is redistributed here.** Publisher templates are
-  downloadable but not licensed for redistribution, and "freely downloadable" is not the same
-  thing. `docs/TEMPLATES.md` links them instead, and MarkForge reads whichever one you supply.
+- **`fixtures/` is not covered by this licence.** Test fixtures carry their own terms, recorded
+  per file in `fixtures/LICENSES.md`.
+- **No third-party document template is redistributed.** Publisher templates are linked in
+  [docs/TEMPLATES.md](docs/TEMPLATES.md) rather than bundled; MarkForge reads whichever one you
+  supply.
