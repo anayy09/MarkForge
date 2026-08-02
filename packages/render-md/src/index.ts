@@ -412,11 +412,31 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
               {
                 type: "paragraph",
                 children: [
-                  // GitHub alerts upper-case the kind; Obsidian callouts lower-case it, and
-                  // each renderer ignores the other's casing. The fall-back for a flavour
-                  // with no admonition syntax uses the GFM form, because a plain blockquote
-                  // is what every parser sees either way.
-                  { type: "text", value: `[!${ctx.preset.syntax.admonitions === "obsidian" ? lower : kind}]` },
+                  /*
+                   * GitHub alerts upper-case the kind; Obsidian callouts lower-case it, and
+                   * each renderer ignores the other's casing. The fall-back for a flavour
+                   * with no admonition syntax uses the GFM form, because a plain blockquote
+                   * is what every parser sees either way.
+                   *
+                   * `html`, not `text`, where the marker is **syntax**. A text node gets its
+                   * leading `[` escaped — `mdast-util-to-markdown` has to, or the token would
+                   * read as a link reference — and `> \[!NOTE]` is not an alert on GitHub. It
+                   * is the literal characters, which is precisely the construct not
+                   * surviving. Our own parser recovered it either way, so the round trip
+                   * looked clean while the rendered document was wrong; `fmt` rewriting the
+                   * flavour probe in CI is what surfaced it.
+                   *
+                   * Where the marker is *decoration* rather than syntax — a flavour with no
+                   * admonition support at all — it stays a text node and stays escaped,
+                   * because there the brackets are content and raw HTML would be a worse
+                   * thing to emit than a backslash.
+                   */
+                  ctx.preset.syntax.admonitions === false
+                    ? { type: "text", value: `[!${kind}]` }
+                    : {
+                        type: "html",
+                        value: `[!${ctx.preset.syntax.admonitions === "obsidian" ? lower : kind}]`,
+                      },
                 ],
               },
               ...inner,

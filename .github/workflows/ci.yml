@@ -53,7 +53,15 @@ jobs:
         # too; claiming >=20.11 while the toolchain requires 22 was a false promise.
         node: [22, 24]
     steps:
+      # fetch-depth: 0, because `check-gates.mjs` resolves the commit each gate cites as
+      # evidence that it was seen to fail. The default shallow clone has one commit, so every
+      # citation failed to resolve and the gate reported ten fabricated-looking references on
+      # a repository where all ten are real. The gate was right to fail — it cannot verify a
+      # citation it cannot reach — and the fix belongs here, in the environment, rather than
+      # in a gate taught to skip the check when the history is thin.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}

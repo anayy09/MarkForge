@@ -47,6 +47,15 @@ const UPDATE = process.argv.includes("--update");
 const OUT = join(REPO, "docs/GATES.md");
 
 const failures = [];
+
+/** Whether this is a shallow clone, which changes what a failed citation means. */
+const shallow = (() => {
+  try {
+    return execFileSync("git", ["rev-parse", "--is-shallow-repository"], { cwd: REPO, encoding: "utf8" }).trim() === "true";
+  } catch {
+    return false;
+  }
+})();
 const ok = (m) => console.log(`  ok    ${m}`);
 const fail = (m) => {
   failures.push(m);
@@ -306,7 +315,13 @@ for (const g of GATES) {
     try {
       execFileSync("git", ["cat-file", "-e", `${g.seenToFail.commit}^{commit}`], { cwd: REPO, stdio: "ignore" });
     } catch {
-      fail(`${g.script} cites commit ${g.seenToFail.commit}, which does not resolve in this repository`);
+      // Named, because the usual cause is not a bad citation. A shallow clone —
+      // `actions/checkout` defaults to one commit — cannot resolve any historic sha, so
+      // every citation fails at once and reads as ten fabrications.
+      fail(
+        `${g.script} cites commit ${g.seenToFail.commit}, which does not resolve here` +
+          (shallow ? " — this is a SHALLOW clone, so no historic commit resolves; fetch the history" : ""),
+      );
       continue;
     }
   }
