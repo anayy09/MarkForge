@@ -662,6 +662,45 @@ if (PREDICATE_DISABLED.test("compile({ enforceMergePredicate: false })") &&
   fail("the disable pattern cannot tell `: false` from `=== false`");
 }
 
+/*
+ * 14a-iv. `action.yml`'s description must stay publishable. Belongs with 14a-ii — both guard a
+ * string in `action.yml` that only the Marketplace or npm ever reads, which is exactly the kind
+ * nothing else exercises.
+ *
+ * The limit is 125 characters and it is **not** in the metadata syntax reference. The
+ * draft-release form rejected a 198-character description with "Description must be less than
+ * 125 characters"; the release was blocked until it was cut. Nothing in `pnpm verify` could
+ * have said so, because a description is not parsed by anything this repository runs — the
+ * first thing to read it was the publish form, after the work was called done.
+ *
+ * The folded scalar is joined the way YAML joins it rather than read line by line, since the
+ * line lengths in the file are a formatting choice and the limit applies to the value.
+ */
+const ACTION_DESCRIPTION_LIMIT = 125;
+/** Join a `>-` folded block the way YAML does: lines to spaces, no trailing newline. */
+const foldedDescription = (yaml) => {
+  const m = yaml.match(/^description: >-\n((?:[ \t]+.*\n)+)/m);
+  return m ? m[1].split("\n").map((l) => l.trim()).filter(Boolean).join(" ") : null;
+};
+const actionDescription = foldedDescription(read("action.yml"));
+if (actionDescription === null) {
+  fail("action.yml has no folded `description: >-` block, so 14a-iv is measuring nothing");
+} else if (actionDescription.length >= ACTION_DESCRIPTION_LIMIT) {
+  fail(
+    `action.yml description is ${actionDescription.length} characters; the GitHub Marketplace ` +
+      `draft-release form rejects anything not under ${ACTION_DESCRIPTION_LIMIT}. Shorten it — ` +
+      `which subcommands exist is the \`command\` input's job.`,
+  );
+} else if (
+  // Negative control: the measurement must reject an over-long block and fold multiple lines.
+  foldedDescription("description: >-\n  " + "x".repeat(130) + "\n").length >= ACTION_DESCRIPTION_LIMIT &&
+  foldedDescription("description: >-\n  one\n  two\n") === "one two"
+) {
+  ok(`action.yml description is ${actionDescription.length} characters, under the Marketplace limit of ${ACTION_DESCRIPTION_LIMIT}`);
+} else {
+  fail("the description measurement is broken: it does not fold lines or does not detect an over-long value");
+}
+
 // 14b. The dependency rule from ADR-0009 and SPEC §6: adapters and renderers must
 // not reach the LLM. Enforced as a build failure rather than a policy, because a
 // policy that is only written down is a preference.
