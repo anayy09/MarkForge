@@ -1,8 +1,35 @@
 import type { NextConfig } from "next";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
+const APP = fileURLToPath(new URL(".", import.meta.url));
+
+/**
+ * pdf.js's real directory, resolved the way the adapter resolves it at runtime.
+ *
+ * `packages/adapters-pdf/src/index.ts` computes `standardFontDataUrl` from
+ * `createRequire(import.meta.url).resolve("pdfjs-dist/package.json")`. Node follows symlinks,
+ * so under pnpm that lands in `node_modules/.pnpm/pdfjs-dist@<version>/...` rather than at
+ * either of the two symlinks pointing there. Hand-writing that glob would pin a version and a
+ * store layout; asking the resolver gives the same answer the adapter will get.
+ *
+ * Globs here are relative to this directory, not to the repository and not absolute. An
+ * absolute path is silently treated as relative and produces
+ * `/vercel/path0/apps/web/vercel/path0/node_modules/...`, which is how this was first written.
+ */
+const pdfjsGlobs = ((): string[] => {
+  try {
+    const dir = dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"));
+    const rel = (p: string) => relative(APP, p).split(sep).join("/");
+    return [`${rel(join(dir, "standard_fonts"))}/**`, `${rel(join(dir, "legacy/build"))}/**`];
+  } catch {
+    // A build without pdf.js installed is a build where /api/read cannot read a PDF anyway,
+    // and failing the whole config for it would be worse than tracing nothing.
+    return [];
+  }
+})();
 
 /**
  * Next configuration, and the two things here that are load-bearing rather than taste.
@@ -47,12 +74,7 @@ const nextConfig: NextConfig = {
   // This app ships no photography: everything it shows is an artifact the engine produced.
   images: { unoptimized: true },
 
-  outputFileTracingIncludes: {
-    "/api/read": [
-      join(REPO, "node_modules/pdfjs-dist/standard_fonts/**"),
-      join(REPO, "node_modules/pdfjs-dist/legacy/build/**"),
-    ],
-  },
+  outputFileTracingIncludes: { "/api/read": pdfjsGlobs },
 
   async headers() {
     return [
