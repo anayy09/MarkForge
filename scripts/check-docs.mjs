@@ -40,6 +40,12 @@ function sourceTree() {
     walk(`packages/${p}/dist`);
   }
   walk("scripts");
+  // `apps/web` is source that ships. Several checks below phrase themselves as "nowhere in
+  // the tree does X", and a tree that stopped at `packages/` would let a new directory make
+  // those claims quietly narrower than they read — which is the vacuous-check failure this
+  // file exists to prevent, arriving through the back door of a new top-level directory.
+  walk("apps/web/src");
+  walk("apps/web/scripts");
   return out;
 }
 
@@ -330,7 +336,9 @@ ok(".gitignore excludes fixtures/local/ (third-party reference documents)");
 const officeFiles = [];
 const walkAll = (dir) => {
   for (const e of readdirSync(join(REPO, dir), { withFileTypes: true })) {
-    if (e.name === "node_modules" || e.name === ".git") continue;
+    // `.next` is Next's build output: thousands of entries, none of them an office binary,
+    // and walking it costs this gate its "runs on a fresh clone in under a second" property.
+    if (e.name === "node_modules" || e.name === ".git" || e.name === ".next") continue;
     const p = dir === "." ? e.name : dir + "/" + e.name;
     if (e.isDirectory()) walkAll(p);
     else if (/\.(docx|dotx|dot|xlsx|pptx|pdf)$/i.test(e.name)) officeFiles.push(p);

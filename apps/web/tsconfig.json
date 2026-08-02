@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Next's requirements, each of which contradicts the base and none of which is optional.
+    // `noEmit` is the reason this project is NOT a reference in the root tsconfig.json:
+    // TypeScript rejects `composite` together with `noEmit`, so a Next app cannot be a node
+    // in a `tsc -b` graph. It typechecks itself instead, from `verify` and from CI.
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "noEmit": true,
+    "allowJs": true,
+    "plugins": [{ "name": "next" }],
+
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": true,
+
+    // Everything the base makes strict stays strict: exactOptionalPropertyTypes,
+    // noUncheckedIndexedAccess, noPropertyAccessFromIndexSignature, verbatimModuleSyntax.
+    // The app is held to the same bar as the engine.
+
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", ".next"]
+}

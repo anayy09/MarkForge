@@ -46,6 +46,7 @@
  *   warnings that mode emits, which is what makes the two comparable byte for byte.
  */
 import { convert, parse, render, formatMarkdownSync, formatFromPath, type Format } from "@markforge/core";
+import type { ConvertOptions, Decision } from "@markforge/core";
 import type { Diagnostic, DiagnosticBag, MarkForgeDocument } from "@markforge/ir";
 
 /** Formats the browser build can read. PDF, PPTX, and XLSX are not among them — see below. */
@@ -104,6 +105,29 @@ export interface BrowserConvertOptions {
   referenceDoc?: Uint8Array;
   /** Required to write a PDF. Build one with `loadPdfRenderer` from `@markforge/browser/pdf`. */
   pdf?: { render: BrowserPdfRenderer };
+
+  /*
+   * Renderer options, passed straight through to `@markforge/core`.
+   *
+   * These were absent until 2026-08-02, which made this surface quietly less capable than
+   * the CLI: `--md-flavor`, `--on-missing-style`, `--no-infer` and `--explain` all had no
+   * browser equivalent, and the reason was that nobody had needed one rather than a
+   * decision anybody had made. ADR-0015's rule is "browser entry points take bytes and an
+   * explicit config object", and a config object missing most of the config is the letter
+   * of that rule without the point of it.
+   *
+   * Adding them cannot move surface parity: `scripts/check-surface-parity.mjs` passes none
+   * of them, so every default is unchanged, and the module comment's claim below still
+   * holds. This function adds nothing to the pipeline. It now declines to withhold from it.
+   */
+  markdown?: ConvertOptions["markdown"];
+  html?: ConvertOptions["html"];
+  /** `referenceDoc` is the field above, supplied as bytes rather than as a path. */
+  docx?: Omit<NonNullable<ConvertOptions["docx"]>, "referenceDoc">;
+  /** `false` means no heading promotion: evidence stays evidence (the CLI's `--no-infer`). */
+  infer?: ConvertOptions["infer"];
+  /** Collect the inference decision log, the CLI's `--explain`. */
+  explain?: boolean;
 }
 
 /**
@@ -128,6 +152,10 @@ export interface BrowserConvertResult {
   bytes: Uint8Array;
   document: MarkForgeDocument;
   diagnostics: Diagnostic[];
+  /** Every inference decision, in order. Empty when `infer` is `false`. */
+  decisions: Decision[];
+  /** The rendered decision log. Present only when `explain` was set. */
+  explanation?: string;
 }
 
 function assertBrowserFormat(format: string, role: "input" | "output"): void {
@@ -166,16 +194,37 @@ export async function convertInBrowser(
     );
   }
 
+  // `referenceDoc` is a separate field on this interface because the browser has no path to
+  // read one from, but it is the same `docx` option underneath, so the two merge here rather
+  // than one silently winning.
+  const docx =
+    options.docx || options.referenceDoc
+      ? {
+          ...options.docx,
+          ...(options.referenceDoc ? { referenceDoc: options.referenceDoc } : {}),
+        }
+      : undefined;
+
   // No `assist`. See the module comment: a browser run is a `--no-llm` run.
   const result = await convert(bytes, {
     from: from as Format,
     to: to as Format,
     ...(options.path ? { path: options.path } : {}),
-    ...(options.referenceDoc ? { docx: { referenceDoc: options.referenceDoc } } : {}),
+    ...(docx ? { docx } : {}),
+    ...(options.markdown ? { markdown: options.markdown } : {}),
+    ...(options.html ? { html: options.html } : {}),
+    ...(options.infer !== undefined ? { infer: options.infer } : {}),
+    ...(options.explain ? { explain: true } : {}),
     // Passed straight through. Nothing is assembled here — see `BrowserPdfRenderer`.
     ...(options.pdf ? { pdf: { render: options.pdf.render } } : {}),
   });
-  return { bytes: result.bytes, document: result.document, diagnostics: result.diagnostics };
+  return {
+    bytes: result.bytes,
+    document: result.document,
+    diagnostics: result.diagnostics,
+    decisions: result.decisions,
+    ...(result.explanation !== undefined ? { explanation: result.explanation } : {}),
+  };
 }
 
 /** `markforge fmt`, in the browser. Synchronous, matching `formatMarkdownSync`. */

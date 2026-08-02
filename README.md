@@ -107,6 +107,17 @@ access and no Node builtins in the bundle. It reads and writes Markdown, DOCX, a
 writes PDF when the page supplies a Typst WASM compiler via the `@markforge/browser/pdf` entry
 point.
 
+**Web app** — [`apps/web`](apps/web/README.md) is that browser build with a user interface:
+conversion, every diagnostic, the intermediate representation, the seven Markdown flavours side
+by side, and the six fidelity metrics run against your own document. It is not a seventh
+interface. It loads the same bundle the surface-parity gate measures, so the bytes it produces
+are the bytes `markforge convert` produces. Markdown, DOCX and HTML never leave the tab; PDF,
+PPTX and XLSX input need a server and the app asks before sending anything.
+
+```sh
+pnpm build:web && pnpm dev:web
+```
+
 A pre-commit hook for `fmt` and `check` is available via `pnpm install-hooks`.
 
 ## Optional model assistance

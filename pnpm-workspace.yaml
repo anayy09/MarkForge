@@ -1,5 +1,10 @@
 packages:
   - "packages/*"
+  # `apps/*` holds things that *use* the packages rather than compose them. There is one,
+  # `apps/web`, and it is deliberately outside the `tsc -b` project graph in tsconfig.json:
+  # Next needs `noEmit` and `moduleResolution: "bundler"`, and `noEmit` is illegal in a
+  # composite project. It typechecks itself, which `verify` and CI both run.
+  - "apps/*"
 # esbuild is the only dependency permitted to run an install script: it is a
 # dev-only transitive dependency of vitest and needs its postinstall to place its
 # platform binary. Deliberately a list of one — an install script is arbitrary code
@@ -11,8 +16,14 @@ packages:
 # which prints a donation notice and nothing else: the package works without it, so
 # there is no reason to run a script we do not need. Recorded here rather than left
 # unset so a future `pnpm install` does not stop to ask again (ADR-0017).
+# sharp is the third entry and is the second *denial*. Next pulls it as an optional
+# dependency for `next/image` optimisation. `apps/web` ships no photography: its visual
+# material is the artifacts the engine produces, so `images.unoptimized` is set in
+# apps/web/next.config.ts and nothing calls the optimiser. Denying it keeps a native
+# binary and its install script out of the tree for a code path that does not exist.
 allowBuilds:
   esbuild: true
+  sharp: false
   tesseract.js: false
 minimumReleaseAgeExclude:
   - word-to-markdown@0.3.0
