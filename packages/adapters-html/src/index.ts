@@ -169,8 +169,8 @@ function convert(
       if (tag === "ol" && start !== undefined) {
         const n = Number.parseInt(start, 10);
         if (Number.isFinite(n)) {
+          // `start` only: `restartsAt` is a `ListItem` field. See the note in adapters-docx.
           list["start"] = n;
-          if (n !== 1) list["restartsAt"] = n;
         }
       }
       return list;
@@ -232,11 +232,17 @@ function convert(
       return convertTable(node, diagnostics, evidence);
 
     case "figure": {
-      const children = kids();
+      // `ensureBlocks`, because the schema's `Figure` holds block content and the usual
+      // figure holds an `<img>`, which is phrasing. `<figure><img></figure>` produced an
+      // image directly under a figure — invalid IR, and the shape most figures have.
+      const children = ensureBlocks(kids());
       return { type: "figure", children };
     }
     case "figcaption":
-      return { type: "caption", children: kids() };
+      // `for` is required (schema `Caption`): a caption has to say what it captions, or a
+      // renderer emitting "Figure 3" cannot know it is a figure. Omitted here until
+      // 2026-08-02, which made every HTML document with a <figcaption> invalid IR.
+      return { type: "caption", for: "figure", children: kids() };
 
     case "dl":
       return { type: "descriptionList", children: kids() };
@@ -257,14 +263,14 @@ function convert(
         `HTML element <${tag}> has no IR node type; preserved as an unknown node with ` +
           `its text so nothing vanishes.`,
       );
-      return { type: "unknown", originalType: `html:${tag}`, raw: textOf(node) };
+      return { type: "unknown", construct: `html:${tag}`, raw: textOf(node) };
     }
   }
 }
 
 const BLOCK = new Set([
   "paragraph", "heading", "list", "blockquote", "code", "table",
-  "thematicBreak", "figure", "descriptionList",
+  "thematicBreak", "figure", "descriptionList", "caption",
 ]);
 
 /**
@@ -361,7 +367,7 @@ function convertTable(
     return {
       type: "figure",
       children: [
-        { type: "caption", children: convertChildren(caption, diagnostics, evidence) },
+        { type: "caption", for: "table", children: convertChildren(caption, diagnostics, evidence) },
         tableNode,
       ],
     };

@@ -1,9 +1,9 @@
 # ADR-0003: PDF rendering engine — Typst
 
-- Status: **Confirmed by reviewer**
+- Status: **Confirmed by reviewer; built 2026-08-01**
 - Date: 2026-07-29
 - Relates to: brief §5.4, §3.1, §8; `SPEC.md` §4.3
-- Enforced by: not enforceable — the engine was chosen and `render-pdf` is unbuilt; `scripts/check-browser-bundle.mjs` reports its absence on every run rather than letting it read as present
+- Enforced by: scripts/check-pdf-determinism.mjs
 
 ## Context
 
@@ -54,6 +54,48 @@ table breaking ourselves. That is a multi-year project and not the one we are do
 as a root cause of poor output, and by brief §13 which forbids a hard LibreOffice dependency
 in core. LibreOffice survives only as an isolated, optional CI rasterizer for visual
 regression.
+
+## What building it found, 2026-08-01
+
+This ADR was `Confirmed` on 2026-07-29 and had nothing behind it for four phases.
+`scripts/check-browser-bundle.mjs` reported `render-pdf` as absent on every run, and
+ADR-0015's lazy tier was ratified for two of its three members because the third did not exist.
+
+**Determinism is achievable, and the obvious way to get it does not work.** Measured before a
+line of the renderer was written:
+
+| Probe | Result |
+| --- | --- |
+| Two compiles, one process | Byte-identical |
+| Two compiles, **separate processes** | Differ at byte 11533 — `/CreationDate` and `/ModDate`, from the wall clock |
+| `creationTimestamp` compile option set to `SOURCE_DATE_EPOCH` | **No effect.** It applies only to a document that opted into an automatic date |
+| `#set document(date: none)` | Both fields absent; separate processes agree byte for byte |
+
+So the timestamp is **omitted** rather than pinned, which is the second branch SPEC §1.1
+allows. `scripts/check-pdf-determinism.mjs` spawns a real second process rather than compiling
+twice in one, because the same-process comparison passes either way and would have proved
+nothing.
+
+**The escaping argument held.** This ADR rejected LaTeX partly because escaping arbitrary
+document text into it is an unbounded source of silent corruption. Typst's set is nine
+characters and `esc` in `typst.ts` handles all of them; no fixture needed a special case.
+
+**The narrow `compile(source, fonts) → bytes` interface this ADR made a requirement is the
+seam that made the package browser-capable.** With the compiler injected rather than imported,
+`render-pdf` bundles at 357 KB with no Typst in it — so it is deferred by *size*, not by
+capability, which is more than can be said for `adapters-pdf` in the same tier.
+
+**One control caught a real defect on its first run.** The renderer walked an unmapped node's
+`children` array before reporting the loss, so a construct with an empty `children` — a
+`textBox` — was silently walked into nothing. The rule is now report *then* walk: the text
+survives and the construct's semantics are declared lost, which is adapter rule A6's shape
+applied to a renderer.
+
+**What is not claimed.** `md → pdf → md` scores 57.9% structural and 86.5% text on
+`clean-report.md`, and per SPEC §9.5 that is a joint measure of this renderer *and* the PDF
+extractor — it must never be quoted as a renderer-only number. PDF/A and PDF/UA are selectable
+per profile and are **not** measured; tagged-PDF quality is still the unverified claim this
+ADR's *Consequences* flagged.
 
 ## Consequences
 

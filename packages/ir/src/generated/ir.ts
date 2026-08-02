@@ -824,7 +824,7 @@ export interface SourceFile {
   };
 }
 /**
- * Images and embedded files, deduplicated by content hash. Never base64-inlined into the tree.
+ * Images and embedded files, deduplicated by content hash. Never base64-inlined into the *tree*; `data` on this table is how the bytes travel, because a resource table that records only a description of an image cannot round-trip one.
  *
  * This interface was referenced by `MarkForgeDocument`'s JSON-Schema
  * via the `definition` "Resource".
@@ -834,6 +834,10 @@ export interface Resource {
   mediaType: string;
   contentHash: Sha256Hex;
   byteLength: number;
+  /**
+   * The bytes, base64-encoded. Optional because a document may externalize its resources via `path` instead — but when it is absent and `path` points into a source package that no longer exists, the image is gone. Added 2026-08-01 (ADR-0022): every adapter read image bytes, hashed them, and discarded them, so no renderer could embed one and every X-to-Y conversion silently lost every image.
+   */
+  data?: string;
   /**
    * Relative path when externalized.
    */
@@ -871,6 +875,9 @@ export interface StyleEvidence {
    * Resolved inheritance chain, root last.
    */
   basedOn?: string[];
+  /**
+   * Word's w:outlineLvl. ISO/IEC 29500-1 §17.3.1.20: "can be from 0 to 9, where 9 specifically indicates that there is no outline level specifically applied to this paragraph. If this element is omitted, then the outline level of the content is assumed to be 9 (no level)." Capped at 8 until 2026-08-02, which made every Pandoc-produced DOCX invalid: its TOCHeading style declares 9.
+   */
   outlineLevel?: number;
   font?: {
     /**

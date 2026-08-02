@@ -461,7 +461,7 @@ describe("PDF adapter", () => {
       const { document } = await parsePdf(mixed());
       const placeholders = selectType(document.body, "unknown");
       expect(placeholders).toHaveLength(1);
-      expect((placeholders[0] as { originalType?: string }).originalType).toBe("pdf:scanned-page");
+      expect((placeholders[0] as { construct?: string }).construct).toBe("pdf:scanned-page");
 
       // Between the two readable pages, not appended at the end: the reader should see
       // where the missing content belongs.

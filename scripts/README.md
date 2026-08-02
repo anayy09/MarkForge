@@ -18,6 +18,7 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `check-fixtures.mjs` | none | Every fixture has a licence line, and every licence line has a fixture |
 | `build-messy-fixtures.mjs` | none | Generates the deliberately defective DOCX corpus (`docs/CORPUS.md` §2.3, §2.15) |
 | `build-scanned-fixtures.mjs` | none | Rasterises `fixtures/md/scanned-source.md` into scanned PDFs with no text layer (`docs/CORPUS.md` §2.7) |
+| `build-corpus-fixtures.mjs` | built packages | Authors `docs/CORPUS.md` §2.2 (footnotes, endnotes, OMML equations), §2.5's DOCX half (merged, nested, and block-content cells), and §2.12 (tracked changes from two authors). Building it found the adapter never reads `footnotes.xml` |
 | `build-agentify-corpus.mjs` | built packages | Authors the three agentify source sets and their answer keys, and gates the near-duplicate pairs (`docs/CORPUS.md` §2.14) |
 | `check-markdown-lint.mjs` | `markdownlint`, built packages | Lints the Markdown our renderer produces. A gate, not a repair pass (ADR-0006) |
 | `diff-mammoth.mjs` | `mammoth`, built packages | Differential test of our OOXML reader against Mammoth; every divergence triaged in `docs/MAMMOTH-DIFF.md` (ADR-0005) |
@@ -32,7 +33,19 @@ generated files keep their do-not-edit banner, and that no build output is commi
 | `check-test-collection.mjs` | none | Every test file is reachable by the runner's include pattern, none reads the filesystem at module scope, and every conditional skip is declared with its reason |
 | `check-fixture-contamination.mjs` | none | No graded fixture sentence appears in a prompt that grades it — verbatim, by shared six-word run, or by its distinctive tokens |
 | `check-surface-parity.mjs` | `esbuild`, built packages | **The surface-parity gate.** Every corpus fixture through the CLI, the HTTP API, the MCP server, and the browser build, compared byte for byte, with `MODEL_API_KEY` unset |
+| `check-gate-parity.mjs` | none | The set of gate scripts in `pnpm verify` equals the set in `ci.yml`'s blocking jobs. Its first run found two gates that guarded the branch and were absent from the local chain |
+| `check-pdf-determinism.mjs` | `@myriaddreamin/typst-ts-node-compiler`, built packages | The PDF renderer's output is byte-identical across **separate processes**, carries no wall-clock date, and reports what it cannot express (ADR-0003) |
+| `check-flavor-distinctness.mjs` | built packages | SPEC §4.1's seven flavour presets must produce seven byte-distinct renders of `fixtures/md/flavor-probe.md`, and CommonMark must report the footnote it cannot express. A tie means a preset is a duplicate name |
+| `check-ir-structure.mjs` | built packages | Parsed IR against a **hand-written declaration**, never against its own round trip. Closes the second measurement blind spot: a defect applied symmetrically to both sides of a round trip agrees with itself, which is how a cell whose paragraphs ran together scored 100% |
+| `check-node-type-coverage.mjs` | built packages | Every node type `ir.v0.schema.json` declares is produced by an adapter and consumed by a renderer, or is an enumerated exception or a ROADMAP-recorded gap. Closes the census's blind spot: a type that never reaches the IR differences to zero and scores as agreement |
+| `check-hook.mjs` | `sh`, `git`, built packages | The shipped pre-commit hook, driven through five commits in a throwaway repository: unformatted staged Markdown is rejected, the formatted version is accepted, a `.txt` is ignored, a clean *staged* file commits with a dirty working tree, and removing the hook proves the rejection came from it |
+| `check-producer-exports.mjs` | `pandoc` 3.10, built packages | CORPUS §2.15's Pandoc producer profile: exports `fixtures/md/generated-profile-source.md` with the real binary and asserts we parse it into a valid IR with headings, lists, and tables intact. Generated rather than committed, because a Pandoc DOCX carries Pandoc's GPL reference styles |
+| `install-hooks.mjs` | `git` | Not a check — copies `hooks/pre-commit` into this clone's `.git/hooks`, refusing to overwrite a hook it did not write |
+| `hooks/pre-commit` | `sh`, built packages | Not a check — the hook itself: `fmt --check` and `check` over the staged content of staged `.md` files. Bypassable with `--no-verify`, deliberately; the mandatory gates are in CI |
+| `check-gates.mjs` | none | Generates and gates `docs/GATES.md`: one row per gate, what it asserts, where it was seen to fail, and which side runs it. Producing it found ten gates that could not fail |
 | `lib/browser-bundle.mjs` | `esbuild` | Not a check — the shared browser build and its web-platform-only sandbox, so the two gates above are talking about the same artifact |
+| `lib/gates.mjs` | none | Not a check — one resolver for "which gates run where", shared by the two above so there is one answer rather than two that could drift |
+| `lib/control.mjs` | none | Not a check — the negative control shared by the four `--check` generator gates, which all answer one question and had all four been unable to fail |
 | `run-fidelity.mjs` | built packages | Measures the corpus, writes `docs/FIDELITY.md`, gates on baselines |
 | `run-scoreboard.mjs` | built packages, pandoc | Compares against Pandoc, writes `docs/SCOREBOARD.md` |
 | `inspect-docx.ps1` | none (Windows PowerShell) | Read-only inspection of a DOCX: styles, provenance, numbering, theme fonts |

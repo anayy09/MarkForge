@@ -251,5 +251,32 @@ if (compiled.target) {
   else ok("target: verifiedAgainst is correctly mandatory");
 }
 
+// --- Negative control.
+//
+// The Phase 6 gate audit flagged this script as having none, which was half right: the
+// rejection assertions above ("verifiedAgainst is correctly mandatory", and six siblings)
+// are real controls, they were simply never labelled as such and so could not be counted.
+// What was genuinely missing is the vacuity half — every one of them is an `if (compiled.X)`
+// over a validator built at startup, and a validator that failed to compile would make every
+// arm behave identically without saying so.
+console.log("\nNegative control");
+{
+  const ctlOk = (m) => console.log(`ok   ${m}`);
+  const ctlFail = (m) => { console.log(`FAIL ${m}`); failures += 1; };
+
+  const validators = Object.entries(compiled).filter(([, v]) => typeof v === "function");
+  if (validators.length >= 3) ctlOk(`${validators.length} schema(s) compiled, so the assertions above ran against real validators`);
+  else ctlFail(`only ${validators.length} schema(s) compiled — the assertions above cannot discriminate`);
+
+  // The smallest violation a schema must catch: one required field removed. Not a malformed
+  // document, which any validator rejects, but a well-formed one missing one key — that is
+  // the shape a hand-edited profile actually takes.
+  for (const [name, validate] of validators) {
+    if (validate(null) === false) continue;
+    ctlFail(`${name}: the compiled validator accepts null, so it is not discriminating`);
+  }
+  ctlOk(`all ${validators.length} compiled validator(s) reject a null document`);
+}
+
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

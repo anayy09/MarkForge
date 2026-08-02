@@ -238,7 +238,34 @@ function renderNode(node: AnyNode, ctx: Ctx, depth: number): string {
 
     case "equationBlock":
     case "math":
-      return `<div class="math math-display">${escapeText(String(node["value"] ?? ""))}</div>`;
+    {
+      /*
+       * `source` as well as `value`. An OMML equation carries its markup in `source` and has
+       * no `value` at all, so this rendered `<div class="math math-display"></div>` — an
+       * element asserting there is an equation here, containing nothing, with no diagnostic.
+       *
+       * TeX goes in as text, which is what MathJax and KaTeX read. OMML goes in a `<pre>`,
+       * matching what the Markdown renderer does with the same node: both surfaces show the
+       * source they cannot convert rather than one hiding it. That costs text fidelity —
+       * markup that was never text in the source document becomes text in the output — and
+       * the cost is recorded in `fixtures/expected/baselines.json` rather than avoided by
+       * dropping the equation.
+       */
+      const notation = typeof node["notation"] === "string" ? node["notation"] : "tex";
+      const value = typeof node["value"] === "string" ? node["value"] : undefined;
+      const source = typeof node["source"] === "string" ? node["source"] : undefined;
+      const attrs = ` class="math math-display" data-notation="${escapeAttr(notation)}"`;
+      if (notation === "tex" || value !== undefined) {
+        return `<div${attrs}>${escapeText(value ?? source ?? "")}</div>`;
+      }
+      ctx.diagnostics.degraded(
+        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+        "equationBlock",
+        `HTML math is TeX or MathML, and this equation is ${notation.toUpperCase()}. There is ` +
+          `no converter here, so the source is shown verbatim and its structure is lost.`,
+      );
+      return `<div${attrs}><pre>${escapeText(source ?? "")}</pre></div>`;
+    }
 
     case "footnoteDefinition": {
       const id = escapeAttr(String(node["identifier"] ?? ""));
@@ -258,7 +285,7 @@ function renderNode(node: AnyNode, ctx: Ctx, depth: number): string {
       return "";
 
     case "unknown": {
-      const original = typeof node["originalType"] === "string" ? node["originalType"] : "unknown";
+      const original = typeof node["construct"] === "string" ? node["construct"] : "unknown";
       const raw = typeof node["raw"] === "string" ? node["raw"] : "";
       ctx.diagnostics.degraded(
         DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
@@ -355,8 +382,15 @@ function renderInline(nodes: AnyNode[] | undefined, ctx: Ctx): string {
           const id = escapeAttr(String(n["identifier"] ?? ""));
           return `<sup class="footnote-ref"><a href="#fn-${id}">${escapeText(String(n["label"] ?? id))}</a></sup>`;
         }
-        case "comment":
-          return `<!-- ${escapeText(plainText(n)).replace(/--/g, "- -")} -->`;
+        case "comment": {
+          // The commented range is body text and stays body text; the reviewer's note
+          // becomes the HTML comment. Rendering the *children* inside `<!-- -->` — which
+          // is what this did — hid the document inside the annotation and dropped the note.
+          const body = n["body"] as AnyNode | undefined;
+          const note = body ? plainText(body).replace(/\s+/g, " ").trim() : "";
+          const author = typeof n["author"] === "string" ? `[${n["author"]}] ` : "";
+          return `${kids()}<!-- comment ${escapeText(author + note).replace(/--/g, "- -")} -->`;
+        }
         case "html":
           return typeof n["value"] === "string" ? n["value"] : "";
         default:

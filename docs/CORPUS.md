@@ -336,7 +336,7 @@ and very wide sheets.
 **Plan:** two authored workbooks plus one public-domain government data release.
 **Metrics:** table F1, text.
 
-### 2.10 RTL and CJK text — *authored, reviewed*
+### 2.10 RTL and CJK text — *authored, **not** reviewed*
 
 **Catches:** bidirectional run handling, CJK line breaking, grapheme-cluster correctness in the
 text metric (`SPEC.md` §9.2 specifies graphemes rather than UTF-16 units specifically because of
@@ -346,6 +346,37 @@ Latin text to force bidi transitions. Content is authored; **native-speaker revi
 before these are trusted as ground truth**, and until reviewed they are marked provisional in
 `LICENSES.md`. A fixture whose expected output we cannot read is not a fixture, it is a guess.
 **Metrics:** text (both variants), inline styling.
+
+#### 2.10.1 Status, 2026-08-01: the four documents exist and **the review did not happen**
+
+Stated plainly rather than left as an unmarked gap, because the sentence above makes review a
+precondition and the Phase 6 brief asks for a named reviewer or an admission that there was
+none. **There was none.** No native speaker of Arabic, Hebrew, Japanese, or Simplified Chinese
+read these files. All four carry `PROVISIONAL — no native-speaker review` in `LICENSES.md`.
+
+`fixtures/md/rtl-arabic.md`, `rtl-hebrew.md`, `cjk-japanese.md`, `cjk-chinese.md`.
+
+**What they are therefore trusted for, and what they are not.** The heading above says a fixture
+whose expected output we cannot read is a guess, and that is right about *semantics*. It is not
+right about every property, and the distinction is what makes these worth committing:
+
+| Property | Trusted | Why |
+| --- | --- | --- |
+| Byte preservation through `md → IR → md` | **yes** | Decidable without reading the text. Measured: all four are already `fmt` fixed points and NFC-stable |
+| Grapheme-cluster counting (`SPEC.md` §9.2) | **yes** | A combining mark is a codepoint property. The Hebrew file carries niqqud specifically to exercise it |
+| Structural parse — headings, lists, links, code | **yes** | The Markdown syntax around the text is ASCII and reviewable by anyone |
+| Full-width against half-width punctuation | **yes** | A codepoint distinction, not a judgement |
+| Bidi *rendering* order | **no** | Requires seeing it laid out. The files force a transition; whether the result reads correctly is unverified |
+| Whether the prose is idiomatic or even grammatical | **no** | This is the part that needs a speaker, and it is the part nobody has checked |
+
+So they gate **regression**, not correctness: if a change alters the bytes, the grapheme count,
+or the structure, that is a defect regardless of whether the sentences are good Arabic. What they
+cannot do is tell us the toolkit handles these scripts *well*, and no number in `FIDELITY.md`
+derived from them should be read as saying so.
+
+**What would close it:** four native speakers, one per script, confirming the content is
+well-formed prose — after which the `PROVISIONAL` markers come off and this subsection is
+replaced by their names. Until then the category is honest rather than complete.
 
 ### 2.11 Emoji and Unicode edge cases — *authored*
 
@@ -519,17 +550,33 @@ resolver tuned on §2.3 can pass everything there and still crash on a missing `
 a headless LibreOffice export, and an LLM-authored file — from one identical source Markdown. That
 shared source is the point: it gives four different OOXML encodings of *known-identical* content,
 so a fidelity difference between them isolates the producer's encoding rather than the content.
-**Status: partly built.** Two documents so far, written by
+**Status: three of four producers.** Two documents written by
 `scripts/build-messy-fixtures.mjs` and committed under `fixtures/docx/`:
 `generated-no-theme.docx` (no `theme1.xml`, empty `dc:creator`, millisecond timestamps,
 `ListParagraph` + `numPr` lists, declared-but-empty comments/footnotes/endnotes) and
 `generated-run-per-word.docx` (one `w:r` per word, plus a 1→3 heading skip). Both are generated
 from `fixtures/md/generated-profile-source.md`, so their encodings are comparable.
 
-The remaining two profiles — a real Pandoc export and a headless LibreOffice export — are not
-built. Both need the binary present to produce the fixture, so they are a `--check`-gated
-generation step rather than something we can synthesize honestly; writing OOXML *resembling*
-LibreOffice's output would test our guess at LibreOffice rather than LibreOffice.
+**The Pandoc profile is built, as a generation step rather than a committed file**
+(`scripts/check-producer-exports.mjs`, 2026-08-02). It exports this same source with the
+pinned pandoc 3.10 and asserts the result parses into a schema-valid IR whose headings, lists,
+and tables survive. Generated rather than committed because a Pandoc DOCX carries Pandoc's
+GPL-licensed reference styles, and §1 rule 1 exists to keep an unexamined licence out of the
+repository.
+
+Its first run earned the category on its own: Pandoc's `TOCHeading` style declares
+`w:outlineLvl` 9, our schema capped `outlineLevel` at 8, and **every Pandoc-produced DOCX
+parsed to an invalid IR with no diagnostic at all** — the adapter read the value correctly and
+the schema was wrong. ISO/IEC 29500-1 §17.3.1.20 allows 0 to 9, where 9 means *no outline
+level*. Five phases of hand-written fixtures never produced one, because we only ever wrote
+headings. This is exactly the "defects are *absences*" argument above, arrived at from the
+producer side.
+
+**The LibreOffice profile is struck** (`OPEN_QUESTIONS.md` §7aj): a headless LibreOffice in CI
+is a ~400 MB install per run for one more encoding of a document we now have three encodings
+of, with the same unexamined-licence question about its exported styles. Writing OOXML
+*resembling* LibreOffice's output would test our guess at LibreOffice rather than LibreOffice,
+so the gap is recorded in `docs/LIMITS.md` rather than filled with a synthetic stand-in.
 
 Contrary to the original plan above, the output is **committed** rather than written to
 gitignored `generated/`. At 2–4 KB each, committing means a test needs no build step and a

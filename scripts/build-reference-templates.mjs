@@ -26,6 +26,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { generatorControl } from "./lib/control.mjs";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const CHECK = process.argv.includes("--check");
@@ -713,6 +714,60 @@ if (!NUMBERING.includes("startOverride")) {
   console.log("FAIL  numbering has no w:startOverride, so the restarting list is not exercised");
   failures++;
 } else console.log("ok    academic-manuscript: restarting list via w:startOverride");
+
+// ---------------------------------------------------------------------------
+// Negative control, added in the Phase 6 gate audit which found this gate could not
+// demonstrate a failure. Three of its four arms are `for … of` loops that report success by
+// not incrementing a counter, so an empty `TEMPLATES` or an empty `REQUIRED` would print a
+// clean run over nothing. The direct-formatting arm is the one worth controlling hardest:
+// it is the property SPEC §4.2's whole argument rests on, and it is a set-difference against
+// an allowlist — narrow the allowlist wrongly and it stops catching decoration.
+// ---------------------------------------------------------------------------
+console.log("\nNegative control");
+{
+  const ctlOk = (m) => console.log(`ok    ${m}`);
+  const ctlFail = (m) => { console.log(`FAIL  ${m}`); failures++; };
+
+  generatorControl({
+    artifacts: Object.fromEntries(Object.entries(built).map(([k, v]) => [k, new Uint8Array(v)])),
+    floor: 3,
+    ok: ctlOk,
+    fail: ctlFail,
+  });
+
+  if (REQUIRED.length >= 14) ctlOk(`${REQUIRED.length} §2.1 construct(s) asserted, so the inventory arm is not vacuous`);
+  else ctlFail(`only ${REQUIRED.length} §2.1 construct(s) asserted — the inventory has shrunk`);
+
+  // The inventory predicates must reject a document that lacks the construct, not merely
+  // accept one that has it. Run every one of them against an empty document: all must fail.
+  const acceptEmpty = REQUIRED.filter(([, test]) => test(""));
+  if (acceptEmpty.length === 0) ctlOk(`all ${REQUIRED.length} inventory predicates reject an empty document`);
+  else ctlFail(`inventory predicate(s) accept an empty document: ${acceptEmpty.map(([l]) => l).join(", ")}`);
+
+  // The direct-formatting arm, violated in the smallest way: one decorative element inside
+  // one body `w:rPr`. `w:sz` is the right probe because a hardcoded font size is exactly the
+  // "uneven fonts" defect brief §5.1 names, and it is not on the allowlist.
+  const probe = `<w:r><w:rPr><w:rStyle w:val="VerbatimChar"/><w:sz w:val="24"/></w:rPr></w:r>`;
+  const found = new Set();
+  for (const match of probe.matchAll(/<w:rPr>(.*?)<\/w:rPr>/gs)) {
+    for (const el of match[1].matchAll(/<(w:[a-zA-Z]+)[ />]/g)) {
+      if (!ALLOWED_IN_BODY.has(el[1])) found.add(el[1]);
+    }
+  }
+  if (found.has("w:sz")) ctlOk("one decorative w:sz inside a body w:rPr is detected");
+  else ctlFail("negative control: a hardcoded font size in the body was not detected");
+
+  // And the other direction — the allowlist must still *allow*, or every template fails and
+  // the gate becomes noise nobody reads.
+  const allowed = new Set();
+  for (const match of `<w:rPr><w:rStyle w:val="X"/><w:i/></w:rPr>`.matchAll(/<w:rPr>(.*?)<\/w:rPr>/gs)) {
+    for (const el of match[1].matchAll(/<(w:[a-zA-Z]+)[ />]/g)) {
+      if (!ALLOWED_IN_BODY.has(el[1])) allowed.add(el[1]);
+    }
+  }
+  if (allowed.size === 0) ctlOk("genuine inline semantics (w:rStyle, w:i) are still allowed");
+  else ctlFail(`negative control: the allowlist rejected legitimate inline semantics: ${[...allowed].join(", ")}`);
+}
 
 console.log(
   failures === 0

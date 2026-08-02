@@ -31,6 +31,8 @@ behalf and is open to reversal at review.
 | [0018](0018-unit-ordering-diff-stability.md) | Source position orders context units, ahead of the content-addressed id | Accepted |
 | [0019](0019-token-counting-approximation.md) | No tokenizer is bundled; `modelTokenizer` refuses rather than approximating | Accepted |
 | [0020](0020-dedup-embedding-shortlist-model-decides.md) | The embedding shortlists near-duplicates; a model decides | Accepted |
+| [0021](0021-markdown-flavor-presets.md) | Markdown flavour presets are built, as data, and gated on distinctness | Accepted |
+| [0022](0022-resource-bytes-in-the-ir.md) | The IR carries resource bytes, because a description of an image is not an image | Accepted |
 
 ## Records that deviate from the brief
 
@@ -47,3 +49,5 @@ is argued in place; `OPEN_QUESTIONS.md` §7 lists the ones decided without askin
 | [0018](0018-unit-ordering-diff-stability.md) | §6.2 | Amends `SPEC.md` §10.8's unit ordering, which was not diff-stable against its own criterion. Decided without asking; measured before deciding. |
 | [0019](0019-token-counting-approximation.md) | §6.1 | No tokenizer bundled, so every token figure is a named estimate. Decided without asking. |
 | [0020](0020-dedup-embedding-shortlist-model-decides.md) | §6.1 | Supersedes half of OPEN_QUESTIONS §7c: cosine shortlists, a model decides. Measurement refuted the original design. Decided without asking. |
+| [0022](0022-resource-bytes-in-the-ir.md) | §2.2 | `Resource` recorded an image's hash and length and never its bytes, so every adapter dropped every image and no renderer could embed one. Decided without asking. |
+| [0021](0021-markdown-flavor-presets.md) | §4.1 | `markdown.flavor` was a config-schema value read by nothing for five phases. Built as data rather than struck, and gated on seven presets producing seven distinct renders. Decided without asking. |

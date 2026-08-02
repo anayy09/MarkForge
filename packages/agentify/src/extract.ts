@@ -180,8 +180,27 @@ export function extractUnits(source: SourceDocument, diagnostics: DiagnosticBag)
   units.push(...extractStructuredSections(ctx, blocks));
   units.push(...extractCodeBlocks(ctx, blocks));
   units.push(...extractDefinitions(ctx, blocks));
-  units.push(...extractRoleImpliedUnits(ctx, blocks));
+  /*
+   * Normative prose **before** role-implied units, as of 2026-08-01 (OPEN_QUESTIONS §7ag,
+   * taking §9's option 1).
+   *
+   * The order is the fix. Both passes claim sentences into `ctx.claimed`, and whichever runs
+   * first wins — so with role-implied first, a filename matching
+   * `/(convention|style|handbook|guideline|standard)/` turned **every** sentence in that
+   * document into a `convention`, including sentences carrying a deontic modal that the
+   * constraint pass would have filed correctly. §10.4 then blocks cross-category merges, so
+   * two documents stating the same rule became unmergeable because one of them had the wrong
+   * word in its filename.
+   *
+   * `CORPUS.md` §2.17 found it before it graded anything: one filename separated all six
+   * graded pairs, and the precision arm read a clean 3/3 on cases the pipeline never compared.
+   *
+   * Reversing this is one line, and §9 records why the other two options were not taken:
+   * loosening §10.4's block risks silent loss, and dropping the role-implied pass trades
+   * §10.4 recall for §10.3 recall at 94.7%.
+   */
   units.push(...extractNormativeProse(ctx, blocks));
+  units.push(...extractRoleImpliedUnits(ctx, blocks));
 
   return units;
 }

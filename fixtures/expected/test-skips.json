@@ -1,5 +1,5 @@
 {
-  "note": "Every conditional skip in the test suite, declared. Regenerate with `node scripts/check-test-collection.mjs --update`. A skip is visible in the runner's output; a file that never loads is not, and neither is countable across machines unless it is written down here. Measured: 611 tests on a development machine, 606 on a clean clone — 7 reported skipped and 5 that left the total unannounced. Measured on this machine vs a clean clone: of 17 conditional skips, 15 never skip (their fixtures are committed or the build has run), and 2 files account for all 7 reported skips plus the 5 uncollected tests.",
+  "note": "Every conditional skip in the test suite, declared. Regenerate with `node scripts/check-test-collection.mjs --update`. A skip is visible in the runner's output; a file that never loads is not, and neither is countable across machines unless it is written down here. Measured: 611 tests on a development machine, 606 on a clean clone — 7 reported skipped and 5 that left the total unannounced.",
   "skips": [
     {
       "file": "packages/adapters-docx/test/messy-corpus.test.ts",
@@ -80,24 +80,24 @@
     },
     {
       "file": "packages/cli/test/cli.test.ts",
-      "line": 26,
+      "line": 36,
       "source": "describe.skipIf(!built)(\"markforge CLI\", () => {",
       "reason": "Guards on the CLI having been built. `pnpm verify` runs the build before the tests, and CI runs `pnpm run build` before `pnpm test`, so this does not skip in either. It exists so `pnpm test` alone on a fresh clone reports skipped rather than 20 confusing failures.",
-      "wouldRunIf": "Always runs under `pnpm verify` and in CI. Run `pnpm build` first for a bare `pnpm test`."
+      "wouldRunIf": "UNDECLARED"
     },
     {
       "file": "packages/cli/test/cli.test.ts",
-      "line": 90,
+      "line": 100,
       "source": "describe.skipIf(!built)(\"markforge fmt\", () => {",
       "reason": "Guards on the CLI having been built. `pnpm verify` runs the build before the tests, and CI runs `pnpm run build` before `pnpm test`, so this does not skip in either. It exists so `pnpm test` alone on a fresh clone reports skipped rather than 20 confusing failures.",
-      "wouldRunIf": "Always runs under `pnpm verify` and in CI. Run `pnpm build` first for a bare `pnpm test`."
+      "wouldRunIf": "UNDECLARED"
     },
     {
       "file": "packages/cli/test/cli.test.ts",
-      "line": 132,
-      "source": "describe.skipIf(!built)(\"unimplemented subcommands\", () => {",
+      "line": 142,
+      "source": "describe.skipIf(!built)(\"the last two SPEC section 8 subcommands\", () => {",
       "reason": "Guards on the CLI having been built. `pnpm verify` runs the build before the tests, and CI runs `pnpm run build` before `pnpm test`, so this does not skip in either. It exists so `pnpm test` alone on a fresh clone reports skipped rather than 20 confusing failures.",
-      "wouldRunIf": "Always runs under `pnpm verify` and in CI. Run `pnpm build` first for a bare `pnpm test`."
+      "wouldRunIf": "UNDECLARED"
     },
     {
       "file": "packages/core/test/assist.test.ts",
@@ -119,6 +119,13 @@
       "source": "describe.skip(`${name} — skipped, ${path} not present`, () => {",
       "reason": "The only skip that removes tests from the total rather than marking them: two real specimens in fixtures/local/ that cannot be redistributed — an IEEE template (no redistribution right) and a document with personal data. 2 tests skip on a clean clone.",
       "wouldRunIf": "Nothing, deliberately. CORPUS §1 rule 5 forbids committing either. The defects they found are covered by authored equivalents in messy-corpus.test.ts."
+    },
+    {
+      "file": "packages/cli/test/cli.test.ts",
+      "line": 272,
+      "source": "describe.skipIf(!built)(\"SPEC §8 exit codes\", () => {",
+      "reason": "The exit-code table is asserted against the built CLI, because what ships is dist/ and a bin entry that does not resolve is a defect the source tests cannot see. Skips only before a build, like every other block in this file.",
+      "wouldRunIf": "`pnpm build` has produced packages/cli/dist/index.js, which `pnpm verify` does before the tests."
     }
   ]
 }

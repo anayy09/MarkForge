@@ -122,6 +122,44 @@ function convert(
   diagnostics: DiagnosticBag,
   positions: Map<AnyNode, MarkdownPosition>,
 ): AnyNode {
+  /*
+   * GFM alerts: a blockquote whose first line is `[!NOTE]` is an admonition.
+   *
+   * `render-md` has emitted this shape for `admonition` nodes since Phase 2, and nothing read
+   * it back — so an admonition round-tripped to a blockquote and the type was destroyed on
+   * every loop. Found by the flavour-distinctness gate, which could not separate Docusaurus,
+   * GFM, and Obsidian because the probe's admonition never became an `admonition` node in the
+   * first place: the three presets differ only in how they *spell* a type nothing produced.
+   *
+   * The marker is consumed rather than kept as text, which is what makes the round trip
+   * lossless: re-rendering writes it back in whichever spelling the target flavour uses.
+   */
+  if (node.type === "blockquote" && Array.isArray(node.children)) {
+    const first = node.children[0] as AnyNode | undefined;
+    const firstText = first?.type === "paragraph" ? (first.children?.[0] as AnyNode | undefined) : undefined;
+    const value = typeof firstText?.["value"] === "string" ? firstText["value"] : "";
+    const marker = /^\[!([A-Za-z]+)\]\s*\n?/.exec(value);
+    if (marker) {
+      const rest = value.slice(marker[0].length);
+      const trimmed: AnyNode[] = [...(node.children as AnyNode[])];
+      if (rest.trim() === "") {
+        trimmed.shift();
+      } else {
+        trimmed[0] = {
+          ...(first as AnyNode),
+          children: [{ type: "text", value: rest }, ...((first?.children ?? []).slice(1) as AnyNode[])],
+        };
+      }
+      const admonition: AnyNode = {
+        type: "admonition",
+        kind: (marker[1] as string).toLowerCase(),
+        children: trimmed.map((c) => convert(c, diagnostics, positions)),
+      };
+      recordPosition(node, admonition, positions);
+      return admonition;
+    }
+  }
+
   if (!PASSTHROUGH.has(node.type)) {
     // A6: never drop. An unknown construct survives with its source text so a
     // renderer can put it back verbatim (SPEC §3.2).
@@ -133,7 +171,7 @@ function convert(
     );
     const preserved: AnyNode = {
       type: "unknown",
-      originalType: node.type,
+      construct: node.type,
       raw: typeof node["value"] === "string" ? node["value"] : "",
     };
     recordPosition(node, preserved, positions);
@@ -143,11 +181,36 @@ function convert(
   const out: AnyNode = { type: node.type };
   recordPosition(node, out, positions);
 
+  /*
+   * SPEC §2.7.1 makes `rowSpan`, `colSpan`, and `isHeader` **required** on every cell, and
+   * records that four adapters once omitted them so every table they produced failed
+   * validation — fixed by routing cell construction through `tableCell()` in `@markforge/ir`.
+   *
+   * This adapter never took that route. It copies mdast nodes field by field, and mdast has
+   * no such fields, so **every Markdown document containing a table produced an invalid IR**.
+   * `markforge check fixtures/md/clean-report.md` says INVALID and `pnpm verify` is green,
+   * because no gate validates a Markdown-parsed table — the fixture-backed validation tests
+   * all start from DOCX or HTML.
+   *
+   * Supplied here rather than by calling `tableCell()` because the surrounding loop copies
+   * mdast fields onto `out` afterwards, and a constructed node would be overwritten by it.
+   */
+  if (node.type === "tableCell") {
+    out["rowSpan"] = 1;
+    out["colSpan"] = 1;
+    out["isHeader"] = false;
+  }
+
   // mdast carries `position` on every node. It is excluded from node ids by
   // construction (ADR-0014) but keeping it would bloat the IR and make diffs noisy,
   // so it is dropped here rather than carried and ignored.
+  //
+  // `data` goes with it, for a sharper reason: remark plugins hang hast rendering hints
+  // there (remark-math writes `hName`, `hProperties`, and a *copy of the value* as
+  // `hChildren`), the IR schema declares no such field, and `unevaluatedProperties: false`
+  // rejects it. Every `$…$` in every Markdown fixture produced an invalid IR.
   for (const [key, value] of Object.entries(node)) {
-    if (key === "type" || key === "children" || key === "position") continue;
+    if (key === "type" || key === "children" || key === "position" || key === "data") continue;
     if (value === undefined || value === null) continue;
     out[key] = value;
   }

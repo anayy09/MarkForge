@@ -15,7 +15,7 @@ document produces a minimal, readable git diff.*
 
 | Half | Measured | Checked by |
 | --- | --- | --- |
-| `CLAUDE.md` set at 100% traceability | 100.0% over 37 sentences | `scripts/check-agentify.mjs` check 1 |
+| `CLAUDE.md` set at 100% traceability | 100.0% over 38 sentences | `scripts/check-agentify.mjs` check 1 |
 | One source edit → minimal diff | 1 line in 1 region | check 3 |
 
 Both are CI jobs, not assertions. The gate is also checked for its ability to **fail**
@@ -29,11 +29,11 @@ Five first-class targets, compiled from the five-document clean set.
 
 | Target | Tier | Output | Tokens | Traceability |
 | --- | --- | --- | --- | --- |
-| `agents-md` | firstClass | `AGENTS.md` | 552 | 100.0% |
-| `claude-md` | firstClass | `CLAUDE.md` | 552 | 100.0% |
-| `claude-skills` | firstClass | `.claude/skills/api-contract/SKILL.md`, `.claude/skills/coding-conventions/SKILL.md`, `.claude/skills/decision-record/SKILL.md`, `.claude/skills/product-spec/SKILL.md`, `.claude/skills/runbook/SKILL.md` | 859 | 100.0% |
-| `claude-commands` | firstClass | `.claude/commands/runbook.md` | 153 | 100.0% |
-| `mcp-manifest` | firstClass | `.mcp.json` | 76 | 100.0% |
+| `agents-md` | firstClass | `AGENTS.md` | 570 | 100.0% |
+| `claude-md` | firstClass | `CLAUDE.md` | 570 | 100.0% |
+| `claude-skills` | firstClass | `.claude/skills/api-contract/SKILL.md`, `.claude/skills/coding-conventions/SKILL.md`, `.claude/skills/decision-record/SKILL.md`, `.claude/skills/product-spec/SKILL.md`, `.claude/skills/runbook/SKILL.md` | 890 | 100.0% |
+| `claude-commands` | authored | `.claude/commands/runbook.md` | 153 | 100.0% |
+| `mcp-manifest` | authored | `.mcp.json` | 76 | 100.0% |
 
 Token counts are approximate (3.8 characters per token) — an estimate, not a measurement. SPEC §10.5
 requires the method to be named so an estimate is not mistaken for a measurement; no
@@ -45,7 +45,7 @@ name rather than silently approximated.
 | Section | Units | Tokens |
 | --- | --- | --- |
 | Commands | 5 | 38 |
-| Constraints and invariants | 9 | 264 |
+| Constraints and invariants | 10 | 283 |
 | Conventions | 3 | 53 |
 | Do not | 2 | 37 |
 | Environment | 3 | 26 |
@@ -63,7 +63,7 @@ named the *wrong* convention as missed when four were expected and three found.
 
 | Set | Units extracted | Recall | Precision |
 | --- | --- | --- | --- |
-| `clean` | 24 | 94.7% | 75.0% |
+| `clean` | 25 | 94.7% | 72.0% |
 | `conflicting` | 5 | n/a | n/a |
 | `oversized` | 40 | n/a | n/a |
 
@@ -89,6 +89,7 @@ correctness fix rather than tuning.
 
 ### Found, but filed under a different category
 
+- `clean` the key says **convention**, the rules said **constraint** — Modules are named for what they do, not for the pattern they use.
 - `clean` the key says **convention**, the rules said **antiPattern** — Never swallow an error to keep a request alive.
 
 A miscategorisation is not a miss — the sentence reaches the output file either way — so it

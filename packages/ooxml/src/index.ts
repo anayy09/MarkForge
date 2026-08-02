@@ -14,6 +14,7 @@ export {
   isText,
   childElements,
   childrenNamed,
+  serializeElement,
   childNamed,
   firstByPath,
   descendantsNamed,

@@ -28,9 +28,9 @@ export interface AgentTargetProfile {
    */
   kind: "flatMarkdown" | "scopedRuleSet" | "skillPackage" | "commandSet" | "manifest";
   /**
-   * firstClass targets carry a traceability gate and fixture tests; stub targets are schema-valid but ungated.
+   * firstClass: gated AND checked against something outside this repository — a vendor-documented filename or a normative specification. authored: gated, but the content model is ours because no vendor guidance exists, so the gate measures our own expectation. stub: schema-valid and ungated. The middle tier was added 2026-08-01 (OPEN_QUESTIONS §7ai): claude-commands and mcp-manifest had been labelled firstClass alongside three targets checked against external sources, and §7n said so in prose while the schema kept calling them the same thing.
    */
-  tier?: "firstClass" | "stub";
+  tier?: "firstClass" | "authored" | "stub";
   vendor?: string;
   docsUrl?: string;
   /**

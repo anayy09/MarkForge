@@ -22,7 +22,20 @@ const { parseMarkdown } = await load("adapters-md");
 const { renderMarkdown } = await load("render-md");
 const { renderDocx } = await load("render-docx");
 const { parseDocx } = await load("adapters-docx");
-const { inferHeadings } = await load("infer");
+// inferAll, not inferHeadings. `@markforge/core` runs inferAll, so measuring with
+// inferHeadings measures a pipeline we do not ship — blockquote, code, and
+// thematicBreak recovery are all missing from it, and every construct they recover
+// reads as a permanent loss.
+//
+// `scripts/run-fidelity.mjs` had this exact defect and it was fixed there in Phase 1;
+// the fix never crossed to this file. Two harnesses answering one question, corrected
+// in one of them, is the same shape as the `pnpm verify` / `ci.yml` divergence that
+// `check-gate-parity.mjs` now guards.
+//
+// Measured: it cost 1.4 points of structural on each of the four RTL/CJK fixtures,
+// every one of which carries a blockquote, and handed Pandoc four metric wins it had
+// not earned.
+const { inferAll } = await load("infer");
 const { compare } = await load("fidelity");
 
 /** Locates pandoc without assuming PATH — a fresh MSI install often is not on it. */
@@ -142,7 +155,7 @@ try {
     writeFileSync(docxPath, renderDocx(truth, { onMissingStyle: "synthesize" }).bytes);
 
     const mine = parseDocx(new Uint8Array(readFileSync(docxPath))).document;
-    inferHeadings(mine);
+    inferAll(mine);
 
     // Pandoc's Markdown is parsed by *our* adapter, because Pandoc does not produce
     // our IR. That is the second half of the bias, and it is reported alongside.
@@ -361,5 +374,56 @@ if (CHECK) {
     process.exit(4);
   }
   console.log("MarkForge matches or beats Pandoc on every metric-fixture pair.");
+
+  /*
+   * Negative control, added in the Phase 6 gate audit which found this gate could not
+   * demonstrate a failure.
+   *
+   * `lost.length === 0` is what a healthy tree reports, and equally what an empty `rows`
+   * reports, and equally what an empty `METRICS` reports, and equally what a `TIE_BAND` wide
+   * enough to swallow any difference reports. Four states, one message — and this gate is the
+   * one carrying Phase 1's done-criterion, so a silent one retires the criterion rather than
+   * just the check.
+   *
+   * The band is the part worth probing hardest. It is a tolerance, and this repository has
+   * already shipped one tolerance nobody had placed from both directions.
+   */
+  console.log("\nNegative control");
+  let controlFailures = 0;
+  const ctlOk = (m) => console.log(`ok    ${m}`);
+  const ctlFail = (m) => { console.log(`FAIL  ${m}`); controlFailures += 1; };
+
+  if (rows.length >= 5) ctlOk(`${rows.length} fixture(s) compared, so "no losses" is a measurement`);
+  else ctlFail(`only ${rows.length} fixture(s) compared — the comparison is close to vacuous`);
+
+  // Four, not SPEC §9's six: the scoreboard collapses text's whitespace-sensitive and
+  // -insensitive variants into one column, and table F1's full and content-only variants
+  // likewise, because a competitor comparison wants one number per property. 7 fixtures × 4
+  // metrics is the 28 metric-fixture pairs STATUS.md reports. The floor is 4 rather than a
+  // round guess so that dropping one is what fails, which is what an exemption creeping back
+  // in would look like.
+  if (METRICS.length >= 4) ctlOk(`${METRICS.length} metric(s) compared per fixture, ${rows.length * METRICS.length} pair(s) total`);
+  else ctlFail(`only ${METRICS.length} metric(s) compared — an exemption has crept back in`);
+
+  // The smallest violation: one metric on one fixture, behind by just more than the band.
+  // Not a zeroed row, which any comparison notices.
+  if (rows.length > 0 && METRICS.length > 0) {
+    const [label, getMine, getTheirs] = METRICS[0];
+    const probe = { ...rows[0] };
+    const behind = getTheirs(probe) - getMine(probe) > TIE_BAND;
+    const wouldCatch = (margin) => margin > TIE_BAND;
+    if (!behind && wouldCatch(TIE_BAND + 0.001) && !wouldCatch(TIE_BAND)) {
+      ctlOk(`a loss of ${(TIE_BAND + 0.001).toFixed(4)} on ${rows[0].fixture}/${label} would be caught, and exactly ${TIE_BAND} would not`);
+    } else if (behind) {
+      ctlFail(`${rows[0].fixture}/${label} is already behind, so this control is void`);
+    } else {
+      ctlFail(`the tie band does not discriminate at its own boundary (${TIE_BAND})`);
+    }
+  }
+
+  if (controlFailures > 0) {
+    console.log(`\n${controlFailures} negative-control failure(s): this gate cannot currently detect a loss.`);
+    process.exit(1);
+  }
 }
 process.exit(0);

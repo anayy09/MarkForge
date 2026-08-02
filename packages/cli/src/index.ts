@@ -2,9 +2,9 @@
 /**
  * The `markforge` command line interface.
  *
- * `diff` and `init` are declared but refuse rather than pretend: a command that silently
- * does nothing is worse than one that says it does not exist yet. SPEC §8 has the full
- * intended surface.
+ * All eight subcommands are built as of 2026-08-01: `convert`, `fmt`, `check`, `agentify`,
+ * `diff`, `init`, `serve`, and `mcp`. `diff` and `init` were declared-but-refusing for five
+ * phases, which was the right behaviour and was not delivery.
  *
  * `--json` emits exactly one object on stdout and sends human output to stderr, so
  * piping is safe.
@@ -15,6 +15,7 @@ import { existsSync } from "node:fs";
 import { resolve, relative } from "node:path";
 import {
   ExitCode,
+  FLAVORS,
   OUTPUT_FORMATS,
   convert,
   formatMarkdownSync,
@@ -24,7 +25,13 @@ import {
   type Assist,
   type Format,
 } from "@markforge/core";
-import { countNodes, validateDocument, DiagnosticCode, type Diagnostic } from "@markforge/ir";
+import {
+  canonicalJsonPretty,
+  countNodes,
+  validateDocument,
+  DiagnosticCode,
+  type Diagnostic,
+} from "@markforge/ir";
 import { readAvailableStyles, reportCoverage } from "@markforge/render-docx";
 import { createTesseractRecognizer } from "@markforge/adapters-ocr";
 import {
@@ -47,7 +54,30 @@ import {
   type LlmFlags,
 } from "./llm-config.js";
 import { runAgentify, type AgentifyFlags } from "./agentify-command.js";
+import { runDiff } from "./diff-command.js";
+import { runInit } from "./init-command.js";
+import { runFidelityCheck } from "./fidelity-command.js";
 import type { AgentifyAssist } from "@markforge/agentify";
+
+/**
+ * ADR-0021's presets, reachable from a shipped surface.
+ *
+ * The presets were built and gated — `scripts/check-flavor-distinctness.mjs` proves seven of
+ * them render one probe seven different ways — and then reached **no command**. A capability
+ * only the test suite can call is the shape of defect this phase exists to close, so it is
+ * the same list here rather than a second one that can drift from it.
+ */
+const FLAVOR_NAMES = Object.keys(FLAVORS).sort();
+
+/** Rejects an unknown flavour rather than silently falling back to GFM. */
+function mdFlavor(name: string): string {
+  if (Object.prototype.hasOwnProperty.call(FLAVORS, name)) return name;
+  process.stderr.write(
+    `markforge: unknown --md-flavor "${name}". Known flavours: ${FLAVOR_NAMES.join(", ")}
+`,
+  );
+  process.exit(ExitCode.ERROR);
+}
 
 const program = new Command();
 
@@ -212,7 +242,14 @@ const convertCommand = program
   .option("--reference-doc <path>", "DOCX reference document supplying named styles")
   .option("--no-infer", "skip structure inference; evidence stays evidence")
   .option("--explain", "print the inference decision log")
+  .option("--emit-ir <path>", "also write the IR as canonical JSON")
+  .option("--report <path>", "also write the conversion report as JSON")
   .option("--on-missing-style <mode>", "warn | error | synthesize", "synthesize")
+  .option(
+    "--md-flavor <name>",
+    `Markdown flavour: ${FLAVOR_NAMES.join(", ")} (ADR-0021). Decides which constructs the ` +
+      `output can express, so a flavour that cannot hold a footnote reports it.`,
+  )
   .option("--json", "emit a machine-readable result on stdout")
   .option("--strict", "exit 2 if anything was lost")
   .option("--quiet", "suppress human output")
@@ -284,6 +321,9 @@ convertCommand
         path: relative(process.cwd(), inputPath).replace(/\\/g, "/"),
         infer: opts["infer"] === false ? false : {},
         explain: opts["explain"] === true,
+        ...(typeof opts["mdFlavor"] === "string"
+          ? { markdown: { flavor: mdFlavor(opts["mdFlavor"]) } }
+          : {}),
         docx: {
           onMissingStyle: opts["onMissingStyle"] as "warn" | "error" | "synthesize",
           ...(referenceDoc ? { referenceDoc } : {}),
@@ -350,6 +390,41 @@ convertCommand
       const llmReport = assist.report?.();
       const llmTotallyFailed =
         llmReport !== undefined && llmReport.calls > 0 && llmReport.failures === llmReport.calls;
+
+      /*
+       * `--emit-ir` and `--report`, both listed in SPEC section 8's `convert` row since Phase 0
+       * and neither implemented until 2026-08-01. Found by trying to use `--emit-ir` while
+       * debugging a fixture, which is the same way `check --reference-doc` was found to be
+       * described in two specification documents before it existed.
+       *
+       * The IR is written with `canonicalJsonPretty`: SPEC section 2.7 fixes the canonical form
+       * (NFC, sorted keys, absent-vs-null by omission), so two runs produce identical bytes and
+       * the file can be diffed. `JSON.stringify` would not guarantee key order.
+       */
+      if (typeof opts["emitIr"] === "string") {
+        await writeFile(resolve(opts["emitIr"] as string), canonicalJsonPretty(result.document), "utf8");
+        log(`  IR written to ${opts["emitIr"] as string}`, flags);
+      }
+      if (typeof opts["report"] === "string") {
+        await writeFile(
+          resolve(opts["report"] as string),
+          JSON.stringify(
+            {
+              input, output, from, to,
+              bytesWritten: result.bytes.byteLength,
+              documentId: result.document.id,
+              diagnostics: result.diagnostics,
+              lossyCount: lossy.length,
+              decisions: result.decisions,
+              llm: llmReport ?? null,
+            },
+            null,
+            2,
+          ) + "\n",
+          "utf8",
+        );
+        log(`  report written to ${opts["report"] as string}`, flags);
+      }
 
       if (flags.json) {
         process.stdout.write(
@@ -459,6 +534,15 @@ const checkCommand = program
   .description("Validate documents, a DOCX reference document, and the LLM endpoint")
   .argument("[paths...]", "documents to parse and validate against the IR schema")
   .option("--reference-doc <path>", "report which named styles a DOCX template defines")
+  .option(
+    "--fidelity <baselines>",
+    "measure the named documents against committed baselines; exit 4 on a regression (SPEC §8)",
+  )
+  .option("--tolerance <n>", "override the baselines' tolerance for this run")
+  .option(
+    "--md-flavor <name>",
+    `render through this flavour while measuring: ${FLAVOR_NAMES.join(", ")} (ADR-0021)`,
+  )
   .option("--llm", "probe the endpoint for guided decoding and seed support, and record it")
   .option("--json", "emit a machine-readable result on stdout")
   .option("--strict", "exit 2 if a document reports a lossy diagnostic")
@@ -471,6 +555,25 @@ checkCommand
     let exit: number = ExitCode.SUCCESS;
 
     try {
+      // --- Fidelity against baselines (SPEC §8). The clause that made exit 4 reachable.
+      if (typeof opts["fidelity"] === "string") {
+        if (paths.length === 0) {
+          fail("check --fidelity needs at least one document to measure.");
+          process.exit(ExitCode.ERROR);
+        }
+        const { result, text } = await runFidelityCheck(
+          paths.map((p) => resolve(p)),
+          (path) => formatFromPath(path),
+          opts as never,
+        );
+        report["fidelity"] = result;
+        if (!flags.json && flags.quiet !== true) process.stderr.write(text);
+        if (!result.ok) {
+          report["ok"] = false;
+          exit = ExitCode.FIDELITY_REGRESSION;
+        }
+      }
+
       // --- Reference document coverage (SPEC §4.2.1, TEMPLATES.md §2.2).
       if (typeof opts["referenceDoc"] === "string") {
         const path = resolve(opts["referenceDoc"]);
@@ -565,7 +668,19 @@ checkCommand
               `${lossy.length} lossy diagnostic(s)`,
             flags,
           );
-          for (const error of validation.errors.slice(0, 10)) log(`    ${error}`, flags);
+          // `validation.errors` holds objects, not strings, so a bare template literal
+          // printed ten lines of `[object Object]` — a message that tells a user their
+          // document is invalid and then refuses to say where. Formatted rather than
+          // JSON-dumped, because a path and a sentence is what someone acts on.
+          for (const error of validation.errors.slice(0, 10)) {
+            const where = typeof error === "object" && error !== null && "path" in error
+              ? String((error as { path: unknown }).path)
+              : "";
+            const what = typeof error === "object" && error !== null && "message" in error
+              ? String((error as { message: unknown }).message)
+              : String(error);
+            log(`    ${where}${where ? ": " : ""}${what}`, flags);
+          }
         }
         if (!validation.valid) exit = ExitCode.ERROR;
         else if (flags.strict && lossy.length > 0 && exit === ExitCode.SUCCESS) {
@@ -787,24 +902,60 @@ program
     });
   });
 
-// The remaining SPEC §8 subcommands. Declared so `--help` tells the truth about the
-// intended surface, and each one refuses rather than silently doing nothing.
-for (const [name, description] of [
-  ["diff", "Semantic IR diff between two documents"],
-  ["init", "Scaffold config and reference documents"],
-] as const) {
-  program
-    .command(name)
-    .description(`${description} (not yet implemented)`)
-    .allowUnknownOption()
-    .action(() => {
-      process.stderr.write(
-        `markforge ${name}: not implemented yet.\n` +
-          `See docs/SPEC.md §8 for the full intended command surface.\n`,
-      );
+/*
+ * `diff` and `init` — the last two of SPEC section 8's seven, built 2026-08-01.
+ *
+ * They stood as stubs that refused by name for five phases, which was the right behaviour and
+ * was not delivery. `diff` in particular is why `@markforge/fidelity` is a package rather than
+ * test-suite code (OPEN_QUESTIONS 7a): that argument named `check` and `diff` as its two
+ * consumers, and until now only one of them existed.
+ */
+program
+  .command("diff")
+  .description("Semantic IR diff between two documents, not a text diff")
+  .argument("<a>", "first document")
+  .argument("<b>", "second document")
+  .option("--metric", "also print fidelity scores for the pair")
+  .option("--json", "emit a machine-readable result on stdout")
+  .option("--quiet", "suppress human output")
+  .action(async (a, b, opts) => {
+    try {
+      const { result, text } = await runDiff(a, b, (path) => formatFromPath(path), opts);
+      if (opts.json === true) process.stdout.write(`${JSON.stringify(result, null, 2)}
+`);
+      else if (opts.quiet !== true) process.stdout.write(text);
+      // Exit 0 whether or not they differ. A diff that exited non-zero on a difference would
+      // be unusable in any pipeline that expects to *find* one, which is all of them.
+      process.exit(ExitCode.SUCCESS);
+    // degradation: rethrows
+    } catch (error) {
+      fail((error as Error).message);
       process.exit(ExitCode.ERROR);
-    });
-}
+    }
+  });
+
+program
+  .command("init")
+  .description("Scaffold config and lint config in the current directory")
+  .option("--print-config", "print the resolved configuration instead of writing anything")
+  .option("--force", "overwrite existing files")
+  .option("--json", "emit a machine-readable result on stdout")
+  .action(async (opts) => {
+    try {
+      const { result, text } = await runInit(process.cwd(), opts);
+      if (opts.json === true && opts.printConfig !== true) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}
+`);
+      } else {
+        process.stdout.write(text);
+      }
+      process.exit(ExitCode.SUCCESS);
+    // degradation: rethrows
+    } catch (error) {
+      fail((error as Error).message);
+      process.exit(ExitCode.ERROR);
+    }
+  });
 
 // commander's own async entry point, unrelated to @markforge/core's `parse`.
 program.parseAsync(process.argv).catch((error: Error) => {

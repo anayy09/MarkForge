@@ -469,6 +469,35 @@ export function groupIntoBlocks(column: Column, leading: number, gapRatio = 1.35
  * lowercase continuations are joined: `well-` followed by `Known` is a real hyphen
  * in a proper noun, and removing it would be a different kind of wrong.
  */
+/**
+ * Typographic ligatures, expanded to their component letters.
+ *
+ * ADR-0012 clause 2, unbuilt from Phase 2 until 2026-08-01. A PDF's text layer stores what the
+ * *font* encoded, and a font that renders `fi` as one glyph stores one codepoint — so
+ * "efficient" extracts as "eﬃcient" and every downstream consumer sees a word that does not
+ * match a search, a diff, or a dictionary. Search is the one users notice.
+ *
+ * The full Alphabetic Presentation Forms block, not a subset: `ﬅ` and `ﬆ` are rare in English
+ * and ordinary in older typesetting, and this corpus includes a pre-1930 scholarly article for
+ * exactly that reason.
+ *
+ * Applied at join time rather than at extraction, because a ligature is a property of the text
+ * and not of the layout — the same reasoning that puts hyphenation repair here.
+ */
+const LIGATURES: ReadonlyMap<string, string> = new Map([
+  ["ﬀ", "ff"], ["ﬁ", "fi"], ["ﬂ", "fl"], ["ﬃ", "ffi"],
+  ["ﬄ", "ffl"], ["ﬅ", "st"], ["ﬆ", "st"],
+  // Not ligatures but the same class of defect: a font-encoded presentation form that is not
+  // the character anyone searches for.
+  ["‐", "-"], ["‑", "-"],
+]);
+
+export function expandLigatures(text: string): string {
+  let out = text;
+  for (const [glyph, letters] of LIGATURES) out = out.split(glyph).join(letters);
+  return out;
+}
+
 export function joinBlockText(lines: Line[]): string {
   let out = "";
   for (let i = 0; i < lines.length; i++) {
@@ -481,7 +510,9 @@ export function joinBlockText(lines: Line[]): string {
     out += text;
     if (next) out += " ";
   }
-  return out.replace(/\s+/g, " ").trim();
+  // Ligatures expanded after joining, so a ligature spanning a hyphenation repair is
+  // handled once rather than twice.
+  return expandLigatures(out.replace(/\s+/g, " ").trim());
 }
 
 export function median(values: number[]): number | undefined {
@@ -489,4 +520,78 @@ export function median(values: number[]): number | undefined {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
+}
+
+/**
+ * Running headers and footers, found by cross-page repetition in consistent y-bands.
+ *
+ * ADR-0012 clause 1, unbuilt from Phase 2 until 2026-08-01. Brief §5.2 asks for "header and
+ * footer stripping"; ADR-0002 routes them to `furniture` instead, because stripping violates
+ * the no-silent-loss rule — so the destination has existed since Phase 0 and nothing ever
+ * wrote to it. The PDF adapter never produced a single `furniture` entry.
+ *
+ * **Repetition is the only available evidence.** A PDF has no notion of a header: a running
+ * title is a line of text near the top of the page, indistinguishable from a heading except
+ * that it appears on *every* page in the *same place*. So the rule is:
+ *
+ *   - the line sits in the top or bottom band of its page (12% by default — a header that
+ *     reaches further down is not a running header, it is content);
+ *   - a line with the same normalised text, or the same shape with a different number,
+ *     appears in the same band on at least half the pages.
+ *
+ * The second clause is what makes page numbers work: `Page 3 of 12` and `Page 4 of 12` are the
+ * same furniture, and comparing raw text would treat every page as unique. Digits are masked
+ * before comparison for exactly that reason.
+ *
+ * **A single-page document has no repetition and therefore no furniture**, which is correct
+ * rather than a limitation: with one page there is no evidence that a top line is a running
+ * header rather than a title, and inventing one would be structure not evidenced in the
+ * source.
+ */
+export interface FurnitureCandidate {
+  pageNumber: number;
+  kind: "header" | "footer";
+  text: string;
+  /** The line, so the caller can exclude it from body content. */
+  line: Line;
+}
+
+export function detectFurniture(
+  pages: { pageNumber: number; layout: PageLayout; height: number }[],
+  bandRatio = 0.12,
+): FurnitureCandidate[] {
+  // One page cannot repeat. Two is the minimum that can, and half of two is one, so the
+  // threshold below would accept anything — hence three.
+  if (pages.length < 3) return [];
+
+  /** Digits masked, so `Page 3 of 12` and `Page 4 of 12` compare equal. */
+  const shape = (text: string): string => text.replace(/\d+/g, "#").replace(/\s+/g, " ").trim().toLowerCase();
+
+  const seen = new Map<string, { pages: Set<number>; kind: "header" | "footer" }>();
+  const candidates: { key: string; c: FurnitureCandidate }[] = [];
+
+  for (const page of pages) {
+    const band = page.height * bandRatio;
+    for (const column of page.layout.columns) {
+      for (const line of column.lines) {
+        // `y` increases downward here: every reading-order sort in this file is
+        // ascending by `y`, so small `y` is the top of the page. Stated because PDF's own
+        // coordinate space is bottom-left origin and SPEC §2.4 makes `BBox` name its
+        // orientation precisely because an unlabelled one silently mixes the two.
+        const isHeader = line.y < band;
+        const isFooter = line.y > page.height - band;
+        if (!isHeader && !isFooter) continue;
+        const kind = isHeader ? "header" : "footer";
+        const key = `${kind}:${shape(line.text)}`;
+        if (shape(line.text) === "") continue;
+        const entry = seen.get(key) ?? { pages: new Set<number>(), kind };
+        entry.pages.add(page.pageNumber);
+        seen.set(key, entry);
+        candidates.push({ key, c: { pageNumber: page.pageNumber, kind, text: line.text, line } });
+      }
+    }
+  }
+
+  const threshold = Math.ceil(pages.length / 2);
+  return candidates.filter(({ key }) => (seen.get(key)?.pages.size ?? 0) >= threshold).map(({ c }) => c);
 }

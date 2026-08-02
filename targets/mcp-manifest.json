@@ -4,7 +4,7 @@
   "targetVersion": "0.1.0",
   "displayName": "MCP project manifest (.mcp.json)",
   "kind": "manifest",
-  "tier": "firstClass",
+  "tier": "authored",
   "vendor": "Anthropic / Model Context Protocol",
   "docsUrl": "https://code.claude.com/docs/en/mcp",
   "verifiedAgainst": {

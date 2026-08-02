@@ -47,14 +47,34 @@ const normText = (s) => s.replace(/\s+/g, " ").trim();
  * readers in fact agreed. Mammoth's HTML nests the same way and its reduction only matches
  * top-level tags, so this has to as well or the comparison is not one.
  */
+/**
+ * Text as the shipped default would render it: `revisionMode: "clean"`, so a tracked deletion
+ * is not there.
+ *
+ * `textContent` returns every node in the subtree, deletions included and unseparated, so a
+ * paragraph reading "forty" deleted and "fifty" inserted reduced to `fortyfifty` — a token
+ * only our side produced, reported as a rendering bug, and still reported after the renderer
+ * was fixed. The defect was real; the *measurement* of it was reading the IR rather than the
+ * output. Mammoth's HTML shows accepted text, so this compares like with like.
+ */
+function acceptedText(node) {
+  const strip = (n) => {
+    if (!n || typeof n !== "object") return n;
+    if (n.type === "deletion") return null;
+    if (!Array.isArray(n.children)) return n;
+    return { ...n, children: n.children.map(strip).filter(Boolean) };
+  };
+  return textContent(strip(node));
+}
+
 function ourOutline(node, out = []) {
   for (const child of node.children ?? []) {
     switch (child.type) {
       case "heading":
-        out.push(`heading:${child.resolvedLevel ?? child.depth} ${normText(textContent(child))}`);
+        out.push(`heading:${child.resolvedLevel ?? child.depth} ${normText(acceptedText(child))}`);
         break;
       case "paragraph": {
-        const t = normText(textContent(child));
+        const t = normText(acceptedText(child));
         if (t) out.push(`paragraph ${t}`);
         break;
       }
@@ -65,7 +85,7 @@ function ourOutline(node, out = []) {
           // "…numbered item." to "A nested item." and reported the seam as a token only
           // our reader produced — a divergence invented entirely by the reduction.
           const own = (item.children ?? []).filter((c) => c.type !== "list");
-          out.push(`listItem ${normText(own.map((c) => textContent(c)).join(" "))}`);
+          out.push(`listItem ${normText(own.map((c) => acceptedText(c)).join(" "))}`);
           for (const nested of (item.children ?? []).filter((c) => c.type === "list")) {
             ourOutline({ children: [nested] }, out);
           }
@@ -77,9 +97,22 @@ function ourOutline(node, out = []) {
         // clean agreement look like a total divergence.
         const cells = [];
         for (const row of child.children ?? []) {
-          for (const cell of row.children ?? []) cells.push(normText(textContent(cell)));
+          for (const cell of row.children ?? []) cells.push(normText(acceptedText(cell)));
         }
         out.push(`table ${cells.filter(Boolean).join(" ").slice(0, 120)}`);
+        break;
+      }
+      // A caption's children are phrasing, so the recursion below walks into `text` nodes,
+      // finds no children, and pushes nothing — the caption's words vanish from our side of
+      // the comparison and read as tokens only Mammoth recovered. That is the third
+      // divergence this reduction invented rather than found (see the list and table notes
+      // above), and it was reported as a footnote-reader bug for a day after the footnote
+      // reader was built.
+      case "caption":
+      case "descriptionTerm":
+      case "descriptionDetails": {
+        const t = normText(acceptedText(child));
+        if (t) out.push(`${child.type} ${t}`);
         break;
       }
       default:
@@ -196,6 +229,26 @@ for (const f of findings) {
   if (!verdict) untriaged.push(f);
 }
 
+/*
+ * Rows in the triage table that no longer describe a divergence.
+ *
+ * The gate caught untriaged findings from the start and said nothing about the other
+ * direction, so a verdict outlived the defect it explained: after the footnote and endnote
+ * readers were built, `docs/MAMMOTH-DIFF.md` still carried rows reading "**Mammoth reads
+ * `endnotes.xml` and we do not**" while the table stood at 24 verdicts against 22
+ * divergences. A stale verdict is worse than an untriaged one — it is a confident claim
+ * about the current code that happens to be false — and this document exists to be read.
+ */
+const stale = [...triaged.keys()].filter((id) => !findings.some((f) => f.id === id));
+if (stale.length > 0) {
+  console.log(
+    `
+${stale.length} verdict(s) in docs/MAMMOTH-DIFF.md describe a divergence that no longer ` +
+      `occurs: ${stale.join(", ")}. Delete the row, or say what changed — a verdict that ` +
+      `outlives its defect is a false statement about today's code.`,
+  );
+}
+
 if (!CHECK) {
   // Emit a starter table so triage is an edit rather than a transcription job.
   const rows = findings
@@ -209,12 +262,43 @@ if (!CHECK) {
   console.log(`\nStarter table written to docs/.mammoth-diff.generated.md`);
 }
 
-if (untriaged.length > 0) {
-  console.log(
-    `\n${untriaged.length} divergence(s) are not triaged in docs/MAMMOTH-DIFF.md. ` +
-      `Every one must be recorded as \`improvement\`, \`bug\`, or \`accepted\` — the point ` +
-      `of this script is a reviewed list, not a green tick.`,
-  );
+// --- Negative control.
+//
+// Added in the Phase 6 gate audit, which found this gate could not demonstrate a failure.
+// "All divergences triaged" is what a reviewed tree reports and equally what a run that
+// compared **nothing** reports: `untriaged` is derived from `findings`, and an empty
+// `findings` — a fixture list that stopped resolving, a Mammoth call that threw and was
+// swallowed, a comparison narrowed until it matched everything — produces the same sentence.
+// ADR-0005's whole risk argument rests on this list being non-empty and reviewed.
+console.log("\nNegative control");
+let controlFailures = 0;
+{
+  const ctlOk = (m) => console.log(`ok    ${m}`);
+  const ctlFail = (m) => { console.log(`FAIL  ${m}`); controlFailures += 1; };
+
+  if (findings.length > 0) ctlOk(`${findings.length} divergence(s) compared, so "all triaged" is a measurement`);
+  else ctlFail("0 divergences were found — either the readers now agree exactly, which is implausible, or the comparison stopped comparing");
+
+  if (triaged.size > 0) ctlOk(`${triaged.size} verdict(s) parsed from docs/MAMMOTH-DIFF.md`);
+  else ctlFail("no verdicts parsed from docs/MAMMOTH-DIFF.md — every finding would read as untriaged, or the parser is broken");
+
+  // The smallest violation: one divergence with no verdict. Not an emptied triage table.
+  const phantomId = "__control-untriaged__";
+  if (!triaged.has(phantomId)) ctlOk("a single untriaged divergence would be reported");
+  else ctlFail(`negative control: ${phantomId} is triaged, so this control is void`);
+}
+
+if (untriaged.length > 0 || stale.length > 0 || controlFailures > 0) {
+  if (untriaged.length > 0) {
+    console.log(
+      `\n${untriaged.length} divergence(s) are not triaged in docs/MAMMOTH-DIFF.md. ` +
+        `Every one must be recorded as \`improvement\`, \`bug\`, or \`accepted\` — the point ` +
+        `of this script is a reviewed list, not a green tick.`,
+    );
+  }
+  if (controlFailures > 0) {
+    console.log(`\n${controlFailures} negative-control failure(s): this gate cannot currently detect an untriaged divergence.`);
+  }
   process.exit(CHECK ? 1 : 0);
 }
 console.log("\nAll divergences triaged.");

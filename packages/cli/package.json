@@ -20,6 +20,7 @@
   "dependencies": {
     "@markforge/ir": "workspace:*",
     "@markforge/core": "workspace:*",
+    "@markforge/fidelity": "workspace:*",
     "commander": "^12.1.0",
     "@markforge/llm": "workspace:*",
     "@markforge/render-docx": "workspace:*",

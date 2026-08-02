@@ -7,12 +7,100 @@ absent, and a green test suite is not the same as a finished phase.
 Every row is checkable. `docs/INIT.md` §11 defines the phases; the other references are
 to the Phase 0 specification documents that promised specific artifacts.
 
+## Closing audit, 2026-08-02
+
+**Every row in this document reads `done` or `struck`.** A struck row links a numbered ruling
+in `OPEN_QUESTIONS.md` that names what was lost, and every strike also appears in
+`docs/LIMITS.md`. There are no `partial`, `not done`, `not verified`, or `deferred` rows left;
+where one used to stand, either the work was finished or a ruling closed it.
+
+`pnpm verify` is green across all 32 gates. `docs/GATES.md` lists them with a commit where each
+was seen to fail, `scripts/check-gate-parity.mjs` asserts `pnpm verify` and `ci.yml` run the
+same set, and `scripts/check-gates.mjs` asserts every gate carries a negative control that runs
+on every invocation.
+
+| Package | State | Where it landed |
+| --- | --- | --- |
+| W0 ledger and gate audit | done | `docs/GATES.md` (32 gates), gate-parity gate, 10 gates given negative controls, 11 countable-fact contradictions fixed, D4 amended |
+| W1 DOCX writer losses | done — footnotes, images, tracked changes, and the figure/caption/description-list style convention all round-trip | `scripts/check-ir-structure.mjs`, `scripts/run-fidelity.mjs` |
+| W2 PDF renderer | done | `scripts/check-pdf-determinism.mjs` — byte-identical across separate processes on 4 fixtures |
+| W3 PDF adapter clauses | done — 2 built (ligature repair, furniture routing), 2 struck (figure/caption binding, table recovery) | OPEN_QUESTIONS §7af |
+| W4 visual regression | struck | OPEN_QUESTIONS §7ad |
+| W5 corpus completion | done — 12 categories complete, 3 struck, 0 partial, 0 absent | §2.2, §2.5, §2.10, §2.12, §2.13, §2.15 closed. §2.6, §2.8, §2.9 struck (§7ac); §2.15's LibreOffice producer struck (§7aj) |
+| W6 CLI surface | done — `diff`, `init`, `--emit-ir`, `--report`, `check --fidelity`, `--md-flavor`, and the pre-commit hook | `pnpm test`, `scripts/check-hook.mjs` |
+| W7 agentify | done — §9's routing fix built (§7ag); §10.10 struck (§7ae); §10.8's unit reuse struck (§7am) | `scripts/check-agentify.mjs` |
+| W8 distribution | done — the Playwright leg struck (§7ah); the `first-class` label split (§7ai) | OPEN_QUESTIONS §7ah, §7ai |
+| W9 closing pass | done — this section, and the sweep below | `docs/LIMITS.md`, `docs/GATES.md` |
+
+### What the closing pass found
+
+**Six IR-validity defects, none of which any gate could see.** `markforge check
+fixtures/md/clean-report.md` printed **INVALID IR** while `pnpm verify` was green, and it had
+been doing so for five phases. The cause was one missing field on a Markdown table cell; the
+*reason nothing caught it* was that every fixture-backed validation test began from DOCX or
+HTML. Validating **every committed fixture through its own adapter** — one new section in
+`scripts/check-ir-structure.mjs` — found five more on its first run:
+
+| Defect | Effect |
+| --- | --- |
+| `tableCell` missing `rowSpan`/`colSpan`/`isHeader` | Every Markdown document with a table produced an invalid IR |
+| mdast `data` copied onto `inlineMath` | Every `$…$` in every Markdown fixture produced an invalid IR |
+| `restartsAt` set on `list` instead of `listItem` | Three adapters; the property is a `ListItem` field, and two tests asserted the defect |
+| `comment` emitted with `anchors` and no `children` | Every document with a comment; the adapter had overruled the schema's wrapping model in a comment explaining why |
+| `equationBlock` inside a paragraph | Block content in a phrasing slot, on four fixtures |
+| `caption` without `for`, `image` directly under `figure` | Every HTML document with a `<figcaption>` or `<figure><img>` |
+
+**The validator could not explain any of them without exhausting a 4 GB heap.** A 46-node
+fixture with one missing `rowSpan` produced **1,054,471** errors, because `allErrors: true`
+cannot short-circuit a union and the count multiplies through the nesting. The explanation now
+descends to the deepest node that fails on its own merits and validates *that node* against its
+own `$defs` entry: same defect, **1** error, and it names the right field.
+
+**Two exit codes in `SPEC.md` §8's table could not be produced by anything.** Exit 4 had no
+implementation — `check --fidelity` did not exist. Exit 5 had one that could not fire: the
+scaffolding check was handed a fragment beginning `## More`, which satisfied its
+"does this look like a link" pattern before the link was examined, so a target profile whose
+declared import syntax was not a link passed the mandatory gate. Both are now produced by a
+test, from shipped behaviour rather than doctored inputs (§7ak, §7al).
+
+**A real Pandoc export invalidated every Pandoc-produced document.** `CORPUS.md` §2.15's third
+producer profile, built as a generation step, found on its first run that Pandoc's `TOCHeading`
+style declares `w:outlineLvl` 9 while our schema capped `outlineLevel` at 8 — against ISO/IEC
+29500-1, which allows 0 to 9. Five phases of hand-written fixtures never produced a 9 because
+we only ever wrote headings (§7aj).
+
+**`revisionMode` now means the same thing on all three renderers.** The DOCX writer and the PDF
+renderer read it; the Markdown renderer did not, so under the default `clean` it emitted both
+sides of every tracked change. It now emits the accepted text and diagnoses each dropped
+deletion.
+
+**Two renderers were hiding the document inside the annotation.** Once the DOCX adapter began
+wrapping a comment's range — as the schema always required — `render-md` and `render-html` both
+rendered the *commented text* inside `<!-- -->` and dropped the reviewer's note. The note is the
+annotation; the text under it is body text.
+
+### From the earlier run
+
+**W1's root cause was the IR, not the writer.** `STATUS.md` carried *"images are not embedded
+in DOCX output"* as a writer gap from Phase 1 to Phase 6. `Resource` recorded an image's media
+type, hash, and length and **never its bytes** — so every adapter read them, hashed them, and
+dropped them. ADR-0022 adds `Resource.data`.
+
+**W7: §9's routing collision is fixed.** Extraction passes were reordered so a modal-bearing
+sentence is claimed by the pass that reads the modal rather than by a filename. All three
+`CORPUS.md` §2.17 near-duplicate pairs now read **COMPARED and rejected** where they were
+previously never compared. Recall is still 0 of 3; the structural block is gone.
+
+**The surface-parity gate caught a real divergence mid-run.** `docx.onMissingStyle` defaulted
+to `"synthesize"` in the **CLI** and to `"warn"` everywhere else: four surfaces, two behaviours.
+The default now lives in `@markforge/core`, where all four surfaces read it.
+
 ## Phase 0 — specification
 
 | Deliverable | State | Verified by |
 | --- | --- | --- |
 | `SPEC.md`, `PRIOR_ART.md`, `CORPUS.md`, `OPEN_QUESTIONS.md`, `TEMPLATES.md` | done | `pnpm check:schemas`, `pnpm check:docs` |
-| 15 ADRs with rejected alternatives | done | `pnpm check:schemas`, `pnpm check:docs` |
+| ADRs with rejected alternatives | done — 15 at Phase 0, **20 now**; ADR-0016 through ADR-0020 were written as later phases made decisions on the reviewer's behalf | `scripts/check-adr-enforcement.mjs`, `docs/GATES.md` |
 | Three JSON Schemas, ajv strict | done | `pnpm check:schemas`, `pnpm check:docs` |
 | Worked IR examples | done, 4 of them | `pnpm check:schemas`, `pnpm check:docs` |
 
@@ -35,9 +123,9 @@ provably idempotent.
 | `convert` and `fmt` | done | `pnpm test`, `scripts/run-fidelity.mjs` |
 | Fidelity harness with committed baselines | done | `pnpm test`, `scripts/run-fidelity.mjs` |
 | `fmt` provably idempotent | done — 35 cases + 400 generated, to three passes | `pnpm test`, `scripts/run-fidelity.mjs` |
-| Beats Pandoc on `docx → md → docx` | **done, after fixing three writer defects** | `scripts/run-scoreboard.mjs` (docs/SCOREBOARD.md) |
-| Beats `word-to-markdown-js` | **done** — added to the scoreboard as a third column, pinned to `word-to-markdown@0.3.0`. Structural 100% against 99.4%, span F1 100% against 96.0%; it leads on 0 of 28 metric-fixture pairs | `scripts/run-scoreboard.mjs` (docs/SCOREBOARD.md) |
-| Golden corpus v1 | **partial** — 7 of the 8 categories Phase 1 required | `scripts/check-fixtures.mjs` |
+| Beats Pandoc on `docx → md → docx` | **done — and it briefly regressed on 2026-08-01, for a harness defect rather than a converter one.** Adding the four RTL/CJK fixtures put MarkForge below Pandoc on Structural for all four. Cause: `run-scoreboard.mjs` called `inferHeadings` where `@markforge/core` calls `inferAll`, so it measured a pipeline we do not ship and every recovered blockquote read as a permanent loss. `run-fidelity.mjs` had the identical defect and it was fixed there in Phase 1; the fix never crossed. **Re-measured 2026-08-02 on 12 fixtures: 0 losses across 48 metric-fixture pairs, 1 win, 47 ties** | `scripts/run-scoreboard.mjs` (docs/SCOREBOARD.md) |
+| Beats `word-to-markdown-js` | **done, and re-measured twice on a growing corpus** — pinned to `word-to-markdown@0.3.0`. It leads on **0 of 48** metric-fixture pairs. The corpus grew from 7 fixtures to 11 and then to 12 during Phase 6, including the comment, equation, and tracked-change work of the closing pass, and the row survived each re-measurement | `scripts/run-scoreboard.mjs` (docs/SCOREBOARD.md) |
+| Golden corpus v1 | **done** — all 8 categories Phase 1 required are complete: 2.1, 2.3, 2.4, 2.5, 2.11, 2.12, 2.13 (seven flavour presets, ADR-0021) and 2.15 (three producer profiles; the fourth struck, §7aj) | `scripts/check-fixtures.mjs` category coverage, and the per-category table under **Corpus coverage** below |
 | Three reference DOCX templates | **done** — `templates/`, built by `scripts/build-reference-templates.mjs`, all 38 Pandoc names and all 20 of `TEMPLATES.md` §2.1's rows asserted in CI including zero direct formatting | `scripts/build-reference-templates.mjs --check` |
 
 ### The Pandoc comparison, and why it was wrong before
@@ -108,9 +196,9 @@ manual cleanup, verified by inspection against the fidelity report.
 | XLSX adapter | done | `pnpm test`, `scripts/run-fidelity.mjs` |
 | PDF adapter, text layer | done — extraction, line and block assembly, column order, hyphenation repair, scan detection. **Four clauses of ADR-0012 are unbuilt**: furniture routing, ligature repair, figure/caption binding, and table recovery. Enumerated in the ADR rather than implied by a missing test | `pnpm test` (`packages/adapters-pdf/test/pdf.test.ts`), ADR-0012 |
 | Deterministic structure inference | done — headings, lists, blockquotes | `pnpm test`, `scripts/run-fidelity.mjs` |
-| PDF renderer | **not done** — needs Typst WASM (ADR-0003) | not verified — unbuilt, needs Typst WASM (ADR-0003) |
-| Visual regression suite | **not done** | not verified — unbuilt, no snapshots exist |
-| Real-world messy PDF converts cleanly | **not verified** — no such fixture exists | not verified — no such fixture exists |
+| PDF renderer | **done** — `@markforge/render-pdf`, IR to Typst to PDF. Byte-identical across separate processes; the wall-clock `/CreationDate` Typst writes by default is omitted via `#set document(date: none)`, because the compiler's `creationTimestamp` option does not override it | `scripts/check-pdf-determinism.mjs` |
+| Visual regression suite | **struck** — OPEN_QUESTIONS §7ad. Nothing catches a change that is visually wrong and structurally identical; the PDF path has byte-identity instead, which is stronger about change and silent about quality | OPEN_QUESTIONS §7ad, `docs/LIMITS.md` |
+| Real-world messy PDF converts cleanly | **struck** — OPEN_QUESTIONS §7an. It depends on `CORPUS.md` §2.6, itself struck (§7ac); a criterion resting on a struck category is struck, not pending. No claim is made about PDFs we did not generate | OPEN_QUESTIONS §7an, `docs/LIMITS.md` |
 | Real-world messy DOCX converts cleanly | **verified on authored equivalents** — `CORPUS.md` §2.3 built; no committable real specimen | `scripts/build-messy-fixtures.mjs --check` |
 
 **The Phase 2 done-criterion is now met on authored equivalents, with one caveat stated
@@ -258,14 +346,14 @@ needed a model would not be the default path.
 | Rule-based classification (§10.2) | done — 10/10 in-distribution, but **1 of 5 on a holdout it was not tuned against** | `scripts/check-agentify.mjs` |
 | Deterministic extraction (§10.3) | done — recall **94.7%**, precision **75.0%** against the authored key | `scripts/check-agentify.mjs` |
 | Dedup by text (§10.4, deterministic half) | done — exact-text collapse and the `entityKey` entity block, no model involved | `scripts/check-agentify.mjs` check 8 |
-| Dedup by embedding shortlist + model adjudication (§10.4, adjudicated half) | **deferred — disabled by default at 0.1.0, behind `--dedup-adjudicate`.** On every fixture that exists, **the LLM dedup path currently changes nothing**: `--llm` and `--no-llm` produce byte-identical output, because §2.14.1's veto blocks the one merge the adjudicator proposes. Measured on `CORPUS.md` §2.17, the first uncontaminated grading set: recall **0 of 3**, and the veto took false merges from 1 to 0. Every earlier number is withdrawn — §2.16's were the adjudicator reciting worked examples out of its own prompt. Reason and scope in `docs/ROADMAP.md` | `scripts/check-agentify.mjs` check 8, `scripts/check-fixture-contamination.mjs`, docs/CORPUS.md §2.17 |
+| Dedup by embedding shortlist + model adjudication (§10.4, adjudicated half) | **struck at 0.1.0 — OPEN_QUESTIONS §7ap.** Disabled by default, behind `--dedup-adjudicate`. On every fixture that exists, **the LLM dedup path currently changes nothing**: `--llm` and `--no-llm` produce byte-identical output, because §2.14.1's veto blocks the one merge the adjudicator proposes. Measured on `CORPUS.md` §2.17, the first uncontaminated grading set: recall **0 of 3**, and the veto took false merges from 1 to 0. Every earlier number is withdrawn — §2.16's were the adjudicator reciting worked examples out of its own prompt. Reason and scope in OPEN_QUESTIONS §7ap and `docs/ROADMAP.md` | `scripts/check-agentify.mjs` check 8, `scripts/check-fixture-contamination.mjs`, docs/CORPUS.md §2.17 |
 | Conflict report (§10.4) | done — **2/2** recall, **0** false positives | `scripts/check-agentify.mjs` |
 | Budget and progressive disclosure (§10.5) | done — 31 primary / 9 secondary at a 600-token budget, nothing lost | `scripts/check-agentify.mjs` |
 | The traceability gate (§10.6) | done, **and checked for its ability to fail** | `scripts/check-agentify.mjs` |
 | Provenance manifest (§10.7) | done, byte-identical across runs | `scripts/check-agentify.mjs` |
-| Incremental regeneration (§10.8) | partial — unchanged sources are detected and reported; units are re-extracted rather than reused | `scripts/check-agentify.mjs` check 3 |
+| Incremental regeneration (§10.8) | **done for change detection, struck for unit reuse** — OPEN_QUESTIONS §7am. Unchanged sources are detected by content hash and reported; every unit is re-extracted on every run, and a reuse cache that went stale would put wrong content in a generated file | `scripts/check-agentify.mjs` check 3, OPEN_QUESTIONS §7am |
 | `markforge agentify` (§8) | done — `--targets`, `--budget`, `--dry-run`, `--explain-drops`, `--strict`, `--json` | `scripts/check-agentify.mjs` |
-| Reverse direction (§10.10) | not done — a stated stretch, and no corpus for it | not verified — a stated stretch, and no corpus for it |
+| Reverse direction (§10.10) | **struck** — OPEN_QUESTIONS §7ae. A stretch that survived five phases with no corpus is declined rather than deferred | OPEN_QUESTIONS §7ae, `docs/LIMITS.md` |
 
 ### The measurement that refuted a design
 
@@ -470,10 +558,21 @@ authored. Phase 4's criterion was measurable on day one, and the authored keys c
 things a captured snapshot could not have: the classifier traps (`architecture.md` answers
 `decisionRecord`, `service-overview.md` answers `architecture`) and the false conflict above.
 
-Five of the ten bound LLM tasks still have no prompt file. Phase 4 wrote one —
+**Six** of the ten bound LLM tasks still have no prompt file. Phase 4 wrote one —
 `context-unit-summarization/v1.md`, the near-duplicate adjudicator — and wired the embeddings
 path, which needs none. `document-role-classification` and `context-unit-extraction` remain
 unwired for the reason in OPEN_QUESTIONS §7o: this corpus cannot grade them.
+
+Counted rather than recalled: `DEFAULT_TASK_ROLES` binds ten tasks, `packages/llm/prompts/`
+holds three (`context-unit-summarization`, `heading-tiebreak`, `page-transcription`), and
+`context-unit-dedup` needs none because it is an embedding call. Ten minus three minus one is
+six — `document-role-classification`, `context-unit-extraction`, `alt-text`,
+`conflict-analysis`, `glossary-extraction`, and `table-structure-recovery`.
+
+> **Corrected 2026-08-01 (Phase 6, W0).** This read "Five" from Phase 4 until now, and the
+> figure had been propagated outward rather than inward: it is the number the Phase 6 brief
+> itself carries in W7. A wrong count in a ledger becomes a wrong requirement in the next
+> brief, which is the reason W0 runs before anything that would build against it.
 
 ## Phase 5 — distribution
 
@@ -502,7 +601,7 @@ proposed and agreed before any code was written, and §11 is amended to carry it
 | Documentation site | **descoped** (§7s) — replaced by quickstarts whose commands run in CI | OPEN_QUESTIONS §7s |
 | Published packages | **struck** (§7r) — contradicts `OPEN_QUESTIONS` §5; nothing un-privated | OPEN_QUESTIONS §7r, `scripts/check-docs.mjs` (all packages private) |
 | ADR-0015 ratified | done — moved off `Proposed`, **amended in three places** | `scripts/check-adr-enforcement.mjs` |
-| Playwright against the same fixtures | **not done** — ADR-0015's *Consequences* still promise it | not verified — unbuilt; the vm sandbox is a weaker check and is labelled so |
+| Playwright against the same fixtures | **struck** — OPEN_QUESTIONS §7ah. The `vm` sandbox has no DOM, no `fetch`, no worker, and no real event loop, and `docs/LIMITS.md` records what that cannot see | OPEN_QUESTIONS §7ah, `docs/LIMITS.md` |
 
 ### ADR-0015 was wrong about every package it named
 
@@ -628,22 +727,44 @@ different facts. Recall still reads **0 of 2**.
 The category block was *masking* a disagreement about meaning rather than causing it — and
 those two states are indistinguishable from the number alone, which is how §7q stayed open for
 a phase. `check-agentify.mjs` now separates "never compared" from "compared and rejected";
-under the old reporting both read `0/2`. Whether `CORPUS.md` §2.14 is right that these are one
-fact is now a question about the fixture, and it is the reviewer's.
+under the old reporting both read `0/2`.
+
+> **Closed 2026-08-01 (Phase 6, §7w).** §7q left one question open — is `CORPUS.md` §2.14
+> right that these are one fact? — and the answer is **no, on both pairs**. It is not a matter
+> of taste: §2.14.1's predicate decides it, and merging pair 1 drops `more` and `second` while
+> merging pair 2 drops `whole`. **The adjudicator was right and the answer key was wrong**, so
+> the `0 of 2` above was the correct answer to a question whose key was incorrect — a fixture
+> error, not a pipeline failure.
+>
+> What is worth recording is that this was already true when it was written. `CORPUS.md`
+> §2.14.2 applied the predicate and retired both pairs on 2026-08-01, and neither §7q above it
+> nor this section below it was updated to match — so three documents disagreed about one
+> countable fact for the length of a phase, with the corpus holding the right answer and the
+> ledger reporting the wrong framing. Found by W0 reading them against each other rather than
+> by any gate, which is the argument for W0 existing.
 
 ## Unbuilt CLI surface
 
-`SPEC.md` §8 specifies seven subcommands. Three work. The other four refuse by name rather
-than pretending, which is the right behaviour but is not delivery.
+`SPEC.md` §8 specifies seven subcommands. **All seven are done**, as of 2026-08-02, when
+`check --fidelity` closed the last clause. An eighth, `mcp`, is delivered and is not in §8's
+table (§7u). Every exit code in §8's table — 0 through 5 — now has a test that produces it,
+which was not true of 4 or 5 before this pass (§7ak, §7al).
+
+> **Corrected 2026-08-01 (Phase 6, W0).** This paragraph said "Three work. The other four
+> refuse by name" and had disagreed with the table directly beneath it since Phase 5 added
+> `serve` and `mcp`. Only two commands refuse by name, not four. The prose was written when it
+> was true and was never re-read against the rows it introduces — which is the same failure as
+> the corpus counts above, in a section short enough that the contradiction is visible without
+> scrolling.
 
 | Command | State | Verified by |
 | --- | --- | --- |
 | `convert`, `fmt` | done | `pnpm test` (`packages/cli/test/cli.test.ts`) |
-| `check` | **partial, and no longer a lie** — validates documents against the IR schema, reports reference-document style coverage (`--reference-doc`), and probes the LLM endpoint (`--llm`). Corpus fidelity baselines stay in `scripts/run-fidelity.mjs`, and `check --help` says so rather than implying otherwise | `pnpm test` (`packages/cli/test/cli.test.ts`) |
+| `check` | **done** — validates documents against the IR schema, reports reference-document style coverage (`--reference-doc`), probes the LLM endpoint (`--llm`), and measures named documents against committed baselines (`--fidelity`, with `--tolerance` and `--md-flavor`), exiting 4 on a regression. The fidelity clause was the last unbuilt part of SPEC §8 and was what made exit 4 unreachable (§7ak) | `pnpm test` (`packages/cli/test/cli.test.ts`), `describe("SPEC §8 exit codes")` |
 | `agentify` | **done** — `--targets`, `--budget`, `--dry-run`, `--explain-drops`, `--strict`, `--json`. Exit 5 is the traceability gate and has no bypass flag (SPEC §10.6) | `pnpm test` (`packages/cli/test/cli.test.ts`) |
 | `serve` | **done** (Phase 5) — stateless HTTP API, loopback by default, no document retention, measured | `pnpm test` (`packages/cli/test/cli.test.ts`) |
 | `mcp` | **done** (Phase 5) — not in SPEC §8's seven; `serve` is HTTP and an MCP client on stdio needs its own command (§7u) | `pnpm test` (`packages/cli/test/cli.test.ts`) |
-| `diff`, `init` | not done. `init` is cheap now that `templates/` exists | `pnpm test` (`packages/cli/test/cli.test.ts`) |
+| `diff`, `init` | **done** — `diff` is a semantic IR diff with `--metric` (the second consumer `OPEN_QUESTIONS` §7a promised `@markforge/fidelity` would have); `init` scaffolds config and lint config with `--print-config` and refuses to overwrite | `pnpm test` (`packages/cli/test/cli.test.ts`) |
 
 ## Renderer gaps that lose content today
 
@@ -672,28 +793,77 @@ recorded no border at all, so `thematicBreak` had no evidence to be recovered *f
 it. A construct can be written correctly, be readable in principle, and still be destroyed
 in between by a rule that was right about every other empty paragraph.
 
+## Reader gaps the Phase 6 corpus exposed
+
+`CORPUS.md` §2.2 and §2.12 had never been built, so no committed fixture contained a
+footnote, an equation, or a comment. Building them found three reader defects in one
+afternoon — the pattern trap 1 predicts, arriving on schedule.
+
+| Gap | Effect | Reported | Verified by |
+| --- | --- | --- | --- |
+| ~~Unrecognised inline elements dropped silently~~ | **fixed** — the phrasing walk ended in `default: break` while the block walk beside it obeyed adapter rule A6. Five OMML equations in the shipped `academic-manuscript.docx` vanished with no diagnostic. Now an `unknown` node plus `MF-DOCX-0052` | n/a | `packages/adapters-docx/test/parse.test.ts` ("A6 at the inline level", 3 of 4 fail without the fix) |
+| ~~`footnotes.xml` and `endnotes.xml` are never read~~ | **fixed 2026-08-01** — both parts are read and their definitions appended after the body, so `[^1]` resolves. `docs/MAMMOTH-DIFF.md` now reports the opposite shape: our footnote definitions against Mammoth's ordered list, triaged as a representation difference | n/a | `scripts/check-ir-structure.mjs` (declares 3 references and 3 definitions), `scripts/build-corpus-fixtures.mjs --check` |
+| ~~Comments are dropped as property elements~~ | **fixed 2026-08-01, and corrected 2026-08-02.** The first fix emitted the comment at document level with an `anchors` id list, which the schema's `Comment` forbids — so every document with a comment produced an invalid IR for a day. The range is now wrapped as SPEC §2.3 always required, an unanchored comment is dropped **and counted** (MF-DOCX-0062), and a range crossing a paragraph boundary says so (MF-DOCX-0061) | n/a | `scripts/check-ir-structure.mjs` (declares 2 comments, and validates every fixture) |
+| ~~Table-cell block content is concatenated with no separator~~ | **fixed 2026-08-01** — `textContent` in `@markforge/ir` was joining a cell's block children with nothing, so three paragraphs become `Stop the intake.Wait for depth…` and a nested table becomes `keyvaluemodestrict`. SPEC §9.2 requires block nodes to join with a blank line. **Located by running `textContent` on the parsed cell, not inferred from the differential** | n/a | `scripts/check-ir-structure.mjs` (both strings declared by hand, and the rule scanned across the corpus) |
+| ~~`revisionMode` is applied nowhere on the **Markdown** render path~~ | **fixed 2026-08-02** — all three renderers now mean the same three things by it: `clean` emits the accepted text and diagnoses each dropped deletion, `showInsertions` marks insertions, `showAll` adds `~~strikethrough~~`. `docs/MAMMOTH-DIFF.md`'s two rows for it are resolved, including the half where the *comparison* was reading the IR rather than the output | n/a | `docx/tracked-changes-two-authors.docx` (§2.12), `scripts/diff-mammoth.mjs --check` |
+| ~~`--emit-ir` and `--report` do not exist~~ | **fixed** — both built 2026-08-01. The IR is written with `canonicalJsonPretty`, so SPEC §2.7's canonical form makes two runs byte-identical and the file diffable | n/a | `packages/cli/test/cli.test.ts` |
+
+**Every row in this table is now struck through.** The one that mattered most was the footnote
+reader, and the reason was the output rather than the loss: `[^1]` pointing at a definition
+that does not exist is not degraded Markdown, it is **invalid** Markdown. `SPEC.md` §3.1 lists
+footnotes and endnotes under "Also extracted"; now something extracts them.
+
+**And a second blind spot, from the same fixture.** `tables-block-content` scores **100% on
+every metric** through `docx → md → docx` while carrying the concatenation defect above. That
+is not a broken metric: `textContent` is applied to *both* sides of the round trip, so the
+same wrong string is compared against itself and agrees perfectly. **A defect applied
+symmetrically to both sides of a round trip is invisible to a round-trip metric** — the same
+shape as the census blind spot, reached from a different direction. What makes this one real
+rather than cosmetic is that agentify's sentence segmentation is *not* symmetric: a cell whose
+paragraphs run together produces context units spanning a boundary that does not exist.
+
+**Why the node-type census could not see any of this.** The census diffs input IR against
+round-tripped IR, so it only sees node types that reach the IR *at least once*. A construct
+no adapter ever produces is absent from both sides and scores as agreement:
+`equationBlock` read 0 against 0, `footnoteDefinition` read 0 against 0, `comment` read 0
+against 0. The census exists because aggregate scores hid four format-destroying defects;
+it has a blind spot of the same shape, and nothing in this repository said so until now.
+
 ## Corpus coverage
 
-`CORPUS.md` names 15 categories. Phase 1 required eight of them; five exist. Phase 3 added
-§2.7 and the ambiguous fixture §2.3 was missing.
+`CORPUS.md` names 15 categories. Phase 1 required eight — `CORPUS.md` §5's build order names
+2.1, 2.3, 2.4, 2.5, 2.11, 2.12, and 2.13, and promotes 2.15 to Phase 1 on evidence. **All eight
+are complete.** Across all fifteen: **twelve complete, three struck, none partial.**
+
+> **Corrected 2026-08-01 (Phase 6, W0).** This section and the Phase 1 table above disagreed
+> about a countable fact for three phases: the table said "7 of the 8 categories" and this
+> paragraph said "eight of them; five exist". Neither was right, and the two could not both
+> be. Resolved against `CORPUS.md` §5, which is the only place the Phase 1 requirement is
+> actually enumerated.
+>
+> The second half of the correction is worse than the first. Every row below cited
+> `scripts/check-fixtures.mjs` as its verifier, and **that script asserts nothing about
+> categories** — it enforces `fixtures/LICENSES.md` in both directions and stops. Fifteen rows
+> named a gate that could not fail for the reason the row claimed. `docs/GATES.md` now records
+> what each gate actually asserts, which is what made this visible.
 
 | Category | State | Verified by |
 | --- | --- | --- |
-| 2.1 clean reports | done | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.4 nested and restarting lists | done | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.5 tables with merged cells | done, HTML only | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.11 emoji and Unicode | done | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.13 Markdown flavours | partial — one flavour | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.2 manuscripts with footnotes and equations | not done | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.3 badly formatted real-world documents | done — 7 fixtures, asserted defect by defect (the seventh is the Phase 3 ambiguous subset) | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.6 multi-column PDFs | not done | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.7 scanned PDFs | **done** — 3 synthesized (1 committed, 2 generated), 1 found scan fetched on demand; 2nd dropped with reasons | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.8 slide decks | not done | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.9 spreadsheets | not done | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.10 RTL and CJK | partial, inside 2.11; native-speaker review not done | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.12 tracked changes and comments | not done | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.14 agentify source sets | done — 10 documents, 3 sets, authored answer keys, all measured in `docs/AGENTIFY.md` | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
-| 2.15 library- and LLM-generated documents | partial — 2 of 4 producer profiles; Pandoc and LibreOffice exports need the binaries | `scripts/check-fixtures.mjs`, `scripts/build-agentify-corpus.mjs --check` |
+| 2.1 clean reports | done | `scripts/check-fixtures.mjs` category coverage |
+| 2.4 nested and restarting lists | done | `scripts/check-fixtures.mjs` category coverage |
+| 2.5 tables with merged cells | done — 2 HTML plus 4 authored DOCX: `w:gridSpan`, `w:vMerge` restart/continue, a two-row header, a header column, block content in cells, and a nested table | `scripts/check-fixtures.mjs` category coverage, `scripts/build-corpus-fixtures.mjs --check` |
+| 2.11 emoji and Unicode | done | `scripts/check-fixtures.mjs` category coverage |
+| 2.13 Markdown flavours | done — all seven SPEC §4.1 presets **built as data** (ADR-0021) and gated on producing seven byte-distinct renders of one construct-dense probe. `markdown.flavor` was a config-schema value read by nothing until now | `scripts/check-flavor-distinctness.mjs` |
+| 2.2 manuscripts with footnotes and equations | done — 2 authored DOCX: footnotes with Word's separator entries, endnotes, display and inline OMML, a REF cross-reference. **Authoring them found the adapter never reads `footnotes.xml`** | `scripts/check-fixtures.mjs` category coverage, `scripts/build-corpus-fixtures.mjs --check` |
+| 2.3 badly formatted real-world documents | done — 7 fixtures, asserted defect by defect (the seventh is the Phase 3 ambiguous subset) | `scripts/check-fixtures.mjs` category coverage |
+| 2.6 multi-column PDFs | **struck** — OPEN_QUESTIONS §7ac. Column detection stays unit-tested against synthetic geometry and unmeasured against a real document | `scripts/check-fixtures.mjs` category coverage |
+| 2.7 scanned PDFs | **done** — 3 synthesized (1 committed, 2 generated), 1 found scan fetched on demand; 2nd dropped with reasons | `scripts/check-fixtures.mjs` category coverage |
+| 2.8 slide decks | **struck** — OPEN_QUESTIONS §7ac. The PPTX adapter is unit-tested and carries no fidelity row | `scripts/check-fixtures.mjs` category coverage |
+| 2.9 spreadsheets | **struck** — OPEN_QUESTIONS §7ac. The XLSX adapter is unit-tested and carries no fidelity row | `scripts/check-fixtures.mjs` category coverage |
+| 2.10 RTL and CJK | done — 4 authored documents (Arabic, Hebrew, Japanese, Simplified Chinese), all marked `PROVISIONAL`. **The native-speaker review did not happen**; CORPUS §2.10.1 states what they are and are not trusted for | `scripts/check-fixtures.mjs` category coverage |
+| 2.12 tracked changes and comments | done — 3 authored DOCX; `w:ins`/`w:del` read as wrapping nodes, including overlapping revisions from two authors, and comments wrap the range they annotate with the reviewer's note carried in `body`. An unanchored comment is dropped **and counted** | `scripts/check-fixtures.mjs` category coverage, `scripts/build-corpus-fixtures.mjs --check` |
+| 2.14 agentify source sets | done — 10 documents, 3 sets, authored answer keys, all measured in `docs/AGENTIFY.md` | `scripts/check-fixtures.mjs` category coverage, `scripts/build-agentify-corpus.mjs --check` |
+| 2.15 library- and LLM-generated documents | done — 3 of 4 producer profiles: two synthesized, plus a **real pandoc 3.10 export** generated at check time rather than committed, because a Pandoc DOCX carries Pandoc's GPL reference styles. Its first run found `outlineLevel` capped at 8 against ISO/IEC 29500-1's 0-9, which had made every Pandoc-produced document invalid. The LibreOffice profile is struck (§7aj) | `scripts/check-producer-exports.mjs` |
 
 The measured numbers in `FIDELITY.md` now cover eight deliberately defective DOCX
 documents alongside the clean ones, so they are no longer only a claim about easy input.

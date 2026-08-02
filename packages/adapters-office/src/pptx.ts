@@ -181,7 +181,7 @@ function parseSlide(root: XmlElement, diagnostics: DiagnosticBag, slideNo: numbe
       );
       shapes.push({
         top, left,
-        nodes: [{ type: "unknown", originalType: "p:graphicFrame", raw: textOf(shape).slice(0, 200) }],
+        nodes: [{ type: "unknown", construct: "p:graphicFrame", raw: textOf(shape).slice(0, 200) }],
         isTitle: false,
       });
       continue;

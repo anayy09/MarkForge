@@ -134,8 +134,10 @@ describe("DOCX adapter — lists", () => {
   it("preserves w:startOverride as a restart", () => {
     const { document } = parse(p("seven", { numId: "3" }));
     const list = selectType(document.body, "list")[0]!;
-    expect(list["restartsAt"]).toBe(7);
+    // `start`, and only `start`: `restartsAt` is a `ListItem` field in the schema, and this
+    // test asserted it on the `list`, which made the whole document fail validation.
     expect(list["start"]).toBe(7);
+    expect(list["restartsAt"]).toBeUndefined();
   });
 
   it("does not merge two adjacent lists with different numIds", () => {
@@ -243,6 +245,85 @@ describe("DOCX adapter — tracked changes and furniture", () => {
     const validation = validateDocument(document);
     expect(validation.errors.slice(0, 3)).toEqual([]);
     expect(validation.valid).toBe(true);
+  });
+});
+
+/*
+ * Adapter rule A6, at the inline level.
+ *
+ * The block walk has obeyed A6 since Phase 1 — an unhandled element becomes an `unknown`
+ * node plus a lossy diagnostic. The phrasing walk ended in `default: break` and dropped
+ * every construct it did not recognise, silently, for five phases.
+ *
+ * What that cost was only visible on a document nobody had converted: the shipped
+ * `academic-manuscript.docx` carries five `<m:oMath>` display equations, and converting it
+ * produced no equations and no diagnostic about them. The fidelity census could not see it
+ * either — it diffs input IR against round-tripped IR, so a node type no adapter ever
+ * produces is absent from both sides and scores as agreement.
+ *
+ * These tests use OMML because that is the construct that exposed it, and a synthetic
+ * unknown because the rule is about the branch rather than about equations.
+ */
+describe("DOCX adapter — A6 at the inline level", () => {
+  const OMML =
+    `<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">` +
+    `<m:r><m:t>E = mc^2</m:t></m:r></m:oMath>`;
+
+  /*
+   * A genuinely unhandled inline element.
+   *
+   * These tests originally probed with OMML, because OMML is what exposed the silent
+   * `default: break`. OMML is now mapped to `equationBlock`, so it stopped being unhandled and
+   * these three tests failed — correctly. A test whose probe has since been implemented is
+   * measuring the implementation, not the rule. `w:ruby` is real WordprocessingML (phonetic
+   * annotation), it is inline, and nothing maps it.
+   */
+  const UNHANDLED = `<w:ruby><w:rubyBase><w:r><w:t>base text</w:t></w:r></w:rubyBase></w:ruby>`;
+
+  it("reports an unhandled inline element instead of dropping it", () => {
+    const { document, diagnostics } = parse(`<w:p>${UNHANDLED}</w:p>`);
+    const unknowns = selectType(document.body as unknown as AnyNode, "unknown");
+    expect(unknowns).toHaveLength(1);
+    expect(diagnostics.all().some((d) => d.code === "MF-DOCX-0052")).toBe(true);
+  });
+
+  it("marks the loss lossy, so --strict can see it", () => {
+    const { diagnostics } = parse(`<w:p>${UNHANDLED}</w:p>`);
+    const d = diagnostics.all().find((x) => x.code === "MF-DOCX-0052");
+    expect(d?.lossy).toBe(true);
+  });
+
+  /*
+   * The negative control, and the reason it is not "assert a diagnostic exists".
+   *
+   * A branch that diagnosed *every* inline child would also pass the two tests above while
+   * making the adapter useless — `w:r` and `w:hyperlink` would each raise one. So the
+   * control asserts the ordinary case stays quiet, which is the property that would break
+   * if the default branch were reached by something it should not be.
+   */
+  it("maps OMML to equationBlock rather than to unknown", () => {
+    // The construct that exposed the silent branch is now handled. Asserted here so the
+    // change is visible in the same place the defect is recorded, and so a regression to
+    // `unknown` shows up as a behaviour change rather than as one more diagnostic.
+    const { document } = parse(`<w:p>${OMML}</w:p>`);
+    const equations = selectType(document.body as unknown as AnyNode, "equationBlock");
+    expect(equations).toHaveLength(1);
+    expect((equations[0] as { notation?: string }).notation).toBe("omml");
+    // The markup is retained, not the flattened characters: `t_ack = d/r` reduced to
+    // "tack = dr" is the wreckage of an equation rather than the equation.
+    expect(String((equations[0] as { source?: string }).source)).toContain("<m:oMath");
+  });
+
+  it("does not report elements it handles", () => {
+    const { diagnostics } = parse(p("ordinary text"));
+    expect(diagnostics.all().filter((d) => d.code === "MF-DOCX-0052")).toHaveLength(0);
+  });
+
+  it("keeps the dropped construct's text as the unknown node's raw payload", () => {
+    const { document } = parse(`<w:p>${UNHANDLED}</w:p>`);
+    const [unknown] = selectType(document.body as unknown as AnyNode, "unknown");
+    // Retention is what makes this A6 rather than "a diagnostic instead of the content".
+    expect(String((unknown as { raw?: string }).raw)).toContain("base text");
   });
 });
 

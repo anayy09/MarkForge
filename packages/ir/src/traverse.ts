@@ -166,13 +166,159 @@ export function transformChildren(
   walk(root, []);
 }
 
-/** Concatenated text content of a subtree. Used by fidelity metrics and agentify. */
+/**
+ * Block-level types, for `textContent`'s separator rule.
+ *
+ * SPEC §9.2: "inline nodes concatenate with no separator, block nodes join with `\n\n`,
+ * `break` yields `\n`". Only the first and third clauses were implemented.
+ */
+const TEXT_BLOCK_TYPES = new Set([
+  "paragraph",
+  "heading",
+  "blockquote",
+  "code",
+  "listItem",
+  "tableCell",
+  "tableRow",
+  "caption",
+  "figure",
+  "admonition",
+  "descriptionTerm",
+  "descriptionDetails",
+  "equationBlock",
+  "footnoteDefinition",
+  "section",
+  "slide",
+  "sheet",
+  "thematicBreak",
+]);
+
+/**
+ * Concatenated text content of a subtree, per SPEC §9.2.
+ *
+ * Inline nodes concatenate with no separator; block nodes join with a blank line; `break`
+ * yields a newline.
+ *
+ * **The block clause was missing until 2026-08-01**, and the way it stayed missing is the
+ * interesting part. Every block boundary vanished, so a table cell holding three paragraphs
+ * returned `Stop the intake.Wait for depth to reach zero.Confirm with the dashboard.` and a
+ * nested table returned `keyvaluemodestrict`.
+ *
+ * `docs/FIDELITY.md` could not see it. The text metric calls this function on **both** sides
+ * of a round trip, so the same wrong string was compared against itself and agreed perfectly:
+ * `fixtures/docx/tables-block-content.docx` scored 100% on every metric while carrying the
+ * defect. A defect applied symmetrically to both sides of a round trip is invisible to a
+ * round-trip metric — the same shape as the census's own blind spot, reached from the other
+ * direction.
+ *
+ * What made it real rather than cosmetic is the one consumer that is *not* symmetric:
+ * agentify segments this string into sentences, so a cell whose paragraphs ran together
+ * produced context units spanning a boundary that did not exist.
+ *
+ * Held by `scripts/check-ir-structure.mjs`, which compares parsed IR against an authored
+ * declaration rather than against its own round trip.
+ */
 export function textContent(node: AnyNode): string {
+  const parts: string[] = [];
+  let current = "";
+
+  const flush = (): void => {
+    if (current !== "") {
+      parts.push(current);
+      current = "";
+    }
+  };
+
+  const walk = (n: AnyNode): void => {
+    if (n.type === "text" && typeof n["value"] === "string") {
+      current += n["value"];
+      return;
+    }
+    if (n.type === "inlineCode" && typeof n["value"] === "string") {
+      current += n["value"];
+      return;
+    }
+    if (n.type === "code" && typeof n["value"] === "string") {
+      // A fence's text lives in `value`, not in child `text` nodes, so walking children
+      // would return nothing at all for it.
+      flush();
+      parts.push(n["value"]);
+      return;
+    }
+    if (n.type === "break") {
+      current += "\n";
+      return;
+    }
+
+    const isBlock = TEXT_BLOCK_TYPES.has(n.type);
+    if (isBlock) flush();
+    for (const child of childrenOf(n)) walk(child);
+    if (isBlock) flush();
+  };
+
+  walk(node);
+  flush();
+  return parts.join("\n\n");
+}
+
+/** Children of a node across every array-valued key, matching `visit`'s own traversal. */
+function childrenOf(n: AnyNode): AnyNode[] {
+  const out: AnyNode[] = [];
+  for (const key of Object.keys(n)) {
+    const value = (n as Record<string, unknown>)[key];
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item && typeof item === "object" && typeof (item as AnyNode).type === "string") {
+          out.push(item as AnyNode);
+        }
+      }
+    } else if (value && typeof value === "object" && typeof (value as AnyNode).type === "string") {
+      out.push(value as AnyNode);
+    }
+  }
+  return out;
+}
+
+/**
+ * Base64, without `Buffer`.
+ *
+ * `@markforge/ir` is in ADR-0015's eager browser tier and
+ * `scripts/check-browser-bundle.mjs` fails on any `node:` reach, so `Buffer.from(...)` is
+ * not available here — the same constraint that replaced `node:crypto` with
+ * `@noble/hashes`. Two implementations selected by platform would be two things that must
+ * agree about every byte forever, with the agreement untested on whichever platform CI does
+ * not run, so there is one.
+ */
+export function base64(bytes: Uint8Array): string {
+  const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   let out = "";
-  visit(node, (n) => {
-    if (n.type === "text" && typeof n["value"] === "string") out += n["value"];
-    else if (n.type === "inlineCode" && typeof n["value"] === "string") out += n["value"];
-    else if (n.type === "break") out += "\n";
-  });
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i] as number;
+    const b = i + 1 < bytes.length ? (bytes[i + 1] as number) : undefined;
+    const c = i + 2 < bytes.length ? (bytes[i + 2] as number) : undefined;
+    out += ALPHABET[a >> 2];
+    out += ALPHABET[((a & 3) << 4) | ((b ?? 0) >> 4)];
+    out += b === undefined ? "=" : ALPHABET[((b & 15) << 2) | ((c ?? 0) >> 6)];
+    out += c === undefined ? "=" : ALPHABET[c & 63];
+  }
+  return out;
+}
+
+/** The inverse of `base64`, for a renderer that needs the bytes back. */
+export function fromBase64(text: string): Uint8Array {
+  const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const clean = text.replace(/[^A-Za-z0-9+/]/g, "");
+  const out = new Uint8Array((clean.length * 3) >> 2);
+  let p = 0;
+  for (let i = 0; i < clean.length; i += 4) {
+    const n =
+      (ALPHABET.indexOf(clean[i] as string) << 18) |
+      (ALPHABET.indexOf(clean[i + 1] as string) << 12) |
+      (Math.max(0, ALPHABET.indexOf(clean[i + 2] ?? "A")) << 6) |
+      Math.max(0, ALPHABET.indexOf(clean[i + 3] ?? "A"));
+    if (p < out.length) out[p++] = (n >> 16) & 255;
+    if (p < out.length) out[p++] = (n >> 8) & 255;
+    if (p < out.length) out[p++] = n & 255;
+  }
   return out;
 }

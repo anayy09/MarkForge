@@ -38,6 +38,9 @@
       "path": "packages/render-html"
     },
     {
+      "path": "packages/render-pdf"
+    },
+    {
       "path": "packages/adapters-office"
     },
     {

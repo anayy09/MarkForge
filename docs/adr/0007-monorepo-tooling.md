@@ -90,7 +90,9 @@ contract diverge.
 
 ## Consequences
 
-- Contributors need pnpm and Node 20+; documented in `CONTRIBUTING.md` in Phase 1.
+- Contributors need pnpm and **Node 22+** — not 20, as this line said until 2026-08-01.
+  pnpm 11.9.0 is pinned by `packageManager` and uses a builtin module Node 20 lacks, so the
+  Node 20 claim was untrue from the moment the pin landed. `OPEN_QUESTIONS.md` §7y.
 - Project references mean a stricter build order and occasional `tsc -b` friction, in
   exchange for the dependency rules being compile-time facts.
 - Running the suite twice roughly doubles CI test time. Accepted: the offline guarantee is a

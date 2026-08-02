@@ -36,13 +36,19 @@ the only reason a fixed point was ever in doubt. Remove the second author and th
 follows from `stringify` being a pure function of the tree. There is no loop, so there is no
 cap, so there is nothing to oscillate and nothing to detect.
 
-**Measured before adopting it** (`scripts/check-markdown-lint.mjs`): 34 rendered files,
-**zero violations**, no autofix pass. Five rules are disabled, and every one conflicts with
+**Measured before adopting it** (`scripts/check-markdown-lint.mjs`): 41 rendered files,
+**zero violations**, no autofix pass. Seven rules are disabled, and every one conflicts with
 a decision recorded elsewhere rather than being a rule the configuration could not meet:
 `MD013` line length (ADR-0006's own no-reflow rule, below), `MD024`/`MD025`/`MD041` (all
 properties of the *source* document, which a formatter may not rewrite), `MD033` inline HTML
-(required by SPEC §4.1's table degradation policy), and `MD040` fenced-code language (a
-formatter cannot invent one).
+(required by SPEC §4.1's table degradation policy), `MD040` fenced-code language (a
+formatter cannot invent one), and `MD029` (below).
+
+> **Both numbers were stale until 2026-08-01** — 34 and five, against a measured 41 and seven.
+> The corpus grew and the prose did not, and this ADR's decision to drop the autofix pass rests
+> on precisely these figures, so a stale count here is a stale argument rather than a stale
+> note. `check-markdown-lint.mjs` now reads the numbers back out of this file, SPEC §4.1, and
+> OPEN_QUESTIONS §8 and fails when they disagree with the run.
 
 `MD029` is the exception worth recording, because it is a genuine conflict rather than a
 category error. It wants every ordered list renumbered to start at 1. The IR carries

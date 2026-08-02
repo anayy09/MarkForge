@@ -37,6 +37,8 @@ export {
   countNodes,
   transformChildren,
   textContent,
+  base64,
+  fromBase64,
   SKIP,
   STOP,
 } from "./traverse.js";

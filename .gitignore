@@ -16,6 +16,13 @@ fixtures/**/*.tmp
 # --- Build output --------------------------------------------------------------
 dist/
 build/
+# scripts/check-surface-parity.mjs writes each surface's conversion here and removes
+# the directory in a `finally`. A `finally` does not run when the process is killed —
+# a cancelled CI job, a Ctrl-C — and what it leaves behind is eight DOCX files in the
+# repository root with no row in fixtures/LICENSES.md. check-docs.mjs catches that,
+# correctly and loudly; ignoring the directory means the crash cannot stage them in the
+# first place, which is the cheaper half of the same guarantee.
+out/
 *.tsbuildinfo
 .turbo/
 
