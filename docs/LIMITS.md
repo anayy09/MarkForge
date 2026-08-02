@@ -42,8 +42,9 @@ what was lost.
 
 ## 2. Format limits — the construct cannot survive the target
 
-These are not defects. The target format has no way to express the construct, so the loss is
-inherent and the only question is whether it is reported. All of them are.
+These are not defects, with one exception in the last row. The target format has no way to
+express the construct, so the loss is inherent and the only question is whether it is
+reported — and every row but the last is.
 
 | Construct | Target | Behaviour |
 | --- | --- | --- |
@@ -55,6 +56,7 @@ inherent and the only question is whether it is reported. All of them are.
 | Tracked changes | Markdown | No native syntax. `revisionMode` is honoured as of 2026-08-02 on all three surfaces: `clean` (the default) emits the accepted text and diagnoses each dropped deletion, `showInsertions` marks insertions with `<ins>`, `showAll` adds `~~strikethrough~~`. Until then this renderer ignored the option and emitted both sides of every edit — `fortyfifty`, `someall`. `fixtures/docx/tracked-changes-two-authors.docx` |
 | OMML equations | Markdown, HTML | Markdown math is TeX and HTML math is TeX or MathML; there is no OMML converter here, so the equation's *structure* is lost. The source is retained — a fenced ` ```omml ` block in Markdown, a `<pre>` inside the math div in HTML — and the loss is diagnosed. Both surfaces show it rather than one hiding it, which costs text fidelity on the two manuscript fixtures: `docs/FIDELITY.md` says how much and why |
 | Inline OMML equations | The IR itself | No node type fits: `equationBlock` is block content, `inlineMath` holds TeX. The equation becomes an `unknown` node carrying the markup, with a lossy diagnostic (§7ao) |
+| Cross-references | DOCX | **The exception: unbuilt rather than inherent, and the one unreported loss here.** `SPEC.md` §2.3 maps `crossReference` to a DOCX `REF` field and nothing writes one. `CrossReference` carries no `children`, so it reaches the inline `default` in `@markforge/render-docx`, which recurses only into nodes that have them — the node is skipped and its `label` text is dropped with **no diagnostic at all**. `See [Figure 1] for detail.` renders and reads back as `See for detail.`, with zero lossy diagnostics. The Markdown and HTML renderers do resolve it, so this is the DOCX writer alone |
 
 ---
 
