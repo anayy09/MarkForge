@@ -24,6 +24,7 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { generatorControl } from "./lib/control.mjs";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const CHECK = process.argv.includes("--check");
@@ -634,6 +635,19 @@ if (CHECK) {
 }
 
 if (CHECK) {
+  // Negative control, added in the Phase 6 gate audit which found this gate could not
+  // demonstrate a failure. `stale === 0` is also what an empty generator reports.
+  console.log("\nNegative control");
+  generatorControl({
+    artifacts: { ...fixtures, "generated-profile-source.md": SHARED_SOURCE },
+    floor: 8,
+    ok: (m) => console.log(`ok    ${m}`),
+    fail: (m) => {
+      console.log(`FAIL  ${m}`);
+      stale++;
+    },
+  });
+
   console.log(
     stale === 0
       ? `\nAll ${Object.keys(fixtures).length} messy fixtures match their generator.`

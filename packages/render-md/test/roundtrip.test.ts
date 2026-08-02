@@ -228,7 +228,7 @@ describe("lossy constructs are reported, never silent", () => {
     const doc = parseMarkdown("text\n").document;
     (doc.body.children as unknown as AnyNode[]).push({
       type: "unknown",
-      originalType: "w:smartTag",
+      construct: "w:smartTag",
       raw: "<!-- preserved -->",
     } as never);
     const { markdown, diagnostics } = renderMarkdown(doc);

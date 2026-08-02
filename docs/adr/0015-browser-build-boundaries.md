@@ -118,24 +118,40 @@ a pure function. The gate therefore asserts on the artifacts — `tesseract.js`,
 `pdfjs-dist`, `typst` — and this ADR is amended to match the measurement rather than the
 measurement bent to match the ADR.
 
-**`render-pdf` remains untestable.** It is named in the lazy tier and does not exist,
-because ADR-0003 blocks it on the Typst WASM bundle. The lazy tier is therefore ratified
-for two of its three members, and the gate prints that as a note rather than narrowing the
-claim to whatever happens to be checkable.
+**~~`render-pdf` remains untestable.~~ Built 2026-08-01; the lazy tier is now ratified for all
+three members, and the third one is the only one that is actually browser-capable.**
 
-**Still unbuilt from this ADR:** the Playwright leg. The *Consequences* below promise that
-browser and Node produce byte-identical output on the same fixtures, which is the strongest
-available check that the surfaces have not diverged — and it is Phase 5's done-criterion
-rather than something this amendment delivers.
+Measured: `render-pdf` bundles at **357 KB with no Typst in it**, because ADR-0003's narrow
+`compile(source, fonts) → bytes` interface is *injected* rather than imported — the same shape
+ADR-0017 uses for the OCR recogniser, and with the same result. So it is deferred by **size**,
+not by capability.
+
+That sharpens correction 2 above rather than softening it. Of the three deferred packages,
+`adapters-pdf` is deferred *and* not browser-capable (it still reaches `node:module`,
+`node:path`, `node:zlib`), `adapters-ocr` bundles at 397 KB with the heavy artifact behind an
+injection point, and `render-pdf` bundles clean. "Lazy" describes download strategy for all
+three and capability for exactly one, which is the distinction this ADR originally conflated.
+
+**The Playwright leg is STRUCK** (OPEN_QUESTIONS §7ah, 2026-08-01). The *Consequences* below
+promised it; what exists is `scripts/check-surface-parity.mjs`, which evaluates the bundle in a
+`vm` context holding only web-platform globals and compares its bytes against the CLI, the HTTP
+API, and the MCP server across 30 conversions.
+
+That is a real check and it is not a browser. `vm` has no DOM, no `fetch`, no worker, and no
+real event loop — so the entity-decoding hazard recorded above, where a browser build routes
+decoding through the *host's HTML parser*, would be caught by the bundler-condition check and
+**not** by executing the bundle, because there is no parser in `vm` to route to. The label is
+corrected rather than the check weakened.
 
 ## Consequences
 
 - The host interface is a real abstraction layer, so per brief §13 the justification is stated:
   it exists so the deterministic core can run identically in Node and the browser without
   `node:` imports leaking into shared code.
-- Playwright tests run the browser build against the same fixtures as the Node tests, and both
-  must produce byte-identical output. This is the strongest available check that the two
-  surfaces have not diverged.
+- ~~Playwright tests run the browser build against the same fixtures as the Node tests.~~
+  **Struck** (§7ah). Byte-equality across four surfaces is asserted by
+  `scripts/check-surface-parity.mjs` in a `vm` sandbox; `docs/LIMITS.md` records what that
+  sandbox cannot see.
 - Lazy WASM loading means the first PDF conversion in a browser session has a visible delay.
   Acceptable, and surfaced in the UI rather than hidden.
 - Tesseract language data is large and per-language, so the browser OCR path loads only the

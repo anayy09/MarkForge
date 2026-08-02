@@ -284,12 +284,19 @@ export function verify(
 
   const passed = traceability >= required && scaffoldViolations.length === 0;
   if (!passed) {
+    // Named by cause. "Traceability 100.0% is below the required 100.0%" is what this said
+    // when the failure was a scaffolding violation and every sentence traced — a true
+    // sentence about the wrong half of the gate, which is how a reader ends up debugging
+    // the metric that is fine.
+    const cause =
+      traceability < required
+        ? `traceability ${(traceability * 100).toFixed(1)}% is below the required ` +
+          `${(required * 100).toFixed(1)}% (${supported}/${total} sentences supported)`
+        : `${scaffoldViolations.length} scaffolding violation(s), with all ${total} ` +
+          `sentence(s) traced`;
     diagnostics.error(
       DiagnosticCode.AGENTIFY_TRACEABILITY_FAILED,
-      `agentify: traceability ${(traceability * 100).toFixed(1)}% is below the required ` +
-        `${(required * 100).toFixed(1)}% (${supported}/${total} sentences supported` +
-        `${scaffoldViolations.length > 0 ? `, ${scaffoldViolations.length} scaffolding violation(s)` : ""}). ` +
-        `SPEC §10.6 makes this gate mandatory and gives it no bypass flag. Exit 5.`,
+      `agentify: ${cause}. SPEC §10.6 makes this gate mandatory and gives it no bypass flag. Exit 5.`,
     );
   }
 

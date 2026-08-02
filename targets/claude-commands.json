@@ -4,7 +4,7 @@
   "targetVersion": "0.1.0",
   "displayName": "Claude Code slash commands",
   "kind": "commandSet",
-  "tier": "firstClass",
+  "tier": "authored",
   "vendor": "Anthropic",
   "docsUrl": "https://code.claude.com/docs/en/skills",
   "verifiedAgainst": {

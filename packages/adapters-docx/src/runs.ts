@@ -192,7 +192,7 @@ export function parseRun(r: XmlElement, ctx: RunContext): AnyNode[] {
           "Embedded OLE object cannot be represented and was dropped. Exporting the " +
             "object as an image before converting preserves its appearance.",
         );
-        out.push({ type: "unknown", originalType: "w:object", raw: "" });
+        out.push({ type: "unknown", construct: "w:object", raw: "" });
         break;
       }
       default:
@@ -241,10 +241,10 @@ function parseDrawing(el: XmlElement, ctx: RunContext): AnyNode | undefined {
       el.name,
       "A drawing had no resolvable image reference; it may be a shape or SmartArt.",
     );
-    return { type: "unknown", originalType: el.name, raw: "" };
+    return { type: "unknown", construct: el.name, raw: "" };
   }
   const resourceId = ctx.resourceIds.get(embed);
-  if (!resourceId) return { type: "unknown", originalType: el.name, raw: "" };
+  if (!resourceId) return { type: "unknown", construct: el.name, raw: "" };
 
   // Alt text lives in docPr/@descr. Absent alt is recorded as absent rather than as
   // empty string: "" means "decorative, no alt needed" in HTML, which is a claim we

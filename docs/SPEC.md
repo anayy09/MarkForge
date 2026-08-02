@@ -141,7 +141,7 @@ for `sidecar` and `provenance`.
 | `tableCell` | `rowSpan: number = 1`, `colSpan: number = 1`, `isHeader: boolean` | Merged cells |
 | `table` | `headerRowCount: number = 1`, `headerColCount: number = 0` | Header geometry beyond GFM's single header row |
 | `code` | `lang?`, `meta?`, `filename?` | `lang`/`meta` are mdast; `filename` supports doc-tool fences |
-| `image` | `resourceId?` | Points into `document.resources` instead of inlining base64 (the reference project's known weakness) |
+| `image` | `resourceId?` | Points into `document.resources` instead of inlining base64 into the *tree* (the reference project's known weakness). The bytes live on the resource table as `data` ([ADR-0022](adr/0022-resource-bytes-in-the-ir.md)) — until 2026-08-01 they lived nowhere, so every adapter discarded every image |
 | all | `id: NodeId` | Join key |
 
 **MarkForge extension node types (24).** Each is listed with the source constructs that
@@ -611,13 +611,21 @@ satisfies the lint rule set, then `markdownlint` in **check-only** mode as a CI 
 re-parse check. Prettier is not in the pipeline (`PRIOR_ART.md` §16), and neither is
 markdownlint autofix: ADR-0006 was amended on 2026-07-31 to drop the repair loop, because
 two formatters that can disagree can each undo the other, and that mutual undoing was the
-only reason a fixed point was ever in doubt. Measured at 34 files, zero violations, no
+only reason a fixed point was ever in doubt. Measured at 41 files, zero violations, no
 autofix pass (`scripts/check-markdown-lint.mjs`).
 
-Flavour presets are **data**: CommonMark, GFM, MDX, Docusaurus, MkDocs Material, Obsidian,
-Pandoc. A preset declares available syntax (footnote form, math delimiters, admonition
-syntax, table style, front-matter language) plus a `remark-stringify` option set. Nothing
-about a flavour lives in code.
+Flavour presets are **data** ([ADR-0021](adr/0021-markdown-flavor-presets.md)): CommonMark,
+GFM, MDX, Docusaurus, MkDocs Material, Obsidian, Pandoc, in
+`packages/render-md/src/flavors.ts`. A preset declares available syntax (footnote form, math
+delimiters, admonition syntax, table style, front-matter language) plus a `remark-stringify`
+option set. Nothing about a flavour lives in code.
+
+> **This paragraph described behaviour that did not exist until 2026-08-01.** `markdown.flavor`
+> was enumerated in the config schema from Phase 0, generated into TypeScript, and read by
+> nothing: `flavor: "commonmark"` produced GFM. It is built now, and
+> `scripts/check-flavor-distinctness.mjs` requires the seven presets to produce seven
+> **byte-distinct** renders of one construct-dense document — because seven presets agreeing is
+> indistinguishable from seven presets being ignored, which is how this went unnoticed.
 
 **Table degradation policy** (OPEN_QUESTIONS §7e). A GFM pipe cell holds one line of inline
 content, so it can express neither a merged cell nor a cell containing block content — and
@@ -1073,13 +1081,14 @@ when `--json` is set, so piping is safe.
 
 | Command | Purpose |
 | --- | --- |
-| `convert <in...> -o <out>` | Any input → any output. `--to <fmt>`, `--explain`, `--emit-ir <path>`, `--report <path>` |
+| `convert <in...> -o <out>` | Any input → any output. `--to <fmt>`, `--explain`, `--emit-ir <path>`, `--report <path>`, `--md-flavor <name>` (ADR-0021's seven presets) |
 | `fmt [globs...]` | Markdown normalization. `--check` (no writes, exit 3 if changes needed), `--write`, `--stdin` |
 | `agentify <sources...>` | The Agent Context Compiler (§10). `--targets`, `--budget`, `--dry-run`, `--explain-drops` |
-| `check [paths...]` | Validate IR/config/output, run the fidelity harness against baselines, assert traceability |
+| `check [paths...]` | Validate IR/config/output, run the fidelity harness against baselines (`--fidelity <baselines>`, `--tolerance <n>`, `--md-flavor <name>`; exit 4 on a regression), report reference-document style coverage (`--reference-doc`), probe the endpoint (`--llm`) |
 | `diff <a> <b>` | Semantic IR diff, not a text diff. `--metric` to print fidelity scores for the pair |
 | `serve` | Local HTTP API (brief §8), stateless, no document retention |
-| `init` | Scaffold config, reference docs, and lint config. `--print-config` |
+| `init` | Scaffold config and lint config. `--print-config` resolves and prints instead of writing; existing files are skipped unless `--force` |
+| `mcp` | MCP server over stdio. **Added to this table 2026-08-01** (OPEN_QUESTIONS §7u): it is a separate protocol on a separate transport from `serve`, and a shared `--transport` flag would make a client's `command`/`args` depend on getting that flag right — which `targets/mcp-manifest.json` already got wrong once |
 
 Exit codes:
 
@@ -1090,7 +1099,11 @@ Exit codes:
 | 2 | Completed with lossy diagnostics **and** `--strict` was set |
 | 3 | `fmt --check` found files needing changes |
 | 4 | Fidelity regression against baseline (`check`) |
-| 5 | Agentify verification gate failed: traceability below `required` |
+| 5 | Agentify verification gate failed: traceability below `required`, or a scaffolding violation |
+
+Every code in this table has a test that produces it — `describe("SPEC §8 exit codes")` in
+`packages/cli/test/cli.test.ts`, added 2026-08-02. Two of them had none before: 4 had no
+implementation at all, and 5 had one that could not fire (OPEN_QUESTIONS §7ak, §7al).
 
 `--explain` on `convert` writes the full inference log (§5.1) — candidates, scores, and the
 deciding rule per node.
@@ -1355,7 +1368,7 @@ code-derived units merge, dedupe, and conflict-check through the identical path.
 
 ## 11. Packages
 
-Monorepo, pnpm workspaces, TypeScript strict, Node ≥ 20 (brief §13, tooling choices in
+Monorepo, pnpm workspaces, TypeScript strict, Node ≥ 22 (brief §13 as amended, tooling choices in
 ADR-0007). Adapters and renderers are independently publishable and independently testable
 (brief §9); package boundaries and stability tiers are in ADR-0011.
 
@@ -1433,7 +1446,7 @@ routing policy, capability tags, and generator script of brief §7.2 are descope
 decision (ADR-0009); three configured model names replace them, and the spreadsheet is not a
 build input.
 
-**Surfaces, brief §8:** CLI §8 with all seven subcommands, `--json` everywhere, exit-code
+**Surfaces, brief §8:** CLI §8 with all seven subcommands plus `mcp` (§7u), all built as of 2026-08-01, `--json` everywhere, exit-code
 table; Node API §11; browser §11; HTTP `serve` §8; MCP `packages/mcp`; GitHub Action and
 pre-commit hook are Phase 5 scope. VS Code extension deferred, and the renderer/adapter
 contracts keep it possible. ✔
@@ -1443,7 +1456,8 @@ cell P/R/F1 with spans §9.3, inline styling §9.4, round trips §9.5, baselines
 §9.6, property tests §9.6, offline LLM tests §9.6, visual regression §9.6. Corpus plan in
 `docs/CORPUS.md`. ✔
 
-**Constraints, brief §13:** TypeScript strict, Node ≥ 20, maintenance recorded per
+**Constraints, brief §13:** TypeScript strict, Node ≥ 22 (§7y — the brief said 20 and pnpm
+11.9.0 makes that impossible), maintenance recorded per
 dependency (`PRIOR_ART.md` register); no hard LibreOffice or Pandoc dependency in core —
 LibreOffice appears only as an isolated, optional CI rasterizer (§9.6); offline `--no-llm`
 §1.1; not an editor, not a DMS, not a SaaS, with HTTP and browser surfaces not precluding

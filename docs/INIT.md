@@ -467,7 +467,11 @@ Then stop and wait for review.
 
 ## 13. Constraints and non-goals
 
-- TypeScript, strict mode. Node 20 or later. Actively maintained dependencies only; the
+- TypeScript, strict mode. ~~Node 20 or later.~~ **Node 22 or later** (amended 2026-08-01,
+  `OPEN_QUESTIONS.md` §7y): pnpm 11.9.0, which `packageManager` pins, uses a builtin module
+  Node 20 lacks and dies with `ERR_UNKNOWN_BUILTIN_MODULE` before install starts. The Node 20
+  entry in the CI matrix was therefore never capable of passing, and `engines.node` claimed
+  `>=20.11` while the toolchain required 22. Actively maintained dependencies only; the
   reference project's rewrite was motivated by abandoned dependencies, so treat
   maintenance status as a selection criterion and record it.
 - No hard dependency on LibreOffice or a Pandoc binary in the core. Optional adapters are

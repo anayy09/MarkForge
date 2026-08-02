@@ -127,8 +127,8 @@ else ok("SPEC.md section 10 covers all 7 agentify stages");
 const adrFiles = readdirSync(join(REPO, "docs/adr")).filter((f) => /^\d{4}-.*\.md$/.test(f)).sort();
 // The count is asserted so that adding a decision record without indexing it fails here
 // rather than going unnoticed.
-if (adrFiles.length !== 20) fail(`expected 20 ADR files, found ${adrFiles.length}`);
-else ok("20 ADR files present");
+if (adrFiles.length !== 22) fail(`expected 22 ADR files, found ${adrFiles.length}`);
+else ok("22 ADR files present");
 
 for (const f of adrFiles) {
   if (!adrIndex.includes(f)) fail(`ADR ${f} is not linked from docs/adr/README.md`);

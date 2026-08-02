@@ -326,9 +326,99 @@ for (const k of result.missing) console.log(`missing    ${k} (in baselines, not 
 for (const k of result.added) console.log(`new        ${k} (measured, not in baselines) — run --update`);
 
 console.log(
-  `\n${measured.length} measurements across ${mdFixtures.length + htmlFixtures.length} fixture(s): ` +
+  // The DOCX fixtures were missing from this count, so it read "9 fixture(s)" while the
+  // corpus figure two calls above counted all three sets. A summary line that disagrees with
+  // the document it just generated is the smallest possible version of this repository's
+  // recurring defect, found by the Phase 6 gate audit reading the output rather than the code.
+  `\n${measured.length} measurements across ` +
+    `${mdFixtures.length + htmlFixtures.length + docxFixtures.length} fixture(s): ` +
     `${result.regressions.length} regression(s), ${result.improvements.length} improvement(s).`,
 );
+
+// --- Negative control.
+//
+// Added in the Phase 6 gate audit, which found this gate could not demonstrate a failure.
+// "0 regressions" is what a healthy tree reports and equally what an empty `measured` array,
+// an empty `baselines.entries`, or a `compareToBaselines` that stopped comparing would
+// report. The exit-4 path in particular had never been observed: SPEC §8 defines the code,
+// CI names it in a comment, and nothing had ever produced it.
+let controlFailures = 0;
+if (CHECK) {
+  console.log("\nNegative control");
+  const ctlOk = (m) => console.log(`ok    ${m}`);
+  const ctlFail = (m) => { console.log(`FAIL  ${m}`); controlFailures += 1; };
+
+  if (measured.length >= 40) ctlOk(`${measured.length} measurement(s) compared, so "0 regressions" is a measurement`);
+  else ctlFail(`only ${measured.length} measurement(s) compared — the comparison is close to vacuous`);
+
+  if (baselines.entries?.length >= 40) ctlOk(`${baselines.entries.length} baseline entr(ies) loaded`);
+  else ctlFail(`only ${baselines.entries?.length ?? 0} baseline entr(ies) loaded — nothing to regress against`);
+
+  /*
+   * The smallest violation: one metric on one fixture, dropped by just over the tolerance.
+   * Not a broken fixture and not a zeroed score — 0.006 against a tolerance of 0.005, which
+   * is the size of a real regression and the size this gate exists to notice.
+   *
+   * The first version of this control perturbed a field called `score`, which no entry has:
+   * a `BaselineEntry` carries six named metrics. It changed nothing the comparison reads and
+   * duly reported "0 regressions, expected 1" — the control catching its own defect, which is
+   * the only reason it is worth writing controls that assert an exact count rather than
+   * "at least one".
+   */
+  const METRIC = "structural";
+  /*
+   * The probe must land on a measurement that **has a baseline**, not merely on the first one
+   * that carries the metric.
+   *
+   * `compareToBaselines` skips an entry with no baseline (`if (!base) continue`), so
+   * perturbing a newly-added fixture produces zero regressions and the control reports itself
+   * broken. That is what happened the moment four RTL/CJK fixtures landed: `cjk-chinese`
+   * sorts ahead of `clean-report`, became index 0, and had no baseline yet.
+   *
+   * Third control this phase to fail because its baseline was assumed rather than derived
+   * from the thing under test. The rule that keeps coming back: a control must select its
+   * subject by the property it depends on, not by position.
+   */
+  const baselineKeys = new Set((baselines.entries ?? []).map((e) => `${e.fixture}::${e.loop}`));
+  const target = measured.findIndex(
+    (m) => typeof m[METRIC] === "number" && baselineKeys.has(`${m.fixture}::${m.loop}`),
+  );
+  if (target < 0) {
+    ctlFail(`no measurement carries a numeric \`${METRIC}\`, so the tolerance cannot be probed`);
+  } else {
+    const perturb = (delta) =>
+      measured.map((m, i) => (i === target ? { ...m, [METRIC]: m[METRIC] - delta } : m));
+
+    // Measured as a delta from the unperturbed run, not against zero. Twice now this control
+    // has assumed a clean tree: once when a new fixture had no baseline, and once when the
+    // DOCX reader work produced eight genuine regressions and the control reported nine where
+    // it expected one. A control whose verdict depends on the repository already being correct
+    // cannot witness the failure it exists for.
+    const base = compareToBaselines(baselines, measured).regressions.length;
+    const outside = compareToBaselines(baselines, perturb(0.006)).regressions;
+    if (outside.length === base + 1 && outside.some((r) => r.metric === METRIC)) {
+      ctlOk(`a 0.006 drop adds exactly one regression to the ${base} already present`);
+    } else {
+      ctlFail(
+        `a 0.006 drop produced ${outside.length} regression(s), expected exactly 1 — ` +
+          `the comparison is not discriminating at the tolerance boundary`,
+      );
+    }
+
+    // And the other side of the boundary, because a tolerance tested from one direction only
+    // is a tolerance nobody has placed. 0.004 is within 0.005 and must NOT be a regression.
+    if (compareToBaselines(baselines, perturb(0.004)).regressions.length === base) {
+      ctlOk("a 0.004 drop stays inside the 0.005 tolerance and is not reported");
+    } else {
+      ctlFail("a 0.004 drop was reported as a regression, so the tolerance is not being applied");
+    }
+  }
+
+  if (controlFailures > 0) {
+    console.log(`\n${controlFailures} negative-control failure(s): this gate cannot currently detect a regression.`);
+    process.exit(1);
+  }
+}
 
 // Exit 4 is the fidelity-regression code from SPEC §8.
 if (CHECK && result.regressions.length > 0) process.exit(4);

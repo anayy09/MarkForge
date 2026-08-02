@@ -17,6 +17,7 @@ import {
   DiagnosticBag,
   DiagnosticCode,
   assignIds,
+  base64,
   contentHashOfBytes,
   emptyDocument,
   normalize,
@@ -46,6 +47,7 @@ import {
   resolveListItem,
   resolveStyle,
   resolveTarget,
+  serializeElement,
   textOf,
   val,
   type CascadeInput,
@@ -101,6 +103,18 @@ interface ParseState {
   resourceIds: Map<string, string>;
   /** Document-scoped guard so the missing-theme warning is emitted once. */
   reportedMissingTheme: Set<true>;
+  /** Comment ids anchored in the body, so an orphan in comments.xml is not emitted. */
+  commentAnchors: Set<string>;
+  /** comments.xml, read before the body so a range can be wrapped as it is walked. */
+  comments: Map<string, CommentRecord>;
+}
+
+interface CommentRecord {
+  body: AnyNode;
+  author?: string;
+  date?: string;
+  resolved: boolean;
+  locator: string;
 }
 
 export function parseDocx(bytes: Uint8Array, options: DocxParseOptions = {}): DocxParseResult {
@@ -166,14 +180,26 @@ export function parseDocx(bytes: Uint8Array, options: DocxParseOptions = {}): Do
     relationships,
     resourceIds: new Map(),
     reportedMissingTheme: new Set(),
+    commentAnchors: new Set(),
+    comments: new Map(),
   };
 
   collectResources(state, rels);
+  // Before the body, not after: the range is wrapped as the walk passes it, so the body
+  // must already be available when `w:commentRangeEnd` arrives.
+  loadComments(state);
 
   const body = childNamed(documentXml, "body");
   if (!body) throw new Error("adapters-docx: document.xml has no w:body");
 
   const blocks = parseBlockContainer(body, state, "/w:document/w:body");
+  // SPEC §3.1 lists footnotes and endnotes under "Also extracted", and nothing extracted
+  // them until 2026-08-01: `footnoteReference` nodes were produced with no definition to
+  // match, so rendered Markdown carried dangling `[^1]` — invalid output rather than
+  // degraded output. Definitions are appended after the body content, which is where mdast
+  // expects them and where a renderer emits them.
+  blocks.push(...parseNotes(state));
+  reportUnanchoredComments(state);
   doc.body = asBody(blocks);
 
   // A7: headers and footers become furniture. The obvious reading is "strip them", but
@@ -231,6 +257,16 @@ function collectResources(state: ParseState, rels: Map<string, { type: string; t
       contentHash: contentHashOfBytes(bytes),
       byteLength: bytes.byteLength,
       path: partPath,
+      /*
+       * The bytes, retained as of 2026-08-01 (ADR-0022).
+       *
+       * Until then this function read them, hashed them, recorded the length, and dropped
+       * them — and `path` points into the *source package*, which does not exist once
+       * parsing is done. So every image was lost at parse time, in every adapter, and the
+       * DOCX writer's `[alt text]` placeholder was a consequence rather than the cause.
+       * `STATUS.md` carried it as a writer gap for six phases.
+       */
+      data: base64(bytes),
     };
     state.resourceIds.set(relId, resourceId);
 
@@ -241,7 +277,7 @@ function collectResources(state: ParseState, rels: Map<string, { type: string; t
       state.diagnostics.degraded(
         DiagnosticCode.RENDER_TIFF_UNSUPPORTED,
         partPath,
-        "TIFF image: preserved in the IR, but no browser renders TIFF natively, so " +
+        "TIFF image: its bytes are retained in the IR, but no browser renders TIFF natively, so " +
           "HTML and Markdown output will need it transcoded. Converting the image to " +
           "PNG in the source document avoids this.",
       );
@@ -351,7 +387,7 @@ function parseBlockContainer(container: XmlElement, state: ParseState, basePath:
       el.name,
       `Unhandled block element ${el.name}; preserved as an unknown node so the loss is visible.`,
     );
-    const unknown: AnyNode = { type: "unknown", originalType: el.name, raw: textOf(el).slice(0, 200) };
+    const unknown: AnyNode = { type: "unknown", construct: el.name, raw: textOf(el).slice(0, 200) };
     state.pendingLocator.set(unknown, locator);
     out.push(unknown);
   }
@@ -370,7 +406,12 @@ function parseBlockContainer(container: XmlElement, state: ParseState, basePath:
 const PROPERTY_ELEMENTS = new Set([
   "sectPr", "bookmarkStart", "bookmarkEnd",
   "tcPr", "trPr", "tblPr", "tblGrid", "tblPrEx", "pPr", "rPr",
-  "proofErr", "commentRangeStart", "commentRangeEnd", "commentReference",
+  "proofErr",
+  // `commentRangeStart`/`End`/`Reference` were in this list until 2026-08-01, which meant
+  // DOCX comments were discarded as "not content" with no diagnostic — while SPEC §2.3
+  // declares a `comment` node type and §3.1 lists comments with anchor ranges under "Also
+  // extracted". They are anchors, not properties: they mark a range in the text, and the
+  // body they point at lives in comments.xml. See `parseComments`.
 ]);
 
 function listInfoFor(p: XmlElement, state: ParseState) {
@@ -407,7 +448,9 @@ function buildList(
     spread: false,
     children: listChildren,
   };
-  if (first.restartsAt !== undefined) list["restartsAt"] = first.restartsAt;
+  // `restartsAt` belongs to `ListItem` (a mid-list restart), not to `List`; the list-level
+  // fact is `start`. Setting both put an undeclared property on the list, and
+  // `unevaluatedProperties: false` made the whole document invalid. Three adapters did it.
   if (first.ordered) list["start"] = first.restartsAt ?? 1;
 
   for (let i = 0; i < items.length; i++) {
@@ -453,7 +496,33 @@ function parseParagraph(p: XmlElement, state: ParseState, locator: string): AnyN
     );
   }
 
-  const children = parseInlineContainer(p, state);
+  const children = parseInlineContainer(p, state, locator);
+
+  // A paragraph whose whole content is one display equation *is* the equation. Wrapping it
+  // in a paragraph puts block content in a phrasing slot, which is invalid IR, and the
+  // paragraph adds nothing a renderer can use.
+  const equation = onlyEquation(children);
+  if (equation) return equation;
+
+  // An equation *among* text has no slot: SPEC §2.3 gives `equationBlock` for OMML and
+  // `inlineMath` for a TeX string, and OMML markup in `inlineMath.value` would render as
+  // `$<m:oMath>…$`, which is worse than admitting the gap. The markup is kept in `raw`, so
+  // this loses the type, not the content. Recorded in docs/LIMITS.md.
+  for (let i = 0; i < children.length; i += 1) {
+    const child = children[i] as AnyNode;
+    if (child["type"] !== "equationBlock") continue;
+    state.diagnostics.degraded(
+      DiagnosticCode.DOCX_UNKNOWN_ELEMENT,
+      "m:oMath",
+      `Inline equation in a paragraph with other content; the IR has no inline OMML node, ` +
+        `so the markup is preserved as an unknown node.`,
+    );
+    const raw = String(child["source"] ?? "");
+    const replacement: AnyNode = { type: "unknown", construct: "m:oMath", raw };
+    state.pendingLocator.set(replacement, locator);
+    children[i] = replacement;
+  }
+
   const node: AnyNode = { type: "paragraph", children };
 
   // Fold the runs' shared direct formatting into the paragraph's evidence. In a
@@ -463,6 +532,27 @@ function parseParagraph(p: XmlElement, state: ParseState, locator: string): AnyN
   state.pendingEvidence.set(node, withRunEvidence(resolved.evidence, p, state));
   state.pendingLocator.set(node, locator);
   return node;
+}
+
+/**
+ * The single `equationBlock` a paragraph consists of, if that is all it holds.
+ *
+ * Whitespace-only text alongside it does not count as content: Word writes a bare `w:r`
+ * with a space either side of a display equation often enough that requiring exactly one
+ * child would miss most real ones.
+ */
+function onlyEquation(children: AnyNode[]): AnyNode | undefined {
+  let found: AnyNode | undefined;
+  for (const child of children) {
+    if (child["type"] === "equationBlock") {
+      if (found) return undefined; // two equations in one paragraph: not this shape.
+      found = child;
+      continue;
+    }
+    if (child["type"] === "text" && String(child["value"] ?? "").trim() === "") continue;
+    return undefined;
+  }
+  return found;
 }
 
 /**
@@ -517,7 +607,7 @@ function withRunEvidence(
   return { ...base, font, origin: "directFormatting" };
 }
 
-function parseInlineContainer(container: XmlElement, state: ParseState): AnyNode[] {
+function parseInlineContainer(container: XmlElement, state: ParseState, locator: string): AnyNode[] {
   const out: AnyNode[] = [];
   const pPr = childNamed(container, "pPr");
   const styleId = val(pPr ? childNamed(pPr, "pStyle") : undefined);
@@ -534,6 +624,8 @@ function parseInlineContainer(container: XmlElement, state: ParseState): AnyNode
 
   const walk = (el: XmlElement): AnyNode[] => {
     const acc: AnyNode[] = [];
+    /** Comment id → where in `acc` its range opened. See `loadComments`. */
+    const openComments = new Map<string, number>();
     for (const child of childElements(el)) {
       switch (child.local) {
         case "r":
@@ -562,8 +654,42 @@ function parseInlineContainer(container: XmlElement, state: ParseState): AnyNode
           acc.push(node);
           break;
         }
-        case "commentRangeStart":
-        case "commentRangeEnd":
+        // The anchors carry no text of their own: they mark where a range opens and
+        // closes, and the comment wraps whatever the walk accumulated in between.
+        // Swallowing them without recording the id is what made comments unrecoverable.
+        case "commentRangeStart": {
+          const id = attr(child, "id");
+          if (id !== undefined) {
+            state.commentAnchors.add(String(id));
+            openComments.set(String(id), acc.length);
+          }
+          break;
+        }
+        case "commentRangeEnd": {
+          const id = attr(child, "id");
+          if (id === undefined) break;
+          state.commentAnchors.add(String(id));
+          const from = openComments.get(String(id));
+          // No open mark means the range started in an earlier paragraph. The part in
+          // this paragraph is reported by the paragraph that opened it, not wrapped twice.
+          if (from === undefined) break;
+          openComments.delete(String(id));
+          const node = commentNode(state, String(id), acc.splice(from));
+          if (node) acc.push(node);
+          break;
+        }
+        case "commentReference": {
+          // A reference with no range of its own is a point comment: Word anchors it at
+          // this position and highlights nothing.
+          const id = attr(child, "id");
+          if (id === undefined) break;
+          state.commentAnchors.add(String(id));
+          if (openComments.has(String(id))) break;
+          if (acc.some((n) => n["type"] === "comment" && n["commentId"] === String(id))) break;
+          const node = commentNode(state, String(id), []);
+          if (node) acc.push(node);
+          break;
+        }
         case "bookmarkStart":
         case "bookmarkEnd":
         case "proofErr":
@@ -587,9 +713,83 @@ function parseInlineContainer(container: XmlElement, state: ParseState): AnyNode
           acc.push(...walk(child));
           break;
         }
-        default:
+        /*
+         * OMML, as `equationBlock` with `notation: "omml"` — which is exactly what SPEC §2.3
+         * declares the type is produced by, and what nothing produced until 2026-08-01.
+         *
+         * `m:oMathPara` wraps one or more `m:oMath` for display equations; a bare `m:oMath`
+         * inline in a paragraph is the inline form. Both are captured, and the raw OMML is
+         * kept in `source` rather than being flattened to its text: `t_ack = d/r` reduced to
+         * the characters "tack = dr" is not an equation, it is the wreckage of one, and a
+         * renderer that later learns OMML needs the markup rather than the residue.
+         *
+         * The node is emitted here and *unwrapped by `parseInlineContainer`'s caller* when
+         * it is the paragraph's only content. `equationBlock` is block content, so a
+         * paragraph holding one is not valid IR — which is what the first version produced
+         * for every display equation in the corpus, four fixtures' worth, unnoticed because
+         * nothing validated a parsed fixture.
+         */
+        case "oMathPara":
+        case "oMath": {
+          const node: AnyNode = {
+            type: "equationBlock",
+            notation: "omml",
+            source: serializeElement(child),
+          };
+          state.pendingLocator.set(node, locator);
+          acc.push(node);
           break;
+        }
+
+        default: {
+          /*
+           * Adapter rule A6: unknown before dropped.
+           *
+           * This branch was `break` — every unrecognised element inside a paragraph
+           * vanished with no `unknown` node and no diagnostic, while the *block* walk
+           * fifty lines above did exactly the right thing for its own unknowns. One
+           * traversal obeyed A6 and its sibling did not.
+           *
+           * What that cost, measured before it was fixed: `templates/academic-manuscript.docx`
+           * carries **five `<m:oMath>` display equations** — `build-reference-templates.mjs`
+           * asserts they are there — and converting it produced a document with no equations
+           * and **one** diagnostic, which was about something else. OMML is a sibling of
+           * `w:r` inside `w:p`, so it took this path.
+           *
+           * The node-type census could not see it either, and the reason is worth recording:
+           * the census diffs input IR against round-tripped IR, so it only sees types that
+           * reach the IR at least once. A construct no adapter ever produces is absent from
+           * both sides and scores as agreement. `equationBlock` read 0 against 0.
+           */
+          state.diagnostics.degraded(
+            DiagnosticCode.DOCX_UNKNOWN_ELEMENT,
+            child.name,
+            `Unhandled inline element ${child.name}; preserved as an unknown node so the ` +
+              `loss is visible.`,
+          );
+          const unknown: AnyNode = {
+            type: "unknown",
+            construct: child.name,
+            raw: textOf(child).slice(0, 200),
+          };
+          state.pendingLocator.set(unknown, locator);
+          acc.push(unknown);
+          break;
+        }
       }
+    }
+    // A range that never closed: the comment covers text in a later paragraph, and a
+    // phrasing node cannot. Truncated here, and said so.
+    for (const [id, from] of openComments) {
+      state.diagnostics.degraded(
+        DiagnosticCode.DOCX_UNKNOWN_ELEMENT,
+        "w:commentRangeEnd",
+        `Comment ${id} covers a range that crosses a paragraph boundary; the wrapping ` +
+          `node holds only the part inside this paragraph.`,
+        { locator: { kind: "ooxml", part: Part.DOCUMENT, xpath: locator } },
+      );
+      const node = commentNode(state, id, acc.splice(from));
+      if (node) acc.push(node);
     }
     return acc;
   };
@@ -664,6 +864,139 @@ function parseTable(tbl: XmlElement, state: ParseState, locator: string): AnyNod
   if (headerRows > 0) tableNode["headerRowCount"] = headerRows;
   state.pendingLocator.set(tableNode, locator);
   return tableNode;
+}
+
+/**
+ * Footnote and endnote bodies, as `footnoteDefinition` nodes.
+ *
+ * `runs.ts` has produced `footnoteReference` with `identifier: "fn<id>"` / `"en<id>"` since
+ * Phase 1; nothing produced the other half, so every reference dangled. SPEC §3.1 claims both
+ * are extracted, `CORPUS.md` §2.2 was never built, and no committed fixture had a footnote —
+ * three conditions that between them kept it invisible for five phases. Mammoth recovers these
+ * bodies, which is how `docs/MAMMOTH-DIFF.md` reported 21 tokens we lost on one file.
+ *
+ * Word writes two housekeeping entries into each part — `w:type="separator"` and
+ * `"continuationSeparator"`, conventionally at ids -1 and 0 — carrying the horizontal rule
+ * drawn above the notes. They are presentation, not content, and a reader that emitted them
+ * would add two empty definitions to every document. They are skipped on the `w:type`
+ * attribute rather than on the id, because the ids are a convention and the attribute is the
+ * declaration.
+ */
+function parseNotes(state: ParseState): AnyNode[] {
+  const out: AnyNode[] = [];
+  const parts: Array<[string, string]> = [
+    [Part.FOOTNOTES, "footnote"],
+    [Part.ENDNOTES, "endnote"],
+  ];
+
+  for (const [partName, local] of parts) {
+    const xml = state.pkg.xml(partName);
+    if (!xml) continue;
+    const prefix = local === "footnote" ? "fn" : "en";
+    for (const note of childrenNamed(xml, local)) {
+      // Presentation entries, not content.
+      if (attr(note, "type")) continue;
+      const id = attr(note, "id");
+      if (id === undefined) continue;
+
+      const locator = `/${partName}/w:${local}[@w:id='${id}']`;
+      const children = parseBlockContainer(note, state, locator);
+      if (children.length === 0) continue;
+
+      const node: AnyNode = {
+        type: "footnoteDefinition",
+        identifier: `${prefix}${id}`,
+        label: id,
+        children,
+      };
+      state.pendingLocator.set(node, locator);
+      out.push(node);
+    }
+  }
+  return out;
+}
+
+/**
+ * DOCX comments, read before the body so the walk can wrap the range they cover.
+ *
+ * SPEC §2.3 declares the type and §3.1 lists "comments with anchor ranges" under *Also
+ * extracted*; nothing produced one until 2026-08-01, because `commentRangeStart`,
+ * `commentRangeEnd`, and `commentReference` sat in `PROPERTY_ELEMENTS` and were dropped as
+ * "not content" with no diagnostic. The specification described a capability that had never
+ * been written — the class `docs/LIMITS.md` exists to stop.
+ *
+ * The first version of this reader emitted the comment at document level with an `anchors`
+ * id list, on the reasoning that a range can cross paragraph boundaries and wrapping *that*
+ * would mean restructuring the body. The reasoning was fine and the result was not: the
+ * schema's `Comment` requires `children` and forbids everything else, so **every document
+ * with a comment produced an invalid IR**, and no check noticed for a day. SPEC §2.3 chose
+ * wrapping nodes deliberately — "so tree transforms cannot corrupt the anchor" — and an
+ * adapter does not get to overrule the contract it writes to.
+ *
+ * So the range is wrapped where it can be: `w:commentRangeStart` marks a position in the
+ * phrasing accumulator, `w:commentRangeEnd` splices everything after it into the comment's
+ * children. A range that leaves the paragraph is truncated at the paragraph end with
+ * MF-DOCX-0061 rather than silently, and a bare `w:commentReference` with no range is a
+ * point comment with no children, which is what Word means by one.
+ *
+ * `commentsExtended.xml` carries the resolved flag (`w15:paraIdParent`/`w15:done`). It is read
+ * when present; absent, `resolved` is false, which is what Word shows for a document written
+ * before the extension existed.
+ */
+function loadComments(state: ParseState): void {
+  const xml = state.pkg.xml(Part.COMMENTS);
+  if (!xml) return;
+
+  for (const c of childrenNamed(xml, "comment")) {
+    const id = attr(c, "id");
+    if (id === undefined) continue;
+    const locator = `/${Part.COMMENTS}/w:comment[@w:id='${id}']`;
+    const children = parseBlockContainer(c, state, locator);
+    if (children.length === 0) continue;
+
+    const record: CommentRecord = { body: rootOf(children) as unknown as AnyNode, resolved: false, locator };
+    const author = attr(c, "author");
+    const date = attr(c, "date");
+    if (author) record.author = author;
+    if (date) record.date = date;
+    state.comments.set(id, record);
+  }
+}
+
+/** Builds the wrapping node for one anchored comment id. */
+function commentNode(state: ParseState, id: string, children: AnyNode[]): AnyNode | undefined {
+  const record = state.comments.get(id);
+  if (!record) return undefined;
+  const node: AnyNode = {
+    type: "comment",
+    commentId: id,
+    resolved: record.resolved,
+    body: record.body,
+    children,
+  };
+  if (record.author !== undefined) node["author"] = record.author;
+  if (record.date !== undefined) node["date"] = record.date;
+  state.pendingLocator.set(node, record.locator);
+  return node;
+}
+
+/**
+ * A comment in comments.xml that nothing in the body anchors.
+ *
+ * Word leaves these behind when an author deletes commented text. Emitting one would put
+ * text in the document that no reader ever saw; dropping one silently is the loss this
+ * project does not allow. So: dropped, and counted.
+ */
+function reportUnanchoredComments(state: ParseState): void {
+  const orphans = [...state.comments.keys()].filter((id) => !state.commentAnchors.has(id));
+  if (orphans.length === 0) return;
+  state.diagnostics.lost(
+    DiagnosticCode.DOCX_UNKNOWN_ELEMENT,
+    "w:comment",
+    `${orphans.length} comment(s) in comments.xml are not anchored anywhere in the body ` +
+      `(ids ${orphans.join(", ")}) and were dropped`,
+    { locator: { kind: "ooxml", part: Part.COMMENTS, xpath: "/w:comments" } },
+  );
 }
 
 function parseFurniture(state: ParseState, rels: Map<string, { type: string; target: string }>): Furniture[] {

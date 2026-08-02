@@ -39,6 +39,7 @@ import { createRequire } from "node:module";
 import { dirname } from "node:path";
 import {
   analysePage,
+  detectFurniture,
   groupIntoBlocks,
   joinBlockText,
   median,
@@ -192,6 +193,8 @@ export async function readPdf(
   const pages: {
     pageNumber: number;
     layout: ReturnType<typeof analysePage>;
+    /** Page height, needed by furniture detection to know where the bands are. */
+    height: number;
     chars: number;
   }[] = [];
 
@@ -243,7 +246,7 @@ export async function readPdf(
     }
 
     const layout = analysePage(runs, viewport.width);
-    pages.push({ pageNumber, layout, chars: pageChars });
+    pages.push({ pageNumber, layout, chars: pageChars, height: viewport.height });
     for (const column of layout.columns) for (const line of column.lines) allHeights.push(line.height);
 
     page.cleanup();
@@ -308,13 +311,41 @@ export async function readPdf(
   const documentBodyHeight = median(allHeights) ?? 11;
   const placeholders: { node: AnyNode; pageNumber: number }[] = [];
 
+  /*
+   * ADR-0012 clause 1, built 2026-08-01: running headers and footers, routed to `furniture`.
+   *
+   * ADR-0002 chose routing over brief §5.2's "stripping" so the no-silent-loss rule holds,
+   * and the destination has existed since Phase 0 with nothing writing to it — this adapter
+   * produced zero furniture entries for four phases while the ADR read as delivered.
+   *
+   * The lines are collected first and excluded from the body second, because a line can only
+   * be recognised as furniture by comparing it against *other pages*, which means the whole
+   * document has to be laid out before any page's body is decided.
+   */
+  const furnitureLines = detectFurniture(pages);
+  const furnitureByPage = new Map<number, Set<Line>>();
+  for (const f of furnitureLines) {
+    const set = furnitureByPage.get(f.pageNumber) ?? new Set<Line>();
+    set.add(f.line);
+    furnitureByPage.set(f.pageNumber, set);
+  }
+  if (furnitureLines.length > 0) {
+    diagnostics.info(
+      DiagnosticCode.PDF_NO_TEXT_LAYER,
+      `${furnitureLines.length} running header/footer line(s) across ${maxPages} page(s) ` +
+        `were routed to furniture rather than left in the body (ADR-0002). A repeated line ` +
+        `in the same band on at least half the pages is furniture; digits are masked first, ` +
+        `so "Page 3 of 12" and "Page 4 of 12" count as the same running footer.`,
+    );
+  }
+
   for (const { pageNumber, layout } of pages) {
     if (scannedSet.has(pageNumber)) {
       // In reading position, so the placeholder sits where the page's content would
       // have been rather than being appended as a footnote to the document.
       const node: AnyNode = {
         type: "unknown",
-        originalType: "pdf:scanned-page",
+        construct: "pdf:scanned-page",
         raw: `Page ${pageNumber} is a scanned image with no text layer.`,
       };
       pageOf.set(node, pageNumber);
@@ -332,8 +363,12 @@ export async function readPdf(
       );
     }
 
+    const pageFurniture = furnitureByPage.get(pageNumber);
     for (const column of layout.columns) {
-      for (const lines of groupIntoBlocks(column, layout.bodyLeading)) {
+      const bodyColumn = pageFurniture
+        ? { ...column, lines: column.lines.filter((l) => !pageFurniture.has(l)) }
+        : column;
+      for (const lines of groupIntoBlocks(bodyColumn, layout.bodyLeading)) {
         const node = blockToNode(lines, documentBodyHeight, evidence, confidenceOf);
         if (node) {
           pageOf.set(node, pageNumber);
@@ -354,6 +389,24 @@ export async function readPdf(
   await pdf.destroy();
 
   doc.body = { type: "root", children: blocks } as unknown as MarkForgeDocument["body"];
+
+  // One furniture entry per distinct running line, carrying the pages it appeared on in its
+  // `sectionIndex`. Grouped by kind and text so a header repeated on forty pages is one
+  // entry rather than forty.
+  const grouped = new Map<string, { kind: "header" | "footer"; text: string; first: number }>();
+  for (const f of furnitureLines) {
+    const key = `${f.kind}:${f.text}`;
+    if (!grouped.has(key)) grouped.set(key, { kind: f.kind, text: f.text, first: f.pageNumber });
+  }
+  doc.furniture = [...grouped.values()].map((g) => ({
+    kind: g.kind,
+    scope: "default" as const,
+    sectionIndex: 0,
+    content: {
+      type: "root",
+      children: [{ type: "paragraph", children: [{ type: "text", value: g.text }] }],
+    },
+  })) as unknown as MarkForgeDocument["furniture"];
 
   const metadata = await Promise.resolve().then(() => ({}));
   doc.metadata = metadata;
@@ -551,8 +604,8 @@ function splitListItems(lines: Line[]): AnyNode | undefined {
   if (ordered && firstNumber) {
     const start = Number(firstNumber[1]);
     if (Number.isFinite(start)) {
+      // `start` only: `restartsAt` is a `ListItem` field. See the note in adapters-docx.
       list["start"] = start;
-      if (start !== 1) list["restartsAt"] = start;
     }
   }
   return list;

@@ -263,7 +263,21 @@ export async function render(
       return { bytes: new TextEncoder().encode(result.markdown), diagnostics: result.diagnostics };
     }
     case "docx": {
-      const result = renderDocx(document, options.docx ?? {});
+      /*
+       * `onMissingStyle` defaults to "synthesize" **here**, not in the CLI.
+       *
+       * It was a CLI default, so `markforge convert` synthesized missing styles and the HTTP
+       * API, the MCP server, and the browser build did not — four surfaces, two behaviours.
+       * `scripts/check-surface-parity.mjs` caught it the moment W1 added styles to the
+       * fallback stylesheet that made the two paths produce different bytes: CLI 3430,
+       * the other three 3444.
+       *
+       * The divergence predates that change; it was simply invisible while both paths
+       * happened to emit the same styles.xml. A default that lives in one surface is a
+       * default the other surfaces do not have, which is what "four surfaces, one engine"
+       * is supposed to rule out.
+       */
+      const result = renderDocx(document, { onMissingStyle: "synthesize", ...(options.docx ?? {}) });
       return { bytes: result.bytes, diagnostics: result.diagnostics };
     }
     case "html": {
@@ -394,6 +408,13 @@ export const ExitCode = {
   /** Agentify traceability gate failed. */
   TRACEABILITY: 5,
 } as const;
+
+/**
+ * Re-exported so a surface can offer the flavour list without depending on the renderer.
+ * One list, in `flavors.ts`; core is already the composition root that owns which renderer
+ * is in use, and a CLI-local copy would be the thing that drifts.
+ */
+export { FLAVORS, resolveFlavor, type FlavorPreset } from "@markforge/render-md";
 
 export type { Decision, AmbiguousDecision, HeadingTiebreaker, TiebreakAnswer } from "@markforge/infer";
 export { explainDecisions } from "@markforge/infer";

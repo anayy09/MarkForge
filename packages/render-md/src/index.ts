@@ -25,7 +25,17 @@ import { renderHtmlFragment } from "@markforge/render-html";
 
 const RENDERER = { kind: "adapter" as const, name: "@markforge/render-md", version: "0.1.0" };
 
+import { resolveFlavor, type FlavorPreset } from "./flavors.js";
+
 export interface MarkdownRenderOptions {
+  /**
+   * Flavour preset (SPEC §4.1). Decides which constructs can be expressed and how they are
+   * spelled; `flavors.ts` holds the data.
+   *
+   * This option existed in the config schema from Phase 0 and was read by nothing until
+   * 2026-08-01 — `flavor: "commonmark"` produced GFM. ADR-0021.
+   */
+  flavor?: string;
   /** ATX (`#`) or Setext (`===`) headings. ATX round-trips at every level. */
   headings?: "atx" | "setext";
   bullet?: "-" | "*" | "+";
@@ -34,6 +44,11 @@ export interface MarkdownRenderOptions {
   fence?: "`" | "~";
   /** `one` keeps list indentation at one space past the marker. */
   listIndent?: "one" | "tab" | "mixed";
+  /**
+   * What to do with tracked changes (SPEC §7). Same three modes, same meanings, as the DOCX
+   * writer and the PDF renderer — this renderer ignored the option until 2026-08-02.
+   */
+  revisionMode?: "clean" | "showInsertions" | "showAll";
   /**
    * Reflow width. 0 means never reflow.
    *
@@ -72,12 +87,14 @@ export interface MarkdownRenderResult {
 }
 
 export const DEFAULT_MD_OPTIONS: Required<MarkdownRenderOptions> = {
+  flavor: "gfm",
   headings: "atx",
   bullet: "-",
   emphasis: "_",
   strong: "*",
   fence: "`",
   listIndent: "one",
+  revisionMode: "clean",
   lineWidth: 0,
   tables: "auto",
 };
@@ -121,10 +138,13 @@ export function renderMarkdown(
   doc: MarkForgeDocument,
   options: MarkdownRenderOptions = {},
 ): MarkdownRenderResult {
-  const opts = { ...DEFAULT_MD_OPTIONS, ...options };
+  const preset = resolveFlavor(options.flavor ?? DEFAULT_MD_OPTIONS.flavor);
+  // Preset first, explicit options second: a caller who sets `bullet` means it, and a
+  // flavour is a default rather than a lock.
+  const opts = { ...DEFAULT_MD_OPTIONS, ...preset.stringify, ...options } as Required<MarkdownRenderOptions>;
   const diagnostics = new DiagnosticBag(RENDERER);
 
-  const tree = toMdast(doc.body as unknown as AnyNode, { diagnostics, opts });
+  const tree = toMdast(doc.body as unknown as AnyNode, { diagnostics, opts, preset });
   let markdown = toMarkdown(tree as never, buildOptions(opts));
 
   // toMarkdown does not guarantee a trailing newline in every configuration, and a
@@ -137,6 +157,8 @@ export function renderMarkdown(
 interface MdastContext {
   diagnostics: DiagnosticBag;
   opts: Required<MarkdownRenderOptions>;
+  /** The resolved flavour. Decides what can be expressed at all, not merely how. */
+  preset: FlavorPreset;
 }
 
 /**
@@ -147,13 +169,78 @@ interface MdastContext {
  * comments that survive a round trip, and the rest emit a diagnostic. Silence is
  * never an option (SPEC §1.3).
  */
+/**
+ * Flattens already-converted mdast children to plain text for the fenced admonition forms.
+ *
+ * Docusaurus, MkDocs, and Pandoc admonitions are emitted as raw blocks, so their bodies have
+ * to be text by the time they get here. Only paragraph text is recovered — a list inside a
+ * `:::note` would lose its markers, which is stated in docs/LIMITS.md rather than pretended
+ * away.
+ */
+function mdChildrenToText(nodes: AnyNode[]): string {
+  const line = (n: AnyNode): string => {
+    if (typeof n["value"] === "string") return n["value"];
+    if (Array.isArray(n.children)) return (n.children as AnyNode[]).map(line).join("");
+    return "";
+  };
+  return nodes.map(line).filter((t) => t !== "").join("\n\n");
+}
+
+/**
+ * `flatMap`, because one IR node can be several mdast nodes.
+ *
+ * `comment` is the case that needs it: the commented range is body text and the annotation
+ * is an HTML comment beside it, so one node in becomes two out. Everything else returns a
+ * single node and is unaffected.
+ */
+function toMdastMany(node: AnyNode, ctx: MdastContext): AnyNode[] {
+  const out = toMdast(node, ctx);
+  if (out === null) return [];
+  return Array.isArray(out) ? out : [out];
+}
+
 function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
-  const { diagnostics } = ctx;
+  const { diagnostics, opts } = ctx;
   const children = Array.isArray(node.children)
-    ? node.children.map((c) => toMdast(c as AnyNode, ctx)).filter((c): c is AnyNode => c !== null)
+    ? node.children.flatMap((c) => toMdastMany(c as AnyNode, ctx))
     : undefined;
 
   switch (node.type) {
+    /*
+     * Capability gates: constructs this flavour cannot express at all.
+     *
+     * Placed before the pass-through cases on purpose. CommonMark has no footnote syntax and
+     * no table syntax; MDX has neither footnotes nor safe raw HTML. Emitting `[^1]` into
+     * CommonMark produces literal text a reader sees as `[^1]`, with the definition dangling
+     * — which is the same invalid-output shape the DOCX footnote gap produced, arrived at
+     * from the renderer side.
+     *
+     * This is the path SPEC §1.3's no-silent-loss rule has never been exercised against a
+     * target that genuinely cannot hold a construct. `commonmark` is that target.
+     */
+    case "footnoteReference":
+      if (ctx.preset.syntax.footnotes === false) {
+        diagnostics.degraded(
+          DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+          "footnoteReference",
+          `${ctx.preset.displayName} has no footnote syntax: the reference becomes a ` +
+            `parenthetical marker and its definition is emitted as an ordinary paragraph.`,
+        );
+        const label = typeof node["label"] === "string" ? node["label"] : "1";
+        return { type: "text", value: ` (note ${label})` };
+      }
+      return strip(node, children);
+
+    case "footnoteDefinition":
+      if (ctx.preset.syntax.footnotes === false) {
+        const label = typeof node["label"] === "string" ? node["label"] : "1";
+        return {
+          type: "paragraph",
+          children: [{ type: "text", value: `Note ${label}: ` }, ...(children ?? [])],
+        };
+      }
+      return strip(node, children);
+
     // --- Standard mdast, passed straight through -------------------------
     case "root":
     case "paragraph":
@@ -165,7 +252,8 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
     case "definition":
     case "tableRow":
     case "tableCell":
-    case "footnoteDefinition":
+    // `footnoteDefinition` and `footnoteReference` are handled below when the flavour
+    // cannot express them; here they pass through for the flavours that can.
     case "text":
     case "emphasis":
     case "strong":
@@ -176,15 +264,69 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
     case "linkReference":
     case "imageReference":
     case "delete":
-    case "footnoteReference":
     case "html":
+      return strip(node, children);
+
+    /*
+     * Front matter is a convention, not syntax, and CommonMark has none.
+     *
+     * This check briefly lived at the end of the shared pass-through group above, which meant
+     * `root` — the first label in that group — fell through into it and the entire document
+     * was replaced by a comment containing nothing. CommonMark rendered 31 bytes. A `switch`
+     * whose labels share a body shares it with *every* label, and adding a condition to the
+     * body of a group is not the same as adding a case.
+     */
     case "yaml":
-    case "toml":
+    case "toml": {
+      if (ctx.preset.syntax.frontMatter === false) {
+        diagnostics.degraded(
+          DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+          node.type,
+          `${ctx.preset.displayName} has no front-matter convention, so the block is retained ` +
+            `as an HTML comment rather than emitted where a reader would show it as text.`,
+        );
+        // Retained rather than dropped. SPEC §1.3 asks for a diagnostic *and* retention where
+        // retention is possible, and an HTML comment is CommonMark, so the metadata survives.
+        const raw = typeof node["value"] === "string" ? node["value"] : "";
+        return { type: "html", value: `<!-- front matter (${node.type}):\n${raw}\n-->` };
+      }
+      return strip(node, children);
+    }
+
     case "math":
     case "inlineMath":
+      if (ctx.preset.syntax.math === false) {
+        const value = typeof node["value"] === "string" ? node["value"] : "";
+        diagnostics.degraded(
+          DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+          node.type,
+          `${ctx.preset.displayName} has no math syntax: the expression is retained ` +
+            `verbatim, so the characters survive and the typesetting does not.`,
+        );
+        /*
+         * A block `math` degrades to a *block* — a fenced code block — and only `inlineMath`
+         * degrades to `inlineCode`.
+         *
+         * The first version returned `inlineCode` for both, which put an inline node where the
+         * root expected flow content. `mdast-util-to-markdown` then serialised the entire
+         * document as phrasing: `# A` + `$$…$$` + `After.` came out as `` # A`y = 1`After. ``
+         * with every blank line gone. A whole document collapsed into one line because one
+         * node was the wrong *kind*, not the wrong content — and it passed the distinctness
+         * gate, because collapsed output is still distinct output. Section 1 of that gate now
+         * has a length floor for exactly this.
+         */
+        if (node.type === "math") return { type: "code", lang: "math", value };
+        return { type: "inlineCode", value };
+      }
       return strip(node, children);
 
     case "table":
+      // A flavour with no table syntax gets an HTML table. CommonMark has none: pipe syntax
+      // is a GFM extension, and emitting it into CommonMark produces a paragraph full of
+      // vertical bars rather than a table.
+      if (ctx.preset.syntax.tables === false) {
+        return tableToMdast(node, children ?? [], { ...ctx, opts: { ...ctx.opts, tables: "html" } });
+      }
       return tableToMdast(node, children ?? [], ctx);
 
     case "heading": {
@@ -236,21 +378,103 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
       return { type: "paragraph", children: children ?? [] };
 
     case "admonition": {
-      // GFM alert syntax: a blockquote whose first line is [!NOTE]. It round-trips
-      // through any Markdown parser as a plain blockquote, so nothing is lost even
-      // where the alert syntax is not understood.
-      const kind = typeof node["kind"] === "string" ? node["kind"].toUpperCase() : "NOTE";
-      return {
-        type: "blockquote",
-        children: [
-          { type: "paragraph", children: [{ type: "text", value: `[!${kind}]` }] },
-          ...(children ?? []),
-        ],
-      };
+      /*
+       * Every documentation ecosystem invented its own admonition syntax and none is
+       * portable, so this is the construct where flavour presets earn their keep: the same
+       * IR node is `:::note` in Docusaurus, `!!! note` in MkDocs, `> [!note]` in Obsidian,
+       * and a fenced div in Pandoc. Before presets existed, all seven produced the GFM
+       * blockquote form.
+       */
+      const raw = typeof node["kind"] === "string" ? node["kind"] : "note";
+      const lower = raw.toLowerCase();
+      const kind = raw.toUpperCase();
+      const inner = children ?? [];
+
+      const body = mdChildrenToText(inner);
+      switch (ctx.preset.syntax.admonitions) {
+        case "docusaurus":
+          return { type: "html", value: `:::${lower}\n${body}\n:::` };
+        case "mkdocs":
+          // MkDocs indents the body by four spaces; the marker line is not indented.
+          return { type: "html", value: `!!! ${lower}\n    ${body.replace(/\n/g, "\n    ")}` };
+        case "pandoc":
+          return { type: "html", value: `::: {.${lower}}\n${body}\n:::` };
+        case "obsidian":
+        case false:
+        default:
+          // Obsidian's callout and the fall-back are the same shape: a blockquote whose
+          // first line marks the kind. It re-parses as a plain blockquote everywhere, so
+          // nothing is lost even where the marker is not understood — which is why it is
+          // the right fall-back for a flavour with no admonition syntax at all.
+          return {
+            type: "blockquote",
+            children: [
+              {
+                type: "paragraph",
+                children: [
+                  // GitHub alerts upper-case the kind; Obsidian callouts lower-case it, and
+                  // each renderer ignores the other's casing. The fall-back for a flavour
+                  // with no admonition syntax uses the GFM form, because a plain blockquote
+                  // is what every parser sees either way.
+                  { type: "text", value: `[!${ctx.preset.syntax.admonitions === "obsidian" ? lower : kind}]` },
+                ],
+              },
+              ...inner,
+            ],
+          };
+      }
     }
 
-    case "equationBlock":
-      return { type: "math", value: typeof node["value"] === "string" ? node["value"] : "" };
+    case "equationBlock": {
+      /*
+       * An equation is only expressible here if it is already TeX.
+       *
+       * This case used to read `value` and fall back to `""`, which was harmless while
+       * nothing produced an `equationBlock` at all. The moment the DOCX adapter started
+       * emitting OMML (2026-08-01), it began writing `$$\n$$` — an *empty* display-math
+       * block, mid-sentence for an inline equation. That is worse than the `unknown` node it
+       * replaced: an empty `$$` is syntactically valid Markdown asserting there is an
+       * equation here with nothing in it, so the loss is invisible again, one layer down.
+       *
+       * OMML is not TeX and this renderer has no converter. SPEC §1.3 says a stage that
+       * discards information emits a diagnostic and retains what it can, so the source is
+       * kept as an inline code span and the loss is reported.
+       */
+      const notation = typeof node["notation"] === "string" ? node["notation"] : undefined;
+      const value = typeof node["value"] === "string" ? node["value"] : undefined;
+      const source = typeof node["source"] === "string" ? node["source"] : undefined;
+
+      if (notation === "tex" && value) return { type: "math", value };
+      if (!notation || notation === "tex") return { type: "math", value: value ?? source ?? "" };
+
+      diagnostics.degraded(
+        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+        "equationBlock",
+        `Markdown math is TeX, and this equation is ${notation.toUpperCase()}. There is no ` +
+          `${notation}-to-TeX converter here, so the equation's structure does not survive; ` +
+          `its source is retained inline rather than emitted as an empty $$ block.`,
+      );
+      /*
+       * A fenced *block*, not an inline code span.
+       *
+       * `inlineCode` was the right shape while every `equationBlock` sat inside a paragraph
+       * — which is where the adapter wrongly put them. Once the adapter started emitting
+       * them at block level, where the schema says block content belongs, a phrasing node
+       * appeared among the root's children and `mdast-util-to-markdown` collapsed **the
+       * entire document onto one line**: `Queue Depth Under Sustained Load# 1.
+       * IntroductionAcknowledgement latency is…`. Structural fidelity on that fixture fell
+       * from 0.965 to 0.359, which is what caught it.
+       *
+       * The same failure mode is on record twice now — see the flavour gate's note about a
+       * block `math` node degraded to an inline one — so the rule it teaches is worth
+       * stating plainly: a block node must map to a block node, whatever else is lost.
+       */
+      return {
+        type: "code",
+        lang: notation,
+        value: source ? source.replace(/\s+/g, " ").trim() : `${notation} equation`,
+      };
+    }
 
     case "descriptionList":
       // No CommonMark or GFM definition-list syntax exists. Terms become bold
@@ -291,15 +515,59 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
       };
     }
 
+    /*
+     * `revisionMode`, honoured here as of 2026-08-02.
+     *
+     * The DOCX writer and the PDF renderer both read this option; this renderer did not, so
+     * `docs/LIMITS.md` recorded it as "applied nowhere on the render path" and the default —
+     * `clean`, meaning *accept every revision* — produced Markdown showing both sides of
+     * every edit. The three modes name exactly three behaviours and they now mean the same
+     * thing on all three surfaces:
+     *
+     *   clean           the accepted text. Insertions in, deletions out.
+     *   showInsertions  insertions marked with `<ins>`, deletions still out.
+     *   showAll         both, deletions as `~~strikethrough~~`.
+     */
     case "insertion":
+      if (opts.revisionMode === "clean") return { type: "root", children: children ?? [] };
       return { type: "root", children: [{ type: "html", value: "<ins>" }, ...(children ?? []), { type: "html", value: "</ins>" }] };
-    case "deletion":
-      return { type: "delete", children: children ?? [] };
+    case "deletion": {
+      if (opts.revisionMode === "showAll") return { type: "delete", children: children ?? [] };
+      // Dropped, and said so: the text was in the source document and is not in the output.
+      // "Accept all revisions" is a choice the user made, not a reason to say nothing.
+      diagnostics.degraded(
+        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+        "deletion",
+        `Tracked deletion dropped under revisionMode "${opts.revisionMode}"; use "showAll" to ` +
+          `keep it as ~~strikethrough~~.`,
+      );
+      return null as unknown as AnyNode;
+    }
 
-    case "comment":
-      // A comment is not body text. It becomes an HTML comment so it survives the
-      // round trip without appearing in rendered output.
-      return { type: "html", value: `<!-- comment: ${textOf(node)} -->` };
+    case "comment": {
+      /*
+       * The comment's *body* becomes an HTML comment; the text it was anchored to stays
+       * body text, because it is body text.
+       *
+       * This used to render `textOf(node)` — the node's children — which was right while
+       * the DOCX adapter emitted comments at document level with an empty `children`. When
+       * the adapter started wrapping the commented range, as the schema's `Comment` always
+       * required, the same line began hiding the document inside the annotation:
+       * `The retention window is <!-- comment: thirty days --> for sealed records.` The
+       * reviewer's question was dropped and the reader lost the words under discussion.
+       */
+      const body = node["body"] as AnyNode | undefined;
+      const author = typeof node["author"] === "string" ? ` ${node["author"]}` : "";
+      const note = body ? textOf(body).replace(/\s+/g, " ").trim() : "";
+      const annotation: AnyNode = {
+        type: "html",
+        value: `<!--comment${author ? `[${author.trim()}]` : ""}: ${note} -->`,
+      };
+      // The annotation trails the range, so the anchor is still readable in source order.
+      return (
+        children && children.length > 0 ? [...children, annotation] : annotation
+      ) as unknown as AnyNode;
+    }
 
     case "crossReference": {
       const target = typeof node["targetKey"] === "string" ? node["targetKey"] : "";
@@ -325,7 +593,7 @@ function toMdast(node: AnyNode, ctx: MdastContext): AnyNode {
     case "unknown": {
       // Round-trip preservation (SPEC §3.2): the raw source goes back out verbatim.
       const raw = typeof node["raw"] === "string" ? node["raw"] : "";
-      const original = typeof node["originalType"] === "string" ? node["originalType"] : "unknown";
+      const original = typeof node["construct"] === "string" ? node["construct"] : "unknown";
       diagnostics.degraded(
         DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
         original,
@@ -472,3 +740,5 @@ function textOf(node: AnyNode): string {
   walk(node);
   return out;
 }
+
+export { FLAVORS, resolveFlavor, type FlavorPreset, type FlavorSyntax } from "./flavors.js";

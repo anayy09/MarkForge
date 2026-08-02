@@ -114,7 +114,8 @@ describe("HTML to IR", () => {
   it("keeps a list's start attribute", () => {
     const list = selectType(fromHtml(`<ol start="5"><li>a</li></ol>`).body, "list")[0]!;
     expect(list["start"]).toBe(5);
-    expect(list["restartsAt"]).toBe(5);
+    // See the note in adapters-docx/test/parse.test.ts: `restartsAt` belongs to `ListItem`.
+    expect(list["restartsAt"]).toBeUndefined();
   });
 
   it("reads a code language from the class", () => {

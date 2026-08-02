@@ -73,8 +73,8 @@ describe.skipIf(!has("messy-combined.docx"))("every messy fixture converts", () 
   it.each(ALL)("%s produces no phantom nodes from property elements", (name) => {
     const { document } = load(name);
     const unknowns = selectType(document.body, "unknown");
-    const phantom = unknowns.filter((u) => /Pr$|tblGrid/.test(String(u["originalType"] ?? "")));
-    expect(phantom.map((u) => u["originalType"])).toEqual([]);
+    const phantom = unknowns.filter((u) => /Pr$|tblGrid/.test(String(u["construct"] ?? "")));
+    expect(phantom.map((u) => u["construct"])).toEqual([]);
   });
 });
 

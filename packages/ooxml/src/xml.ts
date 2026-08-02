@@ -282,3 +282,36 @@ export function textOf(el: XmlElement): string {
   walk(el);
   return out;
 }
+
+/**
+ * Serializes an element back to XML.
+ *
+ * Added so the DOCX adapter can keep OMML as `equationBlock.source` rather than flattening
+ * it. `t_ack = d/r` reduced to the characters `tack = dr` is not an equation, it is the
+ * wreckage of one — the subscript and the fraction are gone and no later pass can recover
+ * them. SPEC §2.3 declares `source: string` on `equationBlock` for exactly this.
+ *
+ * Attribute order follows insertion order, which for a parsed document is document order, so
+ * the output is deterministic per SPEC §1.1. This is a round-trip aid, not a general-purpose
+ * XML writer: it escapes the five predefined entities and assumes no CDATA or processing
+ * instructions, both of which OOXML content parts do not use.
+ */
+export function serializeElement(el: XmlElement): string {
+  const esc = (s: string): string =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+  const attrs = Object.entries(el.attrs)
+    .map(([k, v]) => ` ${k}="${esc(v)}"`)
+    .join("");
+
+  if (el.children.length === 0) return `<${el.name}${attrs}/>`;
+
+  const inner = el.children
+    .map((c) => (isElement(c) ? serializeElement(c) : esc(c.text)))
+    .join("");
+  return `<${el.name}${attrs}>${inner}</${el.name}>`;
+}

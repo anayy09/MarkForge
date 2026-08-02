@@ -468,6 +468,307 @@ measurement, which is the trap `packages/llm/src/tasks.ts` names at the top of t
 is a judgement about evidence, not about value, and it is the row to reverse first if you want
 the prose categories §10.3 assigns to the model.
 
+Added during Phase 6. These five are the reviewer's calls rather than mine; each was surfaced
+before any Phase 6 code was written, each proceeded on the stated default rather than blocking,
+and each records what reversing it costs.
+
+**7v. `OPEN_QUESTIONS.md` §5 is closed permanently rather than deferred. — DEFAULT TAKEN
+2026-08-01.** §5 has read "deferred to future scope" since Phase 0, and Phase 5 struck published
+packages from `INIT.md` §11 on the strength of it (§7r). A question that nothing may act on and
+that no phase remains to answer is not deferred, it is out of scope, and leaving it open costs a
+row in a ledger whose closing condition is that no row is open. So: the name stays `markforge`,
+the scope stays `@markforge/*`, every package stays `"private": true`, and no npm availability
+check runs.
+
+*Cost of reversal:* one `package.json` field per package, plus a name availability check. The
+directory-naming discipline §5 already adopted — `packages/<name>` with the scope applied only in
+`package.json` — is what keeps it that cheap, and it stays. Nothing in the source tree, the
+lockfile, or any import path encodes the scope.
+
+**7w. `CORPUS.md` §2.14's two authored pairs are two facts each. §7q's remaining half is
+closed. — DEFAULT TAKEN 2026-08-01.** §7q resolved the *contradiction* between §2.14 and §10.4
+and explicitly left the *judgement* — "is `CORPUS.md` §2.14 right that these are one fact?" — to
+the reviewer. That judgement is now taken: the adjudicator was right and the answer key was
+wrong, on both pairs.
+
+It is taken rather than merely asserted because §2.14.1's predicate decides it mechanically, and
+§2.14.2 already applied it: merging pair 1 drops `more` and `second`, merging pair 2 drops
+`whole`. **What was left undone is the bookkeeping, and that is the finding worth recording** —
+the corpus was corrected on 2026-08-01 while §7q stayed open above it and `STATUS.md` kept
+reporting "recall still reads 0 of 2" as though it were a pipeline result. It was a correct
+answer to a question whose key was wrong. Three documents disagreed about one fact for the
+length of a phase, which is exactly what W0 exists to find.
+
+*Cost of reversal:* high, and asymmetric. Both pairs are retired as graded cases (§2.14.2)
+because each has since informed either the fixture or the prompt, so re-instating them would mean
+grading a correction against the case that produced it. Reversing needs a fresh uncontaminated
+set, not an edit.
+
+**7x. §9's role-implied routing takes option 1: the role-implied pass claims a sentence only
+where no modal pass fires. — DEFAULT TAKEN 2026-08-01.** §9 lists three options and rules out the
+fourth (loosening §10.4's cross-category block) as the one that risks silent loss. Option 1 is
+taken because it is the only one that raises §10.4's reachable recall without weakening the
+block: a sentence carrying a deontic modal is claimed by the pass that reads the modal, so
+`constraint` and `convention` stop being decided by the document's filename. Option 2 —
+whitelisting `convention`↔`constraint` merges — is a narrower version of the loosening §9 rejects.
+Option 3 — dropping the role-implied pass — trades §10.4 recall for §10.3 recall, which is a
+worse trade at 94.7% extraction recall.
+
+*Cost of reversal:* one predicate in `packages/agentify/src/extract.ts`. Cheap in code and
+expensive in evidence: every §10.3 and §10.4 number is re-measured either way, and per ground
+rule 5 the re-measurement needs a set authored after the change.
+
+**7y. `engines.node` is `>=22`, and brief §13 is amended to say so. — DEFAULT TAKEN 2026-08-01.**
+`INIT.md` §13 says "Node 20 or later" and `SPEC.md` §11 and §12 repeat it. It has been untrue
+since Phase 1: pnpm 11.9.0, which `packageManager` pins, uses a builtin module Node 20 lacks and
+dies with `ERR_UNKNOWN_BUILTIN_MODULE` before install starts. `package.json` and the CI matrix
+were corrected during Phase 5; the three prose statements were not, so the repository asserted a
+support claim it could not honour. The brief is amended in place with the reason attached.
+
+*Cost of reversal:* stating Node 20 again is one line. *Supporting* it means unpinning pnpm, and
+the pin is what makes `--frozen-lockfile` mean anything.
+
+**7z. `fixtures/local/` gets a scripted check that runs when the specimens are present and
+refuses to be silent when they are not. — DEFAULT TAKEN 2026-08-01.** Phase 2's real-specimen
+criterion is recorded as "manual", and `STATUS.md` says so plainly. In practice "manual" and
+"nobody ran it" are the same state, and this repository has already had one file skip its entire
+fixture-backed suite in silence. The specimens cannot be committed — IEEE licensing on one,
+personal data in two — so the check cannot be made unconditional. It can be made *loud*: it runs
+when the files are present, and when they are absent it prints an `MF-`coded skip naming each
+missing file and what it would have measured, so the report distinguishes "did not run" from
+"passed".
+
+*Cost of reversal:* delete one script and one `verify` entry. The reason to reverse would be a
+decision to commit the specimens, which reopens the licensing question ADR-0004 closed.
+
+**7aa. The DOCX reader gaps SPEC §3.1 claimed were built are now built. — 2026-08-01.**
+`footnotes.xml`, `endnotes.xml`, OMML, and `comments.xml` were all listed in §3.1 under "Also
+extracted" and none was read. Footnote and endnote bodies now become `footnoteDefinition`,
+OMML becomes `equationBlock` with `notation: "omml"` and its markup retained in `source`, and
+comments become `comment` nodes. Found by `CORPUS.md` §2.2 and §2.12 — two categories that had
+never been built, which is why nothing had noticed.
+
+**7ab. `citation` and `textBox` are STRUCK from `SPEC.md` §2.3 and §3.1. — RULED 2026-08-01.**
+
+§2.3 declares both node types and §3.1 lists text boxes (`wps:txbx`, `v:textbox`) and citation
+fields under *"Also extracted"*. **Neither string appears in any adapter source**, and neither
+ever did. The specification was describing behaviour that was never written.
+
+*What is lost by striking rather than building.* A DOCX text box's content is dropped — it now
+reaches the phrasing walk's A6 branch and becomes an `unknown` node with a lossy diagnostic, so
+it is reported rather than silent, but the text is not placed in reading order. A Word citation
+field flattens to its cached result via `MF-DOCX-0053`, so the visible text survives and the
+field code does not. Both were already true; the strike makes the specification say so.
+
+*Why struck rather than built.* Building them is not near-zero cost: a text box is a floating
+shape with its own anchor semantics and reading-order question, and citations need a field-code
+parser plus a bibliography model neither the IR nor any renderer has. Neither has a fixture, a
+consumer, or a request behind it. The schema keeps both types so the strike is reversible
+without a schema migration, and `scripts/check-node-type-coverage.mjs` keeps them visible as
+known gaps rather than letting them read as delivered.
+
+**7ac. `CORPUS.md` §2.6, §2.8, and §2.9 are STRUCK as corpus categories; the adapters they
+would exercise stay. — RULED 2026-08-01.**
+
+Multi-column PDFs (§2.6), slide decks (§2.8), and spreadsheets (§2.9) were never built. Each
+needs a *generator* before it needs a fixture — an authored multi-column PDF with a real text
+layer, an authored PPTX, an authored XLSX — and each generator is a comparable amount of work
+to the OOXML writer that already exists, for categories whose adapters are already covered by
+unit tests.
+
+*What is lost.* The PDF adapter's column detection is tested against synthetic page geometry in
+`packages/adapters-pdf/test/pdf.test.ts` and **not** against a real multi-column PDF, so
+`docs/FIDELITY.md` has no row for the defect §2.6 exists to catch — interleaved text, which
+`CORPUS.md` calls the single most visible PDF conversion defect. The PPTX and XLSX adapters are
+likewise unit-tested and unmeasured: no fidelity number describes either, and §2.9's merged
+ranges and formula-versus-result distinction are untested against a real workbook.
+
+*Why struck rather than deferred.* `docs/ROADMAP.md` is for capabilities removed from the
+promises and kept visible. These are exactly that, and they are recorded there — but the
+*category* claim in `CORPUS.md` §2 is what this strikes, because "15 categories" as a target
+implies a plan to reach 15 and there is none. `scripts/check-fixtures.mjs` keeps all three
+visible as `not done` with no evidence, which is the honest shape: an understated row fails
+that gate as loudly as an overstated one.
+
+**7ad. Visual regression (brief §10, Phase 2) is STRUCK. — RULED 2026-08-01.**
+
+Brief §10 asks for rasterised DOCX and PDF compared against approved snapshots, and calls it
+"the only way to catch 'it technically converted but it looks wrong'". That is true, and it is
+still struck.
+
+*What is lost, precisely.* Nothing catches a change that is visually wrong and structurally
+identical — a heading font, a margin, a line-height. `scripts/check-pdf-determinism.mjs`
+catches a change in the *bytes*, which is strictly stronger for the PDF path and says nothing
+about whether the bytes are good. For DOCX there is no equivalent at all.
+
+*Why.* The DOCX half needs LibreOffice, which brief §13 confines to an isolated optional CI
+rasteriser, so the check would degrade to a skip on every machine without it — and a check that
+usually skips is the failure mode `STATUS.md` already records for the `fixtures/local/`
+specimens. The PDF half is now reachable, since `render-pdf` exists and Typst output is
+byte-identical across processes; a snapshot suite over it is real work with a real payoff and
+it is not work this phase has left. Recorded in `docs/ROADMAP.md` with what it would take.
+
+**7ae. `SPEC.md` §10.10's reverse direction is STRUCK. — RULED 2026-08-01.**
+
+Repository to context units — detected stack, build commands, directory conventions — has been
+"a stated stretch, and no corpus for it" since Phase 4. Building it without a corpus produces a
+number nobody can check, which is the one thing this project has consistently refused to do.
+
+*What is lost.* `markforge agentify` reads documents and not code, so a repository with good
+code and poor documentation gets a poor `CLAUDE.md`. That is the whole value the reverse
+direction would have added.
+
+*Why struck rather than deferred.* A stretch goal that survives five phases without a corpus is
+not deferred, it is declined. Struck from `SPEC.md` §10.10 rather than left as an aspiration
+nobody is measuring.
+
+**7af. ADR-0012's four PDF clauses: two built, two STRUCK. — RULED 2026-08-01.**
+
+| Clause | Outcome |
+| --- | --- |
+| Ligature repair | **Built.** `expandLigatures` in `layout.ts`, applied at join time beside hyphenation repair. The full Alphabetic Presentation Forms block, not a subset — `ﬅ` and `ﬆ` are ordinary in the pre-1930 typesetting `CORPUS.md` §2.2 asks for |
+| Header/footer routed to `furniture` | **Built.** `detectFurniture`, by cross-page repetition in a top/bottom band, with digits masked so `Page 3 of 12` and `Page 4 of 12` are one running footer. ADR-0002 chose this destination in Phase 0 and the adapter had written **zero** furniture entries since |
+| Figure and caption binding | **Struck** |
+| Table recovery, confidence-gated | **Struck** |
+
+*Why the last two are struck rather than deferred.* Both need `CORPUS.md` §2.6 — a real
+multi-column PDF with a text layer — and §2.6 is itself struck (§7ac). Building either without
+it produces code whose only evidence is a synthetic geometry fixture written by the same person
+who wrote the code, which is the shape of measurement this project has refused since Phase 1.
+Table recovery is additionally the largest of the four by ADR-0012's own assessment: ruling-line
+detection, then whitespace-column alignment, then vision escalation.
+
+*What is lost.* A figure in a PDF and its caption stay two adjacent blocks, so the binding
+`SPEC.md` §2.3 declares for `figure` is never made from PDF geometry — the normaliser's
+`NORM_FIGURE_BOUND` runs on IR shape and not on glyph coordinates. And a table laid out with
+whitespace is emitted as prose with a *possibly present* diagnostic, which is honest and is not
+a table. `docs/LIMITS.md` says both plainly.
+
+*What would reverse it.* §2.6 first, then the clause. In that order, which is the one sequencing
+lesson this project keeps re-learning.
+
+**7ag. `SPEC.md` §10.4's role-implied routing takes §9's option 1. — BUILT 2026-08-01, per
+§7x's default.** `extractRoleImpliedUnits` claimed every sentence in a `codingConventions` or
+`testPolicy` document as a `convention`, so a filename decided a unit's category and §10.4's
+cross-category block then made those units unmergeable against anything. The pass now claims a
+sentence only where no modal pass fires.
+
+**7ah. The Playwright leg of ADR-0015 is STRUCK. — RULED 2026-08-01.**
+
+ADR-0015's *Consequences* promise Playwright running the browser build against the same
+fixtures as Node. What exists is `scripts/check-surface-parity.mjs`, which evaluates the bundle
+in a `vm` context holding only web-platform globals and compares its bytes against the CLI, the
+HTTP API, and the MCP server across 30 conversions.
+
+*What is lost.* The `vm` sandbox is not a browser: it has no DOM, no `fetch`, no worker, and no
+real event loop, so a defect that needs one of those is invisible to it. In particular the
+`decode-named-character-reference` hazard ADR-0015 records — a browser build that routes entity
+decoding through the host's HTML parser — would be caught by the bundler condition check and
+**not** by executing the bundle, because `vm` has no parser to route to.
+
+*Why.* A real browser in CI is a Playwright install, a browser download, and a per-run cost
+against a surface whose byte-equality is already asserted four ways. The label is corrected
+rather than the check weakened: ADR-0015 now says `vm` sandbox, not Playwright, and
+`docs/LIMITS.md` records what that cannot see.
+
+**7ai. `claude-commands` and `mcp-manifest` are no longer labelled first-class. — RULED
+2026-08-01.** ADR-0013 gave five targets `tier: "firstClass"`. Three are checked against
+something outside this repository; two have a verified envelope and an invented content model,
+which `OPEN_QUESTIONS` §7n already said in prose while the schema kept calling them the same
+thing as the other three. They move to a new tier, `authored`, so the registry says what the
+prose said.
+
+**7aj. `CORPUS.md` §2.15's LibreOffice producer is STRUCK; the Pandoc producer is BUILT. —
+RULED 2026-08-02.** §2.15 asked for four OOXML encodings of one source. Three now exist: two
+synthesized by `build-messy-fixtures.mjs`, and a **real Pandoc 3.10 export** generated at check
+time by `scripts/check-producer-exports.mjs`. It is generated rather than committed because a
+Pandoc DOCX carries Pandoc's GPL-licensed reference styles, and `fixtures/LICENSES.md` exists
+to keep an unexamined licence out of the repository.
+
+*What the real producer found immediately*, and the reason this was worth doing rather than
+synthesizing a third file ourselves: Pandoc's `TOCHeading` style declares `w:outlineLvl` 9, our
+schema capped `outlineLevel` at 8, and **every Pandoc-produced DOCX therefore parsed to an
+invalid IR** — with zero diagnostics, because the adapter read the value correctly and the
+schema was wrong. ISO/IEC 29500-1 §17.3.1.20 is explicit that the range is 0 to 9, "where 9
+specifically indicates that there is no outline level specifically applied to this paragraph".
+Five phases of hand-written fixtures never produced a 9, because we only ever wrote headings.
+
+*Why LibreOffice is struck.* A headless LibreOffice export needs the binary in CI, which means
+a ~400 MB install on every run for one fixture, and the same GPL/MPL question about its
+exported styles. The gap it leaves is one more encoding of a document we already have three
+encodings of — the smallest remaining item in the category, and the most expensive.
+`docs/LIMITS.md` records it.
+
+**7ak. The `check --fidelity` clause of `SPEC.md` §8 is BUILT, and exit code 4 is now
+reachable. — RULED 2026-08-02.** §8's exit table defined 4 as "fidelity regression against
+baseline (`check`)" and nothing produced it: the harness lived only in `scripts/run-fidelity.mjs`.
+`packages/cli/src/fidelity-command.ts` implements it, and `--md-flavor` — ADR-0021's presets,
+which until today were reachable from no shipped surface — gives it a genuine producer:
+rendering `fixtures/md/flavor-probe.md` through CommonMark, which cannot hold its footnotes,
+drops structural fidelity to 0.9368 against a committed baseline of 1.0. Every code in the
+table now has a test that produces it.
+
+**7al. Agentify's `scaffoldViolations` half of the §10.6 gate could not fire, and now can. —
+RULED 2026-08-02.** Exit 5 was the second unreachable code. Traceability itself cannot fail
+after §10.6's prune step — unsupported sentences are dropped and the gate re-runs on what would
+actually be written, which is what the specification asks for — so the reachable half is the
+scaffolding check. That half was vacuous: the link fragment was emitted as one
+fragment holding a heading and a link, and the check `/^##\s|\]\(|^@/m` matched the heading before it ever
+looked at the link. A target profile declaring `imports.syntax: "include {path}"` produced
+`include .claude/context/overflow.md` and the gate called it a link. Splitting the fragment in
+two makes the check real.
+
+*What this says about the traceability metric.* It is a one-directional measure by design —
+"every sentence in the output traces to a unit", not "every unit reached the output" — so an
+empty output scores 100%. The other direction is `--strict` and `--explain-drops`. That is the
+specification's choice and it stands; it is written down here because "traceability 100%" on a
+0-byte file is a sentence that deserves an explanation.
+
+**7am. `SPEC.md` §10.8's incremental regeneration is STRUCK at 0.1.0. — RULED 2026-08-02.**
+What exists: unchanged sources are detected by content hash and reported. What §10.8 asks for
+additionally is *unit reuse* — re-extracting only changed sources and regenerating only the
+output regions whose supporting unit set changed. Units are re-extracted every run.
+
+*Why struck rather than finished.* The saving is real only for a corpus large enough that
+extraction dominates, and on the largest set we have the whole compile is well under a second.
+Building a reuse cache that is wrong in a subtle way — a stale unit surviving a source edit —
+would put incorrect content in a generated file, which is the one failure mode agentify's whole
+design is arranged to prevent. The honest trade at this size is to do the simple thing.
+`docs/LIMITS.md` records what is not incremental.
+
+**7an. "Real-world messy PDF converts cleanly" is STRUCK as an acceptance criterion. — RULED
+2026-08-02.** It has read *not verified — no such fixture exists* since Phase 1. It cannot be
+verified without `CORPUS.md` §2.6, which §7ac struck: a real multi-column PDF with a text layer
+whose licence permits redistribution. A criterion that depends on a struck category is struck,
+not pending. What is lost is any claim about real-world PDF quality; `docs/SCOREBOARD.md` and
+`docs/FIDELITY.md` both speak only about the corpus, and `docs/LIMITS.md` now says the PDF
+claim is bounded by a corpus of documents we generated.
+
+**7ao. The IR carries no inline OMML node, and inline equations degrade to `unknown`. — RULED
+2026-08-02.** `SPEC.md` §2.3 gives `equationBlock` for OMML and `inlineMath` for a TeX string.
+An OMML equation *inside a sentence* fits neither: `equationBlock` is block content and cannot
+sit in a paragraph, and putting OMML markup in `inlineMath.value` would render `$<m:oMath>…$`.
+The adapter emits an `unknown` node carrying the markup plus a lossy diagnostic, so the source
+survives and the loss is visible. One of the two equations in
+`fixtures/docx/manuscript-footnotes-equations.docx` takes this path, which is why its
+declaration in `check-ir-structure.mjs` reads one `equationBlock` and one `unknown`.
+
+**7ap. `SPEC.md` §10.4's adjudicated half of dedup is STRUCK at 0.1.0. — RULED 2026-08-02.**
+It has read *deferred* since Phase 4. The measurements say why that was the wrong word: on
+every fixture that exists, `--llm` and `--no-llm` produce **byte-identical output**, because
+§2.14.1's deterministic veto blocks the one merge the adjudicator proposes. On `CORPUS.md`
+§2.17 — the first uncontaminated grading set — recall is **0 of 3**, and the veto took false
+merges from 1 to 0. The flag `--dedup-adjudicate` stays, off, because the code and its grading
+set are the honest starting point for anyone who wants to try again.
+
+*What is lost.* Near-duplicate merging across sources rests entirely on the deterministic
+predicate. Two sources stating one rule in different words stay two context units, and the
+budget pays for both.
+
+*Why not simply loosen the veto.* Because that is the change that trades a visible miss for a
+silent wrong merge, and §2.17 has already measured one silent loss. A capability that changes
+nothing is a limitation; a capability that changes the wrong thing is a defect.
+
 ---
 
 ## 8. Questions only Phase 1+ can answer — deferred to implementation
@@ -490,7 +791,7 @@ Not open questions for the reviewer — recorded so they are not mistaken for ov
   tree: no loop, no `maxIterations`, nothing to oscillate.
 
   Measured before adopting it (`scripts/check-markdown-lint.mjs`, wired into `pnpm verify`):
-  34 rendered files, **zero violations**, no autofix pass. Five rules are disabled and each
+  41 rendered files, **zero violations**, no autofix pass. Seven rules are disabled and each
   conflicts with a decision recorded elsewhere rather than being one the configuration could
   not meet. The interesting one is `MD029`, which wants every ordered list renumbered from 1
   and would therefore destroy `restartsAt` — the field the IR carries precisely so a list

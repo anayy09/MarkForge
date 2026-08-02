@@ -94,6 +94,13 @@ jobs:
       - name: Messy corpus fixtures are current
         run: node scripts/build-messy-fixtures.mjs --check
 
+      # CORPUS §2.2, §2.5, and §2.12 — footnotes and OMML equations, merged and nested
+      # tables, tracked changes from two authors. Committed rather than built on demand for
+      # the same reason as the messy corpus. Authoring these found that the DOCX adapter
+      # never read footnotes.xml: three references, no definitions, no diagnostic.
+      - name: Manuscript, table, and revision fixtures are current
+        run: node scripts/build-corpus-fixtures.mjs --check
+
       # The scanned corpus (CORPUS.md §2.7) matters more than the messy one for staleness:
       # the committed LLM cache is keyed on the *page image's digest*, so a rasteriser that
       # drifted by one pixel would miss every recorded vision response and look like a model
@@ -216,6 +223,83 @@ jobs:
       - name: docs/TARGETS.md is derived from targets/*.json
         run: node scripts/check-target-docs.mjs
 
+      # `pnpm verify` is a proxy for this workflow, and the two diverged twice. The
+      # agentify assertion is the instance everyone remembers — one stale claim in two
+      # places, fixed in the script and not in the workflow, local green and CI red for the
+      # same commit. This gate is the shape rather than the instance. On its first run it
+      # found two more: build-scanned-fixtures and run-fidelity both gated the branch and
+      # neither was in the local chain.
+      - name: pnpm verify and ci.yml run the same gates
+        run: node scripts/check-gate-parity.mjs
+
+      # docs/GATES.md is the audit the Phase 6 brief asked for: one row per gate, what it
+      # asserts, where it was seen to fail, and which side runs it. Generated, because a list
+      # nobody generates goes stale the first time a gate is added. Producing it found ten
+      # gates that could not fail at all — each reporting success in a way an empty input
+      # would report identically.
+      - name: docs/GATES.md is current and every gate can fail
+        run: node scripts/check-gates.mjs
+
+      # The census's blind spot, closed. docs/FIDELITY.md diffs input IR against
+      # round-tripped IR, so a node type no adapter ever produces is absent from both sides
+      # and scores as agreement. Its first run found four: equationBlock, comment, citation,
+      # and textBox — the last two named in SPEC §3.1 as extracted, with no code anywhere.
+      - name: Every IR node type has a producer and a consumer
+        run: node scripts/check-node-type-coverage.mjs
+
+      # The second measurement blind spot. A round trip applies the same code to both sides,
+      # so a symmetric defect agrees with itself: tables-block-content scored 100% on every
+      # metric while textContent joined a cell's paragraphs with nothing. This compares parsed
+      # IR against a hand-written declaration, which is the only asymmetric side available.
+      - name: Parsed IR matches its authored declaration
+        run: node scripts/check-ir-structure.mjs
+
+      # SPEC §4.1's seven flavour presets, which were config-schema values read by nothing
+      # until 2026-08-01. The gate is distinctness rather than coverage: seven presets must
+      # produce seven byte-distinct renders of one construct-dense document, so a preset that
+      # ties with another is struck rather than implying a difference that does not exist.
+      # It also carries the only no-silent-loss check against a target that genuinely cannot
+      # hold a construct — CommonMark has no footnote syntax.
+      - name: Seven flavour presets render seven distinct documents
+        run: node scripts/check-flavor-distinctness.mjs
+
+      # ADR-0003, built 2026-08-01 after four phases in which check-browser-bundle.mjs
+      # reported render-pdf as absent on every run. The property this holds is determinism,
+      # because that is the part that depends on how we call Typst rather than on Typst:
+      # two compiles in separate processes differed at byte 11533 in /CreationDate until
+      # `#set document(date: none)` removed the field. A same-process check would have
+      # passed throughout and proved nothing.
+      - name: PDF output is byte-identical across processes (ADR-0003)
+        run: node scripts/check-pdf-determinism.mjs
+
+      # SPEC §8 lists a pre-commit hook alongside the GitHub Action. Shipping the script
+      # would not have been the feature: a hook nobody runs is discovered broken by the first
+      # contributor who installs it. This drives it through five commits in a throwaway
+      # repository, including the case that separates a hook reading the index from one
+      # reading the working tree, and a control that removes the hook to prove the rejection
+      # came from it.
+      - name: The pre-commit hook works, on a real repository
+        run: node scripts/check-hook.mjs
+
+      # The shipped templates under --strict. academic-manuscript.docx carries five OMML
+      # equations the Markdown renderer cannot express, so it exits 2 — the SPEC §8 code for
+      # "completed with lossy diagnostics". That exit was incidentally unexercised until now:
+      # it is a real user-visible behaviour of the primary shipped template and belongs in a
+      # job rather than in a paragraph. docs/LIMITS.md §7 records the same fact.
+      - name: The shipped templates report their losses under --strict
+        run: |
+          set +e
+          node packages/cli/dist/index.js convert templates/academic-manuscript.docx             -o /tmp/tpl.md --strict --quiet
+          code=$?
+          set -e
+          test "$code" -eq 2             || (echo "::error::academic-manuscript.docx exited $code under --strict, expected 2" && exit 1)
+          set +e
+          node packages/cli/dist/index.js convert templates/clean-report.docx             -o /tmp/tpl2.md --strict --quiet
+          clean=$?
+          set -e
+          test "$clean" -eq 0             || (echo "::error::clean-report.docx exited $clean under --strict, expected 0" && exit 1)
+          echo "The manuscript template reports its five lossy equations; the clean one reports none."
+
       # Surface parity. The same input through the CLI, the HTTP API, the MCP
       # server, and the browser build must produce identical bytes — this is what makes
       # four surfaces one engine rather than four converters, and a wrapper that trimmed a
@@ -294,6 +378,15 @@ jobs:
           curl -fsSLO "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/${deb}"
           sudo dpkg -i "$deb"
           pandoc --version | head -1
+
+      # CORPUS.md §2.15's third producer profile, and it lives in *this* job because this is
+      # the job with the pinned binary. Generated rather than committed: a Pandoc DOCX carries
+      # Pandoc's GPL reference styles, and fixtures/LICENSES.md exists to keep that out of the
+      # repository. Its first run found the schema capping `outlineLevel` at 8 while
+      # ISO/IEC 29500-1 allows 0-9, so every Pandoc-produced document parsed to an invalid IR
+      # with no diagnostic at all.
+      - name: A real Pandoc export parses into a valid IR (CORPUS §2.15)
+        run: node scripts/check-producer-exports.mjs
 
       # Guards the metrics where the two tools tie today. Does not assert a win on
       # structural, because there is not one — see docs/SCOREBOARD.md.

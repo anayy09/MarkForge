@@ -54,15 +54,17 @@ packages it named.
 | Hyphenation repair | built | same file — `describe("hyphenation repair")`, 3 cases |
 | Missing text layer detected and routed, recorded as `info` | built | same file — "reports a scan as a scan through readPdf, with a diagnostic naming the decision" |
 | Page raster extraction, and its failure reported | built | same file — "a page whose raster cannot be fetched degrades with a diagnostic" |
-| **Header/footer detection routed to `furniture`** | **not built** — no cross-page repetition pass exists | nothing; the adapter never writes `furniture` |
-| **Ligature repair** | **not built** — hyphenation is repaired, ligatures are not | nothing |
-| **Figure and caption binding** | **not built** in the PDF adapter | nothing; `NORM_FIGURE_BOUND` is a normaliser concern and does not run on PDF geometry |
-| **Table recovery and its confidence-gated escalation** | **not built** — no ruling-line detection, no whitespace-column alignment, no vision escalation | nothing. A whitespace-aligned table is diagnosed as *possibly present* and emitted as prose |
+| Header/footer detection routed to `furniture` | **built 2026-08-01** — `detectFurniture`, cross-page repetition in a top/bottom band with digits masked so `Page 3 of 12` and `Page 4 of 12` are one running footer | `packages/adapters-pdf/src/layout.ts`; a single-page document yields none, which is correct rather than a limitation |
+| Ligature repair | **built 2026-08-01** — `expandLigatures`, the full Alphabetic Presentation Forms block, applied at join time beside hyphenation repair | `packages/adapters-pdf/src/layout.ts` |
+| Figure and caption binding | **STRUCK 2026-08-01** (OPEN_QUESTIONS §7af) — depends on `CORPUS.md` §2.6, itself struck (§7ac) | `docs/LIMITS.md` |
+| Table recovery and its confidence-gated escalation | **STRUCK 2026-08-01** (OPEN_QUESTIONS §7af) — the largest of the four, and it depends on §2.6 for the same reason | `docs/LIMITS.md`. A whitespace-aligned table stays diagnosed as *possibly present* and emitted as prose |
 
-The four unbuilt clauses are not withdrawn — the design is still the one intended — but they
-are promises, not descriptions, and `docs/ROADMAP.md` carries them as such. `SPEC.md` §3.3 and
-brief §5.2 both ask for them, so removing them from this record would lose the requirement
-rather than the overstatement.
+**Two of the four are now built and two are struck** (OPEN_QUESTIONS §7af). The two struck ones
+both depend on `CORPUS.md` §2.6 — a real multi-column PDF with a text layer — which is itself
+struck (§7ac); building either against a synthetic geometry fixture written by the same person
+who wrote the code is the shape of measurement this project has refused since Phase 1.
+`SPEC.md` §3.3 and brief §5.2 both ask for them, so the requirement is recorded in
+`docs/LIMITS.md` rather than deleted.
 
 **Missing text layer**: detected by absent or below-threshold glyph coverage, routed to
 `tesseract.js` (7.0.0, Apache-2.0) with per-word confidence propagated into

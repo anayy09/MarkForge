@@ -761,14 +761,19 @@ export function inferAll(doc: MarkForgeDocument, options: InferOptions = {}): In
   // After blockquotes: a code-styled paragraph is never inside a quotation, and running
   // this first would leave a `code` node where blockquote recovery expects a paragraph.
   const code = inferCodeAndBreaks(doc);
+  // Last: caption binding looks at the block *above* a caption, so every other pass that
+  // can change what that block is must already have run. Blockquote recovery in particular
+  // replaces a run of paragraphs with one node.
+  const captions = inferCaptionsAndDefinitions(doc);
   const diagnostics = new DiagnosticBag(INFERRER);
   diagnostics.merge(headings.diagnostics);
   diagnostics.merge(quotes.diagnostics);
   diagnostics.merge(code.diagnostics);
+  diagnostics.merge(captions.diagnostics);
   return {
-    decisions: [...headings.decisions, ...quotes.decisions, ...code.decisions],
+    decisions: [...headings.decisions, ...quotes.decisions, ...code.decisions, ...captions.decisions],
     diagnostics,
-    changed: headings.changed + quotes.changed + code.changed,
+    changed: headings.changed + quotes.changed + code.changed + captions.changed,
     // Only heading inference produces ambiguity: blockquote recovery reads a style name,
     // which is a fact rather than a judgement (see inferBlockquotes).
     ambiguous: headings.ambiguous,
@@ -789,4 +794,113 @@ export function explainDecisions(decisions: Decision[]): string {
     lines.push("");
   }
   return lines.join("\n");
+}
+
+/**
+ * Recovers `caption`, `descriptionTerm`, and `descriptionDetails` from their style names.
+ *
+ * The third member of the same family as `inferBlockquotes` and `inferCodeAndBreaks`: DOCX
+ * has no element for any of these, so the writer carries them as named styles (SPEC §4.2)
+ * and this reads them back. Without it the convention is write-only, which is what
+ * `STATUS.md` meant by "text survives, the construct does not".
+ *
+ * Style names are matched case- and space-insensitively against Pandoc's vocabulary, because
+ * a reference document may spell `Image Caption` as `ImageCaption` and both are the same
+ * style to Word — `w:name` and `w:styleId` differ by exactly that, which SPEC §4.2.2 already
+ * records for the IEEE template.
+ *
+ * A `caption` is bound to the block above it into a `figure` only when that block is an
+ * image or a table. A caption after a paragraph is a caption-styled paragraph and nothing
+ * more, and inventing a figure around arbitrary prose would be exactly the "generating
+ * structure not evidenced in the source" that brief §7.1 forbids.
+ */
+export function inferCaptionsAndDefinitions(doc: MarkForgeDocument): InferResult {
+  const diagnostics = new DiagnosticBag(INFERRER);
+  const decisions: Decision[] = [];
+  let changed = 0;
+
+  const norm = (name: string | undefined): string =>
+    (name ?? "").toLowerCase().replace(/\s+/g, "");
+
+  const ROLE_OF: Record<string, { type: string; attrs?: Record<string, string> }> = {
+    caption: { type: "caption" },
+    tablecaption: { type: "caption", attrs: { for: "table" } },
+    imagecaption: { type: "caption", attrs: { for: "figure" } },
+    definitionterm: { type: "descriptionTerm" },
+    definition: { type: "descriptionDetails" },
+  };
+
+  const rebuild = (node: AnyNode): void => {
+    const kids = node.children;
+    if (!Array.isArray(kids)) return;
+    for (const child of kids) rebuild(child as AnyNode);
+
+    const out: AnyNode[] = [];
+    for (const child of kids as AnyNode[]) {
+      const id = typeof child.id === "string" ? child.id : undefined;
+      const evidence = id !== undefined ? doc.sidecar[id] : undefined;
+      const role = child.type === "paragraph" ? ROLE_OF[norm(evidence?.sourceStyleName)] : undefined;
+
+      if (!role) {
+        out.push(child);
+        continue;
+      }
+
+      const recovered: AnyNode = { ...child, type: role.type, ...(role.attrs ?? {}) };
+      changed += 1;
+      if (id !== undefined) {
+        decisions.push({
+          nodeId: id,
+          question: `What construct is this ${evidence?.sourceStyleName ?? "styled"} paragraph?`,
+          candidates: [{ interpretation: role.type, score: 1, reasons: [`style name "${evidence?.sourceStyleName ?? ""}"`] }],
+          chosen: role.type,
+          decidedBy: "recover/style-name@1",
+          ambiguous: false,
+        });
+      }
+
+      // Bind a caption to the block it captions, but only when that block can *have* one.
+      const previous = out[out.length - 1];
+      if (
+        role.type === "caption" &&
+        previous !== undefined &&
+        (previous.type === "table" || previous.type === "figure" || hasDirectImage(previous))
+      ) {
+        out[out.length - 1] = { type: "figure", children: [previous, recovered] };
+        continue;
+      }
+      out.push(recovered);
+    }
+
+    // Adjacent descriptionTerm/Details runs become one descriptionList, which is the
+    // container the IR declares and the thing a renderer needs to emit `<dl>`.
+    const grouped: AnyNode[] = [];
+    let run: AnyNode[] = [];
+    const flush = (): void => {
+      if (run.length === 0) return;
+      grouped.push({ type: "descriptionList", children: run });
+      run = [];
+    };
+    for (const child of out) {
+      if (child.type === "descriptionTerm" || child.type === "descriptionDetails") run.push(child);
+      else {
+        flush();
+        grouped.push(child);
+      }
+    }
+    flush();
+
+    (node as Record<string, unknown>)["children"] = grouped;
+  };
+
+  rebuild(doc.body as unknown as AnyNode);
+  return { decisions, diagnostics, changed, ambiguous: [] };
+}
+
+/** True when a block's own children include an image, so a caption below it binds. */
+function hasDirectImage(node: AnyNode): boolean {
+  return (
+    Array.isArray(node.children) &&
+    (node.children as AnyNode[]).some((c) => c.type === "image")
+  );
 }

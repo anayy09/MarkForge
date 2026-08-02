@@ -31,6 +31,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
+import { generatorControl } from "./lib/control.mjs";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const args = new Set(process.argv.slice(2));
@@ -519,10 +520,15 @@ const VARIANTS = [
 
 const blocks = readSource(readFileSync(join(REPO, SOURCE), "utf8"));
 let failures = 0;
+/** Kept so the negative control can mutate one, rather than trusting the loop above it. */
+const built = {};
+let checkedCommitted = 0;
 
 for (const variant of VARIANTS) {
   const pages = rasterise(blocks, variant.dpi, variant.degrade);
   const pdf = buildPdf(pages);
+  built[variant.out] = new Uint8Array(pdf);
+  if (variant.committed) checkedCommitted++;
   const path = join(REPO, variant.out);
   const digest = createHash("sha256").update(pdf).digest("hex").slice(0, 16);
   const label = `${variant.out}  ${pages.length} page(s)  ${(pdf.length / 1024).toFixed(1)} KiB  ${digest}`;
@@ -547,6 +553,21 @@ for (const variant of VARIANTS) {
 }
 
 if (CHECK) {
+  // Negative control, added in the Phase 6 gate audit. This gate is the one where vacuity
+  // would do the most damage: two of the three variants are `skip`ped by design, so the
+  // whole check rests on a single committed file, and a `committed: false` typo would turn
+  // the run into three skips and a clean verdict. The committed LLM cache is keyed on the
+  // page image's digest, so a rasteriser that drifted by one pixel and went unnoticed here
+  // would surface later as a model failure rather than as a fixture change.
+  console.log("\nNegative control");
+  const ctlOk = (m) => console.log(`ok    ${m}`);
+  const ctlFail = (m) => { console.log(`FAIL  ${m}`); failures++; };
+
+  if (checkedCommitted >= 1) ctlOk(`${checkedCommitted} committed variant(s) actually compared`);
+  else ctlFail("0 committed variants were compared — every variant skipped and the gate still passed");
+
+  generatorControl({ artifacts: built, floor: 3, ok: ctlOk, fail: ctlFail });
+
   console.log(failures === 0 ? "\nScanned corpus matches its generator." : `\n${failures} fixture(s) drifted.`);
   process.exit(failures === 0 ? 0 : 1);
 }

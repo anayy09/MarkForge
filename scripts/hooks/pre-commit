@@ -1,0 +1,53 @@
+#!/bin/sh
+#
+# MarkForge pre-commit hook (SPEC §8, "GitHub Action and pre-commit hook").
+#
+# Checks the staged Markdown, and nothing else:
+#
+#   1. `markforge fmt --check` — the formatting the repository already agreed on.
+#   2. `markforge check`       — the document parses into a schema-valid IR.
+#
+# Only staged files, and only the staged *content*: a hook that reads the working tree
+# passes on changes you have not committed and fails on ones you have, which is the wrong
+# way round and the usual reason people uninstall the hook.
+#
+# Install with `node scripts/install-hooks.mjs`. Bypass, when you mean it, with
+# `git commit --no-verify` — this is a convenience, not a mandatory gate, and pretending
+# otherwise would just teach people the bypass. The mandatory gates are in CI.
+set -eu
+
+MARKFORGE="${MARKFORGE_BIN:-node $(git rev-parse --show-toplevel)/packages/cli/dist/index.js}"
+
+staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.md' || true)
+[ -z "$staged" ] && exit 0
+
+# The staged content, materialised. `git stash` would be the other route and is worse: it
+# touches the working tree, so an interrupted hook leaves the user's files somewhere they
+# did not put them.
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+files=""
+for path in $staged; do
+  mkdir -p "$tmp/$(dirname "$path")"
+  git show ":$path" > "$tmp/$path"
+  files="$files $tmp/$path"
+done
+
+status=0
+
+# shellcheck disable=SC2086
+if ! $MARKFORGE fmt --check $files >/dev/null 2>"$tmp/.fmt-err"; then
+  echo "pre-commit: staged Markdown is not formatted. Run:"
+  echo "  markforge fmt $(echo "$staged" | tr '\n' ' ')"
+  status=1
+fi
+
+# shellcheck disable=SC2086
+if ! $MARKFORGE check $files >"$tmp/.check-out" 2>&1; then
+  echo "pre-commit: a staged document does not parse into a valid IR:"
+  sed "s|$tmp/||" "$tmp/.check-out" | sed 's/^/  /'
+  status=1
+fi
+
+exit $status

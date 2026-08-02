@@ -80,6 +80,14 @@ function childrenOf(node: NodeLike): NodeLike[] {
     const v = node[key];
     if (Array.isArray(v)) {
       for (const c of v) if (c && typeof c === "object" && typeof c.type === "string") out.push(c);
+      continue;
+    }
+    // `comment.body` is a single `Root`, not an array of blocks — the only child-bearing
+    // property in the schema that is one node rather than a list. Skipping it left every
+    // comment body without ids, which the schema requires on every node, so the first
+    // document to carry a comment was invalid the moment the range was wrapped correctly.
+    if (v && typeof v === "object" && typeof (v as NodeLike).type === "string") {
+      out.push(v as NodeLike);
     }
   }
   return out;

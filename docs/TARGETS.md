@@ -62,10 +62,8 @@ Gated: each carries the §10.6 traceability gate and a fixture test in
 | Id | Output | Kind | Verified against |
 | --- | --- | --- | --- |
 | `agents-md` | `AGENTS.md`, `docs/agent-context/{slug}.md` | flatMarkdown | [agents.md](https://agents.md/) |
-| `claude-commands` | `.claude/commands/{slug}.md` | commandSet | [code.claude.com/docs/en/skills](https://code.claude.com/docs/en/skills) |
 | `claude-md` | `CLAUDE.md`, `.claude/context/{slug}.md` | flatMarkdown | [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory) |
 | `claude-skills` | `.claude/skills/{slug}/SKILL.md`, `.claude/skills/{slug}/references/detail.md` | skillPackage | [agentskills.io/specification](https://agentskills.io/specification) |
-| `mcp-manifest` | `.mcp.json` | manifest | [code.claude.com/docs/en/mcp](https://code.claude.com/docs/en/mcp) |
 <!-- /generated: first-class -->
 
 **Two of these five are gated against fixtures we authored, not against a format anyone
@@ -119,11 +117,13 @@ tested. ADR-0013 chose to ship them because a delta on a base costs almost nothi
 | Id | Output | Verified against |
 | --- | --- | --- |
 | `aider-conventions` | `CONVENTIONS.md` | [aider.chat](https://aider.chat/docs/usage/conventions.html) |
+| `claude-commands` | `.claude/commands/{slug}.md` | [code.claude.com](https://code.claude.com/docs/en/skills) |
 | `cline-rules` | `.clinerules/{slug}.md` | [docs.cline.bot](https://docs.cline.bot/features/cline-rules) |
 | `copilot-instructions` | `.github/copilot-instructions.md`, `.github/instructions/{slug}.instructions.md` | [docs.github.com](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions) |
 | `cursor-rules` | `.cursor/rules/{slug}.mdc` | [cursor.com](https://cursor.com/docs/context/rules) |
 | `gemini-md` | `GEMINI.md`, `docs/agent-context/{slug}.md` | [google-gemini.github.io](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) |
 | `generic` | `AGENT_CONTEXT.md`, `docs/agent-context/{slug}.md` | [agents.md](https://agents.md/) |
+| `mcp-manifest` | `.mcp.json` | [code.claude.com](https://code.claude.com/docs/en/mcp) |
 | `windsurf-rules` | `.windsurf/rules/{slug}.md` | [docs.devin.ai](https://docs.devin.ai/desktop/cascade/memories) |
 <!-- /generated: stubs -->
 

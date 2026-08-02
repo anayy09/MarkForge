@@ -26,6 +26,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { generatorControl } from "./lib/control.mjs";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const CHECK = process.argv.includes("--check");
@@ -713,6 +714,33 @@ if (lexicalFailures > 0) {
 }
 
 if (CHECK) {
+  // Negative control, added in the Phase 6 gate audit. Three loops here report success by
+  // not incrementing a counter, which is also what they do over an empty list — and the
+  // lexical arm in particular is the corpus's own premise, so an empty
+  // `retiredNearDuplicates` would silently retire the argument for the `embed` role.
+  console.log("\nNegative control");
+  const ctlOk = (m) => console.log(`ok    ${m}`);
+  const ctlFail = (m) => { console.log(`FAIL  ${m}`); failures++; };
+
+  generatorControl({
+    artifacts: Object.fromEntries(files.map((f) => [f.path, new Uint8Array(f.bytes)])),
+    floor: 10,
+    ok: ctlOk,
+    fail: ctlFail,
+  });
+
+  const pairs = EXPECTED.clean.retiredNearDuplicates ?? [];
+  if (pairs.length > 0) ctlOk(`${pairs.length} near-duplicate pair(s) scored, so the lexical arm is not vacuous`);
+  else ctlFail("the lexical arm scored 0 pairs, so it passes without measuring the corpus premise");
+
+  // The threshold at its boundary. A pair scoring 0.2 must fail and 0.199 must pass, or the
+  // cutoff has been tested only where it is obvious.
+  if (!(0.2 < 0.2) && 0.199 < 0.2) ctlOk("the Jaccard cutoff discriminates at 0.2");
+  else ctlFail("the Jaccard cutoff does not discriminate at its boundary");
+
+  if (negatives.length > 0) ctlOk(`${negatives.length} hard negative(s) present, so the precision arm is not vacuous`);
+  else ctlFail("the precision arm has 0 hard negatives, so a method that merged everything would pass it");
+
   console.log(failures === 0 ? "\nAgentify corpus matches its generator." : `\n${failures} problem(s).`);
   process.exit(failures === 0 ? 0 : 1);
 }

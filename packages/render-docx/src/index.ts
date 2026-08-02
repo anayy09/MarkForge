@@ -21,6 +21,7 @@ import {
   DiagnosticBag,
   DiagnosticCode,
   cellSpan,
+  fromBase64,
   headerRowCount,
   type AnyNode,
   type MarkForgeDocument,
@@ -56,7 +57,11 @@ export interface DocxRenderResult {
 
 const W_NS =
   'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
-  'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ' +
+  // `wp` is required by the `w:drawing` an embedded image emits. Declared on the document
+  // element rather than on each drawing: an undeclared prefix makes the whole part
+  // unparseable, and Word reports that as a corrupt file rather than as a missing image.
+  'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
 
 export function renderDocx(doc: MarkForgeDocument, options: DocxRenderOptions = {}): DocxRenderResult {
   const diagnostics = new DiagnosticBag(RENDERER);
@@ -92,6 +97,9 @@ export function renderDocx(doc: MarkForgeDocument, options: DocxRenderOptions = 
     numbering: [],
     nextNumId: 1,
     hyperlinks: [],
+    footnotes: [],
+    media: new Map(),
+    resources: doc.resources ?? {},
   };
 
   const bodyXml = renderBlocks(doc.body as unknown as AnyNode, ctx, doc);
@@ -126,7 +134,32 @@ interface RenderContext {
   nextNumId: number;
   /** Hyperlink targets in allocation order, so each gets a stable relationship id. */
   hyperlinks: string[];
+  /**
+   * Footnote bodies, collected while rendering and written to `footnotes.xml` afterwards.
+   *
+   * They cannot be written before the body, because the body is what discovers them — the
+   * same ordering constraint the hyperlink relationships have.
+   */
+  footnotes: { id: number; xml: string }[];
+  /** Embedded media, keyed by resource id so one image used twice is stored once. */
+  media: Map<string, { rel: string; part: string; bytes: Uint8Array; extension: string }>;
+  /**
+   * The document's resource table.
+   *
+   * On the context rather than threaded through `inlineRuns`, because it is cross-cutting
+   * state read at one leaf and needed nowhere in between — the same reason `hyperlinks`
+   * and `footnotes` live here.
+   */
+  resources: MarkForgeDocument["resources"];
 }
+
+/**
+ * Word reserves footnote ids -1 and 0 for the separator and continuation-separator
+ * entries, so real footnotes start at 1. A reader that mistakes those two for content adds
+ * two empty notes to every document — which is why `fixtures/docx/manuscript-footnotes-
+ * equations.docx` carries them.
+ */
+const FIRST_FOOTNOTE_ID = 1;
 
 /**
  * The named styles a reference document defines.
@@ -159,6 +192,28 @@ function collectStyles(pkg: OpcPackage): AvailableStyle[] {
  * `Heading 4` in a Times 10pt two-column paper must not arrive as Calibri 16pt,
  * which is the "uneven fonts" complaint we exist to fix, caused by us.
  */
+/**
+ * Maps a mdast footnote `identifier` to the numeric id OOXML wants.
+ *
+ * Allocation is by first sight and is shared by the reference and the definition, which is
+ * what makes the two point at each other. Order is the document's, so two runs of the same
+ * input allocate the same ids — a `Map` keyed on identifier would not be enough on its own,
+ * because iteration order has to be insertion order for the numbering to be stable.
+ */
+const footnoteIds = new WeakMap<RenderContext, Map<string, number>>();
+function footnoteIdFor(identifier: string, ctx: RenderContext): number {
+  let seen = footnoteIds.get(ctx);
+  if (!seen) {
+    seen = new Map();
+    footnoteIds.set(ctx, seen);
+  }
+  const existing = seen.get(identifier);
+  if (existing !== undefined) return existing;
+  const id = seen.size + FIRST_FOOTNOTE_ID;
+  seen.set(identifier, id);
+  return id;
+}
+
 function styleFor(role: string, ctx: RenderContext): string | undefined {
   const resolution = resolveStyle(role, ctx.styleMap, ctx.available);
   if (resolution.styleId) return resolution.styleId;
@@ -305,16 +360,28 @@ function renderBlock(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, 
     case "section":
       return renderBlocks(node, ctx, doc);
 
-    case "footnoteDefinition":
-      // Footnote bodies live in footnotes.xml, which this renderer does not write. The
-      // content is emitted inline rather than dropped, and the diagnostic says so.
-      ctx.diagnostics.degraded(
-        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
-        "footnoteDefinition",
-        "Footnote bodies are emitted as body paragraphs: writing footnotes.xml is not " +
-          "implemented. The text is preserved, its placement is not.",
-      );
-      return renderBlocks(node, ctx, doc);
+    case "footnoteDefinition": {
+      /*
+       * Written to `footnotes.xml` as of 2026-08-01. Until then the body was emitted as
+       * ordinary paragraphs with a diagnostic saying so — the text preserved, its placement
+       * not — which was `STATUS.md`'s second-largest measured loss.
+       *
+       * The definition renders to XML here and is *stashed*, not emitted: it belongs in a
+       * different part, and the reference run that points at it was already emitted at the
+       * call site. Returning "" is correct rather than lossy, which is why no diagnostic
+       * fires.
+       */
+      const identifier = typeof node["identifier"] === "string" ? node["identifier"] : "";
+      const id = footnoteIdFor(identifier, ctx);
+      const inner = renderBlocks(node, ctx, doc);
+      ctx.footnotes.push({
+        id,
+        // `FootnoteText` is Pandoc's name for the style, so a Pandoc reference document
+        // styles these correctly with no mapping (SPEC §4.2).
+        xml: `<w:footnote w:id="${id}">${inner || paragraph("", styleFor("footnoteText", ctx))}</w:footnote>`,
+      });
+      return "";
+    }
 
     case "html":
     case "unknown": {
@@ -334,6 +401,65 @@ function renderBlock(node: AnyNode, ctx: RenderContext, doc: MarkForgeDocument, 
       // Front matter is document metadata, not body content. Dropping it here is
       // correct, and it is preserved in doc.metadata.
       return "";
+
+    /*
+     * DOCX has no figure, caption, or description-list element, so these are carried by the
+     * **named-style convention** SPEC §4.2 already uses for blockquotes — which is why
+     * `styles.ts` has had `figure`, `caption`, `descriptionTerm`, and `descriptionDetails`
+     * roles all along, mapping onto Pandoc's own names.
+     *
+     * That makes them recoverable: `@markforge/infer` reads the style name back, the same
+     * shape as `inferBlockquotes` and `inferCodeAndBreaks`. Before this, all four fell to
+     * `default`, were unwrapped into loose paragraphs, and the construct was destroyed with
+     * a diagnostic saying so — which is honest and is not a round trip.
+     */
+    case "equationBlock": {
+      /*
+       * OMML is written straight back, because the adapter kept the markup rather than the
+       * flattened characters (`equationBlock.source`, ADR-0022's sibling change). This is the
+       * whole payoff of retaining the source: `t_ack = d/r` reduced to "tack = dr" could not
+       * have been rebuilt into an equation by anything downstream.
+       *
+       * Any other notation is reported. Converting TeX to OMML is a real converter and not
+       * one this project has.
+       */
+      const notation = node["notation"];
+      const source = typeof node["source"] === "string" ? node["source"] : "";
+      if (notation === "omml" && source !== "") return paragraph(source, undefined);
+      ctx.diagnostics.degraded(
+        DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+        "equationBlock",
+        `DOCX equations are OMML and this one is ${String(notation)}; there is no converter ` +
+          `here, so the source is emitted as literal text.`,
+        ...(typeof node.id === "string" ? [{ nodeId: node.id }] : []),
+      );
+      return paragraph(`<w:r><w:t xml:space="preserve">${encodeEntities(source)}</w:t></w:r>`, undefined);
+    }
+
+    case "figure":
+      // The figure's own children carry the styles; the wrapper contributes the caption
+      // binding, which the caption's style records.
+      return renderBlocks(node, ctx, doc);
+
+    case "caption": {
+      // `for` distinguishes a table caption from a figure caption, and Pandoc names them
+      // differently, so the role is looked up with the qualifier when there is one.
+      const forKind = typeof node["for"] === "string" ? node["for"] : undefined;
+      const role =
+        forKind !== undefined && styleFor(`caption:${forKind}`, ctx) !== undefined
+          ? `caption:${forKind}`
+          : "caption";
+      return paragraph(inlineRuns(node, ctx), styleFor(role, ctx));
+    }
+
+    case "descriptionList":
+      return renderBlocks(node, ctx, doc);
+
+    case "descriptionTerm":
+      return paragraph(inlineRuns(node, ctx), styleFor("descriptionTerm", ctx));
+
+    case "descriptionDetails":
+      return paragraph(inlineRuns(node, ctx), styleFor("descriptionDetails", ctx));
 
     default: {
       // Unwrapping keeps the text, but the node type itself is gone — a description
@@ -397,6 +523,89 @@ function paragraph(runs: string, styleId: string | undefined, list?: { numId: nu
  * highlight. Never a font family, never a size, never a colour from a style. Those
  * belong to the named style, which is the entire argument of SPEC §4.2.
  */
+/**
+ * Embeds an image as a media part and returns the `w:drawing` that references it.
+ *
+ * Returns `undefined` when there are no bytes, so the caller can degrade and report rather
+ * than emit a drawing pointing at a relationship that does not exist — a package Word opens
+ * and silently shows an empty frame in, which is worse than visible alt text.
+ *
+ * Sizing: EMUs, 914400 per inch. The IR records pixels when it knows them; at 96 DPI that is
+ * 9525 EMU per pixel. Absent dimensions fall back to a 4-inch box rather than zero, because a
+ * zero-sized drawing is invisible and looks exactly like the loss this replaced.
+ */
+/**
+ * Revision ids, unique per document.
+ *
+ * Word tolerates duplicates and then merges two unrelated edits into one revision when a
+ * user accepts either, which is a data defect that looks like a UI quirk.
+ */
+const revisionIds = new WeakMap<RenderContext, { next: number }>();
+function nextRevisionId(ctx: RenderContext): number {
+  let counter = revisionIds.get(ctx);
+  if (!counter) {
+    counter = { next: 1 };
+    revisionIds.set(ctx, counter);
+  }
+  return counter.next++;
+}
+
+/**
+ * `w:author` and `w:date` for a revision.
+ *
+ * The date is the one the source recorded, never `new Date()`: SPEC §1.1 forbids reading the
+ * wall clock, and a writer that stamped today would make two conversions of one input differ.
+ * Absent, the attribute is omitted rather than filled with the epoch, because an omitted date
+ * is unknown and 1970 is a claim.
+ */
+function revisionAttrs(node: AnyNode): string {
+  const author = typeof node["author"] === "string" ? node["author"] : "";
+  const date = typeof node["date"] === "string" ? node["date"] : undefined;
+  return `w:author="${encodeEntities(author)}"${date ? ` w:date="${encodeEntities(date)}"` : ""}`;
+}
+
+function embedImage(node: AnyNode, ctx: RenderContext): string | undefined {
+  const resourceId = typeof node["resourceId"] === "string" ? node["resourceId"] : undefined;
+  if (resourceId === undefined) return undefined;
+  const resource = ctx.resources[resourceId];
+  if (!resource || typeof resource.data !== "string" || resource.data === "") return undefined;
+
+  let entry = ctx.media.get(resourceId);
+  if (!entry) {
+    const extension = (resource.mediaType.split("/")[1] ?? "png").replace("jpeg", "jpg");
+    const index = ctx.media.size;
+    entry = {
+      // Media ids sit above hyperlinks and footnotes; see `relBaseAfterHyperlinks`.
+      rel: `rId${relBaseAfterHyperlinks(ctx) + (ctx.footnotes.length > 0 ? 1 : 0) + index}`,
+      part: `word/media/image${index + 1}.${extension}`,
+      bytes: fromBase64(resource.data),
+      extension,
+    };
+    ctx.media.set(resourceId, entry);
+  }
+
+  const EMU_PER_PX = 9525;
+  const cx = Math.round((resource.widthPx ?? 384) * EMU_PER_PX);
+  const cy = Math.round((resource.heightPx ?? 288) * EMU_PER_PX);
+  const alt = encodeEntities(typeof node["alt"] === "string" ? node["alt"] : "");
+  const docPrId = ctx.media.size;
+
+  return (
+    `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">` +
+    `<wp:extent cx="${cx}" cy="${cy}"/>` +
+    `<wp:docPr id="${docPrId}" name="Picture ${docPrId}" descr="${alt}"/>` +
+    `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+    `<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+    `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+    `<pic:nvPicPr><pic:cNvPr id="${docPrId}" name="Picture ${docPrId}" descr="${alt}"/>` +
+    `<pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="${entry.rel}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+    `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>` +
+    `</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`
+  );
+}
+
 function inlineRuns(
   node: AnyNode,
   ctx: RenderContext,
@@ -467,20 +676,99 @@ function inlineRuns(
         out += `<w:hyperlink r:id="${relationshipId}">${inner}</w:hyperlink>`;
         break;
       }
-      case "deletion":
-        if (ctx.revisionMode === "clean") break;
-        out += inlineRuns(child, ctx, new Set([...marks, "strike"]));
+      case "equationBlock": {
+        /*
+         * An equation reaches `inlineRuns` whenever it sits inside a paragraph, which is
+         * where the DOCX adapter puts it — OMML is a sibling of `w:r`, not a block. The
+         * block switch had a case for it and this one did not, so five equations in the
+         * shipped template were written as nothing at all, with no diagnostic.
+         *
+         * That is the third instance this phase of one traversal handling a type its sibling
+         * drops. The pattern is worth more than the fix: a node type that can appear in both
+         * positions needs a case in both walks, and a census across the pair is what shows it.
+         */
+        const notation = child["notation"];
+        const source = typeof child["source"] === "string" ? child["source"] : "";
+        if (notation === "omml" && source !== "") {
+          out += source;
+          break;
+        }
+        ctx.diagnostics.degraded(
+          DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
+          "equationBlock",
+          `DOCX equations are OMML and this one is ${String(notation)}; the source is ` +
+            `emitted as literal text.`,
+        );
+        out += run(source, marks, ctx);
         break;
-      case "insertion":
-        out += inlineRuns(child, ctx, marks);
+      }
+      case "footnoteReference": {
+        // Emitted nothing before 2026-08-01: this type had no case, and the `default`
+        // branch walks children — of which a reference has none. So the marker vanished
+        // even in the version that emitted the body as paragraphs, and a reader saw
+        // neither a note nor a hole where one had been.
+        const identifier = typeof child["identifier"] === "string" ? child["identifier"] : "";
+        const id = footnoteIdFor(identifier, ctx);
+        const refStyle = styleFor("footnoteReference", ctx);
+        out +=
+          `<w:r>${refStyle ? `<w:rPr><w:rStyle w:val="${refStyle}"/></w:rPr>` : ""}` +
+          `<w:footnoteReference w:id="${id}"/></w:r>`;
         break;
+      }
+      case "deletion": {
+        // `clean` drops it entirely, which is what "clean" means. `showInsertions` shows
+        // insertions only, so a deletion is still dropped there — the mode names exactly
+        // three behaviours and this is the one that distinguishes the middle from the last.
+        if (ctx.revisionMode !== "showAll") break;
+        const inner = inlineRuns(child, ctx, marks);
+        // Deleted text lives in `w:delText`, not `w:t`. A reader that sees `w:t` inside
+        // `w:del` treats it as present text, so the deletion would round-trip as content.
+        out +=
+          `<w:del w:id="${nextRevisionId(ctx)}" ${revisionAttrs(child)}>` +
+          inner.replace(/<w:t( xml:space="preserve")?>/g, "<w:delText$1>").replace(/<\/w:t>/g, "</w:delText>") +
+          `</w:del>`;
+        break;
+      }
+      case "insertion": {
+        /*
+         * Written as `w:ins` as of 2026-08-01, so `revisionMode` stops being read-only.
+         * Before this the inserted text was emitted as ordinary runs: correct under
+         * `clean`, and under `showAll` it produced a document that *looked* accepted while
+         * claiming to show revisions.
+         *
+         * A missing author is `w:author=""` rather than an invented name — Word shows an
+         * empty author, which is true, where a placeholder would attribute someone's edit
+         * to a string we made up.
+         */
+        const inner = inlineRuns(child, ctx, marks);
+        if (ctx.revisionMode === "clean") {
+          out += inner;
+          break;
+        }
+        out += `<w:ins w:id="${nextRevisionId(ctx)}" ${revisionAttrs(child)}>${inner}</w:ins>`;
+        break;
+      }
       case "image": {
         const alt = typeof child["alt"] === "string" ? child["alt"] : "image";
+        const embedded = embedImage(child, ctx);
+        if (embedded) {
+          out += embedded;
+          break;
+        }
+        /*
+         * No bytes to embed. Until 2026-08-01 this was *every* image, and the reason was
+         * not in this file: `Resource` recorded an image's media type, hash, and length and
+         * never its data, so every adapter read the bytes, hashed them, and dropped them.
+         * The writer had nothing to write. ADR-0022 added `Resource.data`.
+         *
+         * This branch is now the genuine residue — an image whose resource is missing or
+         * externalized to a `path` that no longer resolves.
+         */
         ctx.diagnostics.degraded(
           DiagnosticCode.RENDER_CONSTRUCT_DROPPED,
           "image",
-          "Images are emitted as alt-text placeholders: embedding image parts and their " +
-            "relationships is not implemented.",
+          `Image "${alt}" has no bytes in the IR (no resourceId, or a resource carrying ` +
+            `only a path), so an alt-text placeholder is emitted instead.`,
         );
         out += run(`[${alt}]`, marks, ctx);
         break;
@@ -709,6 +997,12 @@ const BLOCK_TYPES = new Set([
   "paragraph", "heading", "list", "blockquote", "code", "table", "thematicBreak",
   "figure", "caption", "admonition", "equationBlock", "descriptionList", "pageBreak",
   "footnoteDefinition", "section", "textBox",
+  // `descriptionTerm` and `descriptionDetails` were absent until 2026-08-01, so they never
+  // reached `renderBlock` at all — `renderBlocks` swept them into the inline `pending`
+  // buffer and they came out as run-on text inside one paragraph. Adding the `case` for
+  // them was necessary and not sufficient: a case in a switch nothing dispatches to is a
+  // case that never runs, and the census said so.
+  "descriptionTerm", "descriptionDetails",
 ]);
 
 const DEFAULT_SECT_PR =
@@ -735,6 +1029,57 @@ function serialize(el: XmlElement): string {
 }
 
 /** Writes the parts a DOCX needs in order to open at all. */
+/**
+ * Relationship-id allocation, stated once because three writers share the space.
+ *
+ * rId1 is styles, rId2 is numbering, hyperlinks start at HYPERLINK_REL_BASE (3), and
+ * footnotes and media take everything above them. Two writers picking overlapping ids
+ * produce a package Word opens and silently mis-resolves, which is worse than one that
+ * fails to open.
+ */
+const relBaseAfterHyperlinks = (ctx: RenderContext): number =>
+  HYPERLINK_REL_BASE + ctx.hyperlinks.length;
+
+const footnoteRelId = (ctx: RenderContext): number => relBaseAfterHyperlinks(ctx);
+
+const footnoteOverride = (ctx: RenderContext): string =>
+  ctx.footnotes.length === 0
+    ? ""
+    : `<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>`;
+
+const footnoteRel = (ctx: RenderContext): string =>
+  ctx.footnotes.length === 0
+    ? ""
+    : `<Relationship Id="rId${footnoteRelId(ctx)}" Type="${FOOTNOTES_REL_TYPE}" Target="footnotes.xml"/>`;
+
+/**
+ * `Default` entries for every image extension present.
+ *
+ * A `Default` rather than an `Override` per part: OPC resolves an unmatched extension by
+ * failing, and one entry per extension is both smaller and what every real producer writes.
+ */
+const mediaDefaults = (ctx: RenderContext): string => {
+  const extensions = new Set([...ctx.media.values()].map((m) => m.extension));
+  return [...extensions]
+    .sort()
+    .map((ext) => `<Default Extension="${ext}" ContentType="image/${ext === "jpg" ? "jpeg" : ext}"/>`)
+    .join("");
+};
+
+const mediaRels = (ctx: RenderContext): string =>
+  [...ctx.media.values()]
+    .map(
+      (m) =>
+        `<Relationship Id="${m.rel}" Type="${IMAGE_REL_TYPE}" ` +
+        `Target="${m.part.replace(/^word\//, "")}"/>`,
+    )
+    .join("");
+
+const FOOTNOTES_REL_TYPE =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes";
+const IMAGE_REL_TYPE =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
+
 function ensureScaffold(pkg: OpcPackage, ctx: RenderContext): void {
   if (!pkg.has(Part.CONTENT_TYPES)) {
     pkg.set(
@@ -746,6 +1091,8 @@ function ensureScaffold(pkg: OpcPackage, ctx: RenderContext): void {
         `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>` +
         `<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>` +
         `<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>` +
+        footnoteOverride(ctx) +
+        mediaDefaults(ctx) +
         `</Types>`,
     );
   }
@@ -775,9 +1122,37 @@ function ensureScaffold(pkg: OpcPackage, ctx: RenderContext): void {
       `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
       `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>` +
       hyperlinkRels +
+      footnoteRel(ctx) +
+      mediaRels(ctx) +
       `</Relationships>`,
   );
   pkg.set(Part.NUMBERING, numberingXml(ctx));
+
+  /*
+   * footnotes.xml, written only when there are footnotes.
+   *
+   * Word writes two housekeeping entries at ids -1 and 0 — the separator rule drawn above
+   * the notes and its continuation. They are presentation rather than content, and a reader
+   * that mistakes them for notes adds two empty footnotes to every document, so they are
+   * emitted with an explicit `w:type` rather than left for a reader to infer from the id.
+   * `@markforge/adapters-docx` skips on the attribute for the same reason.
+   */
+  if (ctx.footnotes.length > 0) {
+    const separators =
+      `<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>` +
+      `<w:footnote w:type="continuationSeparator" w:id="0">` +
+      `<w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>`;
+    const body = [...ctx.footnotes].sort((a, b) => a.id - b.id).map((f) => f.xml).join("");
+    pkg.set(
+      Part.FOOTNOTES,
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+        `<w:footnotes ${W_NS}>${separators}${body}</w:footnotes>`,
+    );
+  }
+
+  // Media parts. One entry per distinct resource, so an image used twice is stored once —
+  // which is also why the IR keys resources by content hash (SPEC §2.2, rule A7).
+  for (const m of ctx.media.values()) pkg.set(m.part, m.bytes);
 }
 
 /**
@@ -804,6 +1179,22 @@ function minimalStyles(): string {
     `<w:pPr><w:ind w:left="720"/></w:pPr></w:style>` +
     `<w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/><w:basedOn w:val="Normal"/>` +
     `<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/></w:rPr></w:style>` +
+    // DOCX has no element for a description list, a caption's binding, or a footnote's
+    // style, so the writer carries all four as named styles and `inferCaptionsAndDefinitions`
+    // reads them back. The fallback stylesheet has to define them or the convention is
+    // write-only without a reference document — which is the common case.
+    `<w:style w:type="paragraph" w:styleId="DefinitionTerm"><w:name w:val="Definition Term"/>` +
+    `<w:basedOn w:val="Normal"/><w:rPr><w:b/></w:rPr></w:style>` +
+    `<w:style w:type="paragraph" w:styleId="Definition"><w:name w:val="Definition"/>` +
+    `<w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720"/></w:pPr></w:style>` +
+    `<w:style w:type="paragraph" w:styleId="ImageCaption"><w:name w:val="Image Caption"/>` +
+    `<w:basedOn w:val="Caption"/></w:style>` +
+    `<w:style w:type="paragraph" w:styleId="TableCaption"><w:name w:val="Table Caption"/>` +
+    `<w:basedOn w:val="Caption"/></w:style>` +
+    `<w:style w:type="paragraph" w:styleId="FootnoteText"><w:name w:val="Footnote Text"/>` +
+    `<w:basedOn w:val="Normal"/><w:rPr><w:sz w:val="18"/></w:rPr></w:style>` +
+    `<w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="Footnote Reference"/>` +
+    `<w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>` +
     `<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/>` +
     `<w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>` +
     `<w:style w:type="character" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/>` +

@@ -335,7 +335,19 @@ function writeSections(
     const link = syntax
       .replace("{path}", secondaryPath)
       .replace("{title}", "Additional context");
-    builder.scaffold(`## More\n\n${link}\n`, "link");
+    /*
+     * Two fragments, not one, and the reason is that one fragment made the check vacuous.
+     *
+     * `checkScaffolding`'s `link` case asks whether the text looks like a link. Emitting the
+     * heading and the link together meant every such fragment began with `## More`, which
+     * satisfies the first alternative of that pattern — so the check passed **whatever
+     * `imports.syntax` said**. A profile declaring `syntax: "include {path}"` produced
+     * `include .claude/context/overflow.md` and the gate called it a link.
+     *
+     * `"More"` is already in `generatedTitles`, so the heading half needs nothing new.
+     */
+    builder.scaffold("## More\n\n", "heading");
+    builder.scaffold(`${link}\n`, "link");
   }
   return emitted;
 }
