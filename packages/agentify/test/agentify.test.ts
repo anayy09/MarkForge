@@ -14,7 +14,6 @@ import {
   deduplicate,
   detectConflicts,
   extractUnits,
-  loadRegistry,
   makeUnit,
   planBudget,
   satisfiesCondition,
@@ -23,6 +22,7 @@ import {
   type ContextUnit,
   type SourceDocument,
 } from "../src/index.js";
+import { loadRegistry } from "../src/registry-node.js";
 
 const REPO = new URL("../../../", import.meta.url);
 const registry = loadRegistry(fileURLToPath(new URL("targets", REPO)));

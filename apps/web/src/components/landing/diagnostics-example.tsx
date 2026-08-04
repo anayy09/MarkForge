@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Info, Warning } from "@phosphor-icons/react";
-import { Chip, Eyebrow } from "@/components/ui/primitives";
+import { Chip } from "@/components/ui/primitives";
 import type { WorkedExample } from "@/lib/data";
 import { Reveal, Section } from "@/components/landing/reveal";
 import { cn } from "@/lib/cn";
@@ -33,12 +33,14 @@ export function DiagnosticsExample({
   return (
     <Section className="rule-t py-16 lg:py-24">
       <Reveal>
-        <Eyebrow>Nothing is lost silently</Eyebrow>
-        <h2 className="max-w-3xl text-3xl font-semibold tracking-tight text-ink md:text-4xl">
+        <h2 className="display max-w-[20ch] text-3xl text-ink md:text-[2.75rem]">
+          Nothing is lost silently.
+        </h2>
+        <p className="mt-5 max-w-prose text-[15px] leading-relaxed text-ink-muted">
           A merged table cell cannot survive a pipe table. There are two honest answers, and
           neither of them is silence.
-        </h2>
-        <p className="mt-4 max-w-prose text-[15px] leading-relaxed text-ink-muted">
+        </p>
+        <p className="mt-3 max-w-prose text-[15px] leading-relaxed text-ink-muted">
           This is a real Word document from the corpus, converted here at build time. Switch
           the option and watch both the output and the diagnostic change.
         </p>
@@ -80,12 +82,12 @@ export function DiagnosticsExample({
               <div
                 className={cn(
                   "rounded-panel border p-4",
-                  headline.lossy ? "border-ember bg-ember-wash" : "border-rule bg-surface",
+                  headline.lossy ? "border-accent bg-accent-wash" : "border-rule bg-surface",
                 )}
               >
                 <div className="flex items-center gap-2">
                   {headline.lossy ? (
-                    <Warning size={14} className="text-ember" />
+                    <Warning size={14} className="text-accent" />
                   ) : (
                     <Info size={14} className="text-ink-faint" />
                   )}
@@ -134,10 +136,10 @@ function Toggle({
       onClick={onClick}
       className={cn(
         "rounded-panel border px-3 py-2 text-left transition-colors",
-        active ? "border-ember bg-ember-wash" : "border-rule hover:bg-sunken",
+        active ? "border-accent bg-accent-wash" : "border-rule hover:bg-sunken",
       )}
     >
-      <span className={cn("block font-mono text-[12px]", active ? "text-ember" : "text-ink")}>
+      <span className={cn("block font-mono text-[12px]", active ? "text-accent" : "text-ink")}>
         {label}
       </span>
       <span className="mt-0.5 block text-[11px] text-ink-muted">{note}</span>

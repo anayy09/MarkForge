@@ -26,7 +26,8 @@ import { createNodePdfRenderer } from "@markforge/typst-node";
 /** See `@markforge/http`'s note: module-local, a build property rather than a caller's option. */
 const nodePdfRenderer = createNodePdfRenderer();
 import type { Diagnostic } from "@markforge/ir";
-import { compile, loadRegistry, authorityOf, type SourceDocument } from "@markforge/agentify";
+import { compile, authorityOf, type SourceDocument } from "@markforge/agentify";
+import { loadRegistry } from "@markforge/agentify/registry-node";
 import { toolError, toolText, type ToolDefinition, type ToolResult } from "./protocol.js";
 
 export interface ToolContext {

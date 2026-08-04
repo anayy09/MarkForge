@@ -44,9 +44,23 @@
  *   silently-different output. This package does not depend on `@markforge/llm` and takes
  *   no `assist`, so a browser run is exactly a `--no-llm` CLI run — including the ambiguity
  *   warnings that mode emits, which is what makes the two comparable byte for byte.
+ *
+ * - **The Agent Context Compiler is here now** (`compileAgentContext`, below), and its
+ *   absence until 2026-08-02 was an accident rather than a boundary. `@markforge/agentify`
+ *   was `nodeOnly` because one file in it opened a directory; splitting that out made SPEC
+ *   §10 reachable, at 72 KB on this bundle. See the amendment on ADR-0015.
  */
 import { convert, parse, render, formatMarkdownSync, formatFromPath, type Format } from "@markforge/core";
 import type { ConvertOptions, Decision } from "@markforge/core";
+import { authorityOf, compile, registryFromProfiles } from "@markforge/agentify";
+import type {
+  CompileResult,
+  ContextUnit,
+  ProvenanceManifest,
+  RunReport,
+  SourceDocument,
+  TargetProfile,
+} from "@markforge/agentify";
 import type { Diagnostic, DiagnosticBag, MarkForgeDocument } from "@markforge/ir";
 
 /** Formats the browser build can read. PDF, PPTX, and XLSX are not among them — see below. */
@@ -233,5 +247,108 @@ export function formatMarkdownInBrowser(source: string): { markdown: string; cha
   return { markdown: result.markdown, changed: result.changed };
 }
 
+/* ------------------------------------------------------------------------------------- *
+ * The Agent Context Compiler (SPEC §10), in the browser.
+ *
+ * Until 2026-08-02 this was absent, and the reason was one import list rather than any
+ * decision: `packages/agentify/src/targets.ts` opened the target registry with `node:fs`
+ * and ajv, which made the whole package `nodeOnly` in `check-browser-bundle.mjs`. Every
+ * other module in it — extract, dedup, conflicts, budget, assemble, verify — was already
+ * pure. Splitting the loader out (`@markforge/agentify/registry-node`) made §10 reachable
+ * from here, and the probe now measures agentify bundling and evaluating on web globals.
+ *
+ * Which is why the option below is `profiles` and not `registryDir`. ADR-0015: browser
+ * entry points take bytes and an explicit config object. The profiles are resolved and
+ * schema-validated in Node at build time and handed over as data, so the browser never
+ * needs the validator — see `registryFromProfiles`, which refuses an unresolved delta.
+ * ------------------------------------------------------------------------------------- */
+
+/** Formats agentify will ingest here. Shorter than the CLI's, for the reasons above. */
+export const BROWSER_AGENTIFY_FORMATS = ["md", "docx", "html"] as const;
+
+export interface BrowserAgentifySource {
+  /** A label used for provenance and format inference. Nothing here can open it. */
+  path: string;
+  bytes: Uint8Array;
+}
+
+export interface BrowserCompileOptions {
+  /** Resolved target profiles. See the note above on why this is not a directory. */
+  profiles: readonly TargetProfile[];
+  /** Which target ids to emit, e.g. `["agents-md", "claude-md"]`. */
+  targets: string[];
+  /** `--budget`, overriding every target's primary budget. */
+  budgetOverride?: number;
+  /** A previous manifest, for §10.8 incremental regeneration. */
+  previous?: ProvenanceManifest;
+}
+
+export interface BrowserCompileResult extends CompileResult {
+  /** Inputs whose format this build cannot read, with the reason, rather than dropped. */
+  skipped: { path: string; reason: string }[];
+}
+
+/**
+ * Compiles a folder of mixed documents into agent context files.
+ *
+ * No `assist`, for the same reason `convertInBrowser` takes none: a browser run is exactly
+ * a `--no-llm` CLI run (ADR-0009, ADR-0015). So deduplication does not merge — §10.4's
+ * merge step needs a model to adjudicate, and `docs/AGENTIFY.md` records that cosine alone
+ * cannot make that call. Everything else in the pipeline runs, including the traceability
+ * gate, which is the part that has to be real for the output to mean anything.
+ */
+export async function compileAgentContext(
+  sources: readonly BrowserAgentifySource[],
+  options: BrowserCompileOptions,
+): Promise<BrowserCompileResult> {
+  const readable: SourceDocument[] = [];
+  const skipped: BrowserCompileResult["skipped"] = [];
+  const decoder = new TextDecoder();
+
+  for (const source of sources) {
+    const format = formatFromPath(source.path);
+    const supported: readonly string[] = BROWSER_AGENTIFY_FORMATS;
+    if (!format || !supported.includes(format)) {
+      skipped.push({
+        path: source.path,
+        reason: format
+          ? (REFUSAL[format]?.input ?? `${format} is not readable in the browser build.`)
+          : "MarkForge does not recognise this file extension.",
+      });
+      continue;
+    }
+
+    const parsed = await parse(source.bytes, format as Format, source.path);
+    // Only text-shaped formats get a source string; it is used to locate nodes and to read
+    // a "Last reviewed" line, and decoding a DOCX as UTF-8 would produce neither. This
+    // mirrors `readSources` in packages/cli/src/agentify-command.ts deliberately — the two
+    // surfaces must build a SourceDocument the same way or they compile different things.
+    const sourceText = format === "md" || format === "html" ? decoder.decode(source.bytes) : "";
+    readable.push({
+      path: source.path,
+      document: parsed.document,
+      sourceText,
+      role: "unknown",
+      authority: authorityOf(sourceText, [], source.path),
+    });
+  }
+
+  const result = await compile(readable, {
+    registry: registryFromProfiles(options.profiles),
+    targets: options.targets,
+    ...(options.budgetOverride !== undefined ? { budgetOverride: options.budgetOverride } : {}),
+    ...(options.previous ? { previous: options.previous } : {}),
+  });
+
+  return { ...result, skipped };
+}
+
 export { parse, render };
-export type { Diagnostic, MarkForgeDocument };
+export type {
+  ContextUnit,
+  Diagnostic,
+  MarkForgeDocument,
+  ProvenanceManifest,
+  RunReport,
+  TargetProfile,
+};

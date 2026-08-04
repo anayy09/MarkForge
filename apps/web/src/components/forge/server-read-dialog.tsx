@@ -110,7 +110,7 @@ export function ServerReadDialog({
         </dl>
 
         {tooBig ? (
-          <p className="mt-5 rounded-panel bg-ember-wash px-3 py-2.5 text-[12px] leading-relaxed text-ink">
+          <p className="mt-5 rounded-panel bg-accent-wash px-3 py-2.5 text-[12px] leading-relaxed text-ink">
             This file is over the 4 MB the hosting platform accepts in one request. The command
             line has no such cap, and neither does a self-hosted{" "}
             <span className="font-mono">markforge serve</span>.

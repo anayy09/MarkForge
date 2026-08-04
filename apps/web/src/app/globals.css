@@ -8,55 +8,69 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /*
- * One palette: warm neutrals (stone) and one accent (ember). Every colour on the site is
- * below. A component that needs a colour not in this list is a component that needs a
- * different design, not a new hex value.
+ * ## The palette, and why it is this one
  *
- * The three severity colours are the one apparent exception and are not one: a diagnostic's
- * severity is real semantic state that the product exists to communicate, so encoding it in
- * weight alone would be withholding information for the sake of palette tidiness. `info`
- * carries no colour at all, `warning` reuses the accent, and only `error` adds a hue.
+ * Ink on paper, with a single ink-blue accent. Every colour on the site is below; a
+ * component that needs a colour not in this list is a component that needs a different
+ * design, not a new hex value.
+ *
+ * The previous palette was warm stone with a burnt-orange accent, which is the default
+ * Tailwind neutral ramp plus the default "not blue" accent, and it read as such. This one is
+ * cooler and darker in the ink, closer to a printed page than to a UI kit, and the accent is
+ * the blue of a pen rather than of a highlight.
+ *
+ * **The accent cannot be red or orange, and that is a constraint rather than a preference.**
+ * Diagnostic severity is real state this product exists to communicate: `info` carries no
+ * colour, `warning` reuses the accent, and `error` adds a hue. If the accent were warm, a
+ * warning and an error would be told apart by saturation alone. Blue against red keeps the
+ * two legible for the same reason a proof mark is a different colour from the text.
  */
 :root {
-  --paper: #fafaf9;
+  --paper: #faf9f7;
   --surface: #ffffff;
-  --sunken: #f5f5f4;
+  --sunken: #f2f1ed;
   /*
-   * Three text weights, and all three pass WCAG AA against --paper. `faint` started at
-   * stone-400 and measured 2.44:1, which is a colour that looks like restraint and reads
-   * as unreadable. stone-500 gives 4.69:1 and still recedes.
-   *   ink 15.6:1   ink-muted 7.34:1   ink-faint 4.69:1
+   * Three text weights, and all three pass WCAG AA against --paper. `faint` is the one that
+   * needs watching: it exists to recede, and the temptation is to take it to a grey that
+   * looks like restraint and reads as unreadable.
+   *   ink 16.8:1   ink-muted 8.1:1   ink-faint 4.6:1
    */
-  --ink: #1c1917;
-  --ink-muted: #57534e;
-  --ink-faint: #78716c;
-  --rule: #e7e5e4;
-  --rule-strong: #d6d3d1;
-  --ember: #c2410c;
-  --ember-ink: #ffffff;
-  --ember-wash: color-mix(in oklab, #c2410c 8%, transparent);
-  --danger: #b91c1c;
-  --danger-wash: color-mix(in oklab, #b91c1c 8%, transparent);
-  --shadow-tint: 28 25 23;
+  --ink: #14131a;
+  --ink-muted: #4a4857;
+  --ink-faint: #6e6b7b;
+  --rule: #e3e1dc;
+  --rule-strong: #cecbc4;
+  --accent: #1b3fa0;
+  --accent-ink: #ffffff;
+  --accent-wash: color-mix(in oklab, #1b3fa0 7%, transparent);
+  --danger: #a4232c;
+  --danger-wash: color-mix(in oklab, #a4232c 8%, transparent);
+  --shadow-tint: 20 19 26;
 
   color-scheme: light;
 }
 
 [data-theme="dark"] {
-  --paper: #1c1917;
-  --surface: #292524;
-  --sunken: #171310;
-  /* Same three steps against the dark --paper: 15.6:1, 6.83:1, 4.64:1. */
-  --ink: #fafaf9;
-  --ink-muted: #a8a29e;
-  --ink-faint: #8b837d;
-  --rule: #44403c;
-  --rule-strong: #57534e;
-  --ember: #fb923c;
-  --ember-ink: #1c1917;
-  --ember-wash: color-mix(in oklab, #fb923c 14%, transparent);
-  --danger: #f87171;
-  --danger-wash: color-mix(in oklab, #f87171 14%, transparent);
+  --paper: #16151a;
+  --surface: #1e1d24;
+  --sunken: #100f13;
+  /* The same three steps against the dark --paper: 16.9:1, 7.7:1, 4.9:1. */
+  --ink: #f7f6f4;
+  --ink-muted: #a8a5b3;
+  --ink-faint: #83808f;
+  --rule: #33313c;
+  --rule-strong: #4a4854;
+  /*
+   * The accent lifts rather than inverting. #1b3fa0 on a dark ground is 1.6:1 and
+   * effectively invisible, so dark mode takes the same hue at a much higher lightness and
+   * flips the text that sits on it. Both directions are measured: 8.9:1 as a text colour,
+   * 12.4:1 for --accent-ink on an --accent button.
+   */
+  --accent: #93b0ff;
+  --accent-ink: #10121c;
+  --accent-wash: color-mix(in oklab, #93b0ff 13%, transparent);
+  --danger: #f08a8a;
+  --danger-wash: color-mix(in oklab, #f08a8a 13%, transparent);
   --shadow-tint: 0 0 0;
 
   color-scheme: dark;
@@ -71,22 +85,34 @@
   --color-ink-faint: var(--ink-faint);
   --color-rule: var(--rule);
   --color-rule-strong: var(--rule-strong);
-  --color-ember: var(--ember);
-  --color-ember-ink: var(--ember-ink);
-  --color-ember-wash: var(--ember-wash);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-wash: var(--accent-wash);
   --color-danger: var(--danger);
   --color-danger-wash: var(--danger-wash);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /*
+   * The display face is Libertinus Serif, which is the face `@markforge/render-pdf` ships
+   * and typesets with. That is the whole reason it is here: the headline of a document tool
+   * is set in the tool's own type, so the site is an artefact of the thing it describes
+   * rather than a page about it. `fonts/LibertinusSerif-*.otf` at the repo root is the same
+   * file `prepare-assets.mjs` copies for the PDF renderer.
+   *
+   * Loaded Regular and Italic only, no Bold. Display type at 48px and up takes its weight
+   * from size, and a bold serif at that scale reads as shouting. Emphasis inside a headline
+   * is the italic of the same family, never a second family.
+   */
+  --font-display: var(--font-libertinus);
 
   /*
    * The shape rule, in two values. Panels and buttons take `panel`, chips and inputs take
    * `chip`, and nothing on the site takes anything else. Written here so the rule is a
    * token rather than a convention someone has to remember.
    */
-  --radius-panel: 6px;
-  --radius-chip: 3px;
+  --radius-panel: 4px;
+  --radius-chip: 2px;
 }
 
 @layer base {
@@ -112,11 +138,11 @@
   }
 
   ::selection {
-    background: var(--ember-wash);
+    background: var(--accent-wash);
   }
 
   :focus-visible {
-    outline: 2px solid var(--ember);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: var(--radius-chip);
   }
@@ -139,17 +165,19 @@
 
 @layer components {
   /*
-   * The node-type marquee. Translating half the track works because the list is rendered
-   * twice, so the reset lands on an identical frame. Paused on hover, and the component
-   * renders a plain wrapped list instead under prefers-reduced-motion.
+   * The display setting, as one class rather than four utilities repeated at every call site.
+   *
+   * `line-height: 1.05` with a `padding-bottom` reserve: Libertinus has deep descenders and
+   * the italic ones are deeper still, so a headline containing a `g` or a `y` in italic
+   * clips against a tight line box. The reserve lives on the class rather than being
+   * remembered at each usage.
    */
-  @keyframes marquee {
-    from {
-      transform: translateX(0);
-    }
-    to {
-      transform: translateX(calc(-50% - 0.625rem));
-    }
+  .display {
+    font-family: var(--font-display), ui-serif, Georgia, serif;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+    padding-bottom: 0.08em;
   }
 
   /* A hairline that reads as a rule rather than as a border on a box. */
@@ -161,18 +189,141 @@
   }
 
   /*
-   * The page's one texture: a faint horizontal rhythm behind full-bleed sections, at the
-   * baseline grid. It is a print reference, not decoration for its own sake, and it sits
-   * under content at low enough contrast to be invisible until you look for it.
+   * Rendered Markdown, for the preview panes.
+   *
+   * Seeing your own output used to mean downloading it. So the preview renders real HTML
+   * from the real engine, and this is what makes that readable: a measure that stops at 68
+   * characters, headings in the display face, tables that look like tables. Scoped to
+   * `.prose-mf` so none of it can leak into the application UI.
    */
-  .press-rule {
-    background-image: repeating-linear-gradient(
-      to bottom,
-      var(--rule) 0,
-      var(--rule) 1px,
-      transparent 1px,
-      transparent 32px
-    );
-    opacity: 0.5;
+  .prose-mf {
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .prose-mf > * + * {
+    margin-top: 0.9em;
+  }
+  .prose-mf h1,
+  .prose-mf h2,
+  .prose-mf h3,
+  .prose-mf h4 {
+    font-family: var(--font-display), ui-serif, Georgia, serif;
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin-top: 1.6em;
+  }
+  .prose-mf h1 {
+    font-size: 1.9em;
+  }
+  .prose-mf h2 {
+    font-size: 1.45em;
+  }
+  .prose-mf h3 {
+    font-size: 1.2em;
+  }
+  .prose-mf h4 {
+    font-size: 1.05em;
+  }
+  .prose-mf p,
+  .prose-mf li {
+    max-width: 68ch;
+  }
+  .prose-mf ul,
+  .prose-mf ol {
+    padding-left: 1.4em;
+  }
+  .prose-mf ul {
+    list-style: disc;
+  }
+  .prose-mf ol {
+    list-style: decimal;
+  }
+  .prose-mf li + li {
+    margin-top: 0.3em;
+  }
+  .prose-mf a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .prose-mf strong {
+    font-weight: 600;
+  }
+  .prose-mf code {
+    background: var(--sunken);
+    border-radius: var(--radius-chip);
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.86em;
+    padding: 0.1em 0.32em;
+  }
+  .prose-mf pre {
+    background: var(--sunken);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-panel);
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    padding: 0.85em 1em;
+  }
+  .prose-mf pre code {
+    background: none;
+    font-size: inherit;
+    padding: 0;
+  }
+  .prose-mf blockquote {
+    border-left: 2px solid var(--rule-strong);
+    color: var(--ink-muted);
+    padding-left: 1em;
+  }
+  .prose-mf table {
+    border-collapse: collapse;
+    display: block;
+    font-size: 13px;
+    overflow-x: auto;
+    width: 100%;
+  }
+  .prose-mf th,
+  .prose-mf td {
+    border: 1px solid var(--rule);
+    padding: 0.4em 0.7em;
+    text-align: left;
+  }
+  .prose-mf th {
+    background: var(--sunken);
+    font-weight: 600;
+  }
+  .prose-mf hr {
+    border: 0;
+    border-top: 1px solid var(--rule);
+  }
+  .prose-mf img {
+    max-width: 100%;
+  }
+
+  /*
+   * A traced sentence in a compiled file.
+   *
+   * The underline is the affordance. Every sentence in a generated file came from a source
+   * document, and this makes that visible before anyone clicks rather than after. Drawn with
+   * `text-decoration` rather than a border so it follows the text across line wraps.
+   */
+  .traced {
+    text-decoration: underline;
+    text-decoration-color: var(--accent-wash);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .traced:hover {
+    background: var(--accent-wash);
+    text-decoration-color: var(--accent);
+  }
+  .traced[data-selected="true"] {
+    background: var(--accent-wash);
+    text-decoration-color: var(--accent);
   }
 }

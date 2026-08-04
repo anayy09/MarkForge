@@ -1,25 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CaretDown, CheckCircle, Info, Warning, WarningOctagon } from "@phosphor-icons/react";
 import type { Diagnostic } from "@markforge/ir";
 import { Chip } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 
 /**
- * The rail, and the reason it is always on screen.
+ * The rail: always available, open only when it has something to say.
  *
- * Every other converter treats a warning as an interruption: something to show once and
- * dismiss. Here the diagnostics are the product. A conversion that lost a merged cell and a
- * conversion that did not are different results, and the only way to tell them apart is this
- * list, so it gets permanent space rather than a toast.
+ * Every other converter treats a warning as an interruption, something to show once and
+ * dismiss. Here the diagnostics are the product: a conversion that lost a merged cell and one
+ * that did not are different results, and this list is the only thing that tells them apart.
+ * So it keeps permanent space in the layout rather than becoming a toast.
+ *
+ * **It no longer keeps that space *open*.** It used to render expanded on every conversion,
+ * holding up to 38% of the viewport for a list that is empty in the common case, which is how
+ * a component that exists to inform turns into one that interrupts. It now opens itself when
+ * a conversion produces an error and stays a single summary line otherwise, so the counts are
+ * always visible and the detail is one click away.
  */
 
 const SEVERITY_RANK = { error: 0, warning: 1, info: 2 } as const;
 
 const SEVERITY = {
   error: { icon: WarningOctagon, tone: "text-danger", label: "error" },
-  warning: { icon: Warning, tone: "text-ember", label: "warning" },
+  warning: { icon: Warning, tone: "text-accent", label: "warning" },
   info: { icon: Info, tone: "text-ink-faint", label: "info" },
 } as const;
 
@@ -61,7 +67,7 @@ export function DiagnosticsRail({
   diagnostics: readonly Diagnostic[];
   busy?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   const sorted = useMemo(
     () =>
@@ -76,6 +82,13 @@ export function DiagnosticsRail({
 
   const lossy = sorted.filter((d) => d.lossy).length;
   const errors = sorted.filter((d) => d.severity === "error").length;
+
+  // An error is the one case worth spending the user's screen on unasked. Lossy is not:
+  // "this table became HTML" is normal, expected, and exactly what the summary line reports.
+  // Opening only, never closing, so a user who collapses it is not overruled on the next run.
+  useEffect(() => {
+    if (errors > 0) setOpen(true);
+  }, [errors]);
 
   return (
     <section className="rule-t flex min-h-0 flex-col bg-surface">

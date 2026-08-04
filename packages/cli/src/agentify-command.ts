@@ -15,9 +15,9 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync, statSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { loadRegistry } from "@markforge/agentify/registry-node";
 import {
   compile,
-  loadRegistry,
   renderConflictReport,
   serializeManifest,
   authorityOf,

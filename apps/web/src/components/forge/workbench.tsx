@@ -17,20 +17,27 @@ import {
 import { loadPdfRenderer, type PdfLoadProgress, type PdfRenderer } from "@/lib/pdf";
 import { useConversion, type Source } from "@/lib/use-conversion";
 import { DiagnosticsRail } from "@/components/forge/diagnostics-rail";
-import { FlavorsPanel } from "@/components/forge/flavors-panel";
 import { InspectPanel } from "@/components/forge/inspect-panel";
 import { OptionsPanel } from "@/components/forge/options-panel";
 import { OutputPanel } from "@/components/forge/output-panel";
-import { RoundTripPanel } from "@/components/forge/roundtrip-panel";
 import { ServerReadDialog } from "@/components/forge/server-read-dialog";
 import { SourcePanel, decodeIfText } from "@/components/forge/source-panel";
 import { cn } from "@/lib/cn";
 
+/**
+ * Two views, down from four.
+ *
+ * `Round trip` converted the document out and back and scored the difference, and `Flavours`
+ * rendered the same document under all seven Markdown presets side by side. Both were
+ * interesting and neither was a task: someone arrives here to convert a document, and four
+ * peer tabs made the page read as an instrument panel with the conversion hidden in one
+ * quarter of it. Flavour selection was always in the options column as well, so that tab was
+ * a second control for a setting that already had one. `Inspect` stays because "what did the
+ * reader actually see in my file" is a question people arrive with.
+ */
 const TABS = [
   { id: "output", label: "Output" },
   { id: "inspect", label: "Inspect" },
-  { id: "roundtrip", label: "Round trip" },
-  { id: "flavors", label: "Flavours" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["id"];
@@ -106,7 +113,7 @@ export function Workbench({ flavors, samples }: { flavors: FlavorData; samples: 
       {notice ? (
         <div
           role="status"
-          className="rule-b flex shrink-0 items-start gap-3 bg-ember-wash px-4 py-2.5"
+          className="rule-b flex shrink-0 items-start gap-3 bg-accent-wash px-4 py-2.5"
         >
           <p className="text-[12px] leading-relaxed text-ink">{notice}</p>
           <button
@@ -151,10 +158,6 @@ export function Workbench({ flavors, samples }: { flavors: FlavorData; samples: 
             />
           ) : null}
           {tab === "inspect" ? <InspectPanel result={result} /> : null}
-          {tab === "roundtrip" ? (
-            <RoundTripPanel source={source} settings={settings} flavors={flavors} pdfRenderer={pdfRenderer} onLoadPdf={loadPdf} />
-          ) : null}
-          {tab === "flavors" ? <FlavorsPanel source={source} flavors={flavors} /> : null}
         </section>
 
         <section className="flex h-[460px] flex-col overflow-hidden lg:h-auto lg:min-h-0 lg:border-l lg:border-rule">
@@ -162,7 +165,12 @@ export function Workbench({ flavors, samples }: { flavors: FlavorData; samples: 
         </section>
       </div>
 
-      <div className="shrink-0 lg:max-h-[38vh] lg:overflow-hidden">
+      {/*
+       * The rail reserves nothing when it is closed, and it is closed unless something went
+       * wrong. It used to hold up to 38% of the viewport open at all times, which put a list
+       * that is usually empty between the user and the output on every single conversion.
+       */}
+      <div className="shrink-0 lg:max-h-[38vh]">
         <DiagnosticsRail diagnostics={result?.diagnostics ?? []} busy={busy} />
       </div>
 
@@ -211,7 +219,7 @@ function Toolbar({
               className={cn(
                 "rounded-chip px-2 py-1 font-mono text-[11px] transition-colors",
                 to === f
-                  ? "bg-ember text-ember-ink"
+                  ? "bg-accent text-accent-ink"
                   : "text-ink-muted hover:bg-surface hover:text-ink",
               )}
             >
@@ -234,7 +242,7 @@ function Toolbar({
           >
             {t.label}
             {tab === t.id ? (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-chip bg-ember" />
+              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-chip bg-accent" />
             ) : null}
           </button>
         ))}
@@ -251,7 +259,7 @@ function PdfProgress({ p }: { p: PdfLoadProgress }) {
     <div className="flex shrink-0 items-center gap-2 pl-3">
       <div className="h-1 w-24 overflow-hidden rounded-chip bg-sunken">
         <div
-          className="h-full bg-ember transition-[width] duration-200"
+          className="h-full bg-accent transition-[width] duration-200"
           style={{ width: `${pct}%` }}
         />
       </div>

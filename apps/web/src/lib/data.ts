@@ -64,7 +64,49 @@ export interface ParityDigest {
   sha256: string;
 }
 
+/**
+ * A target profile, resolved and schema-validated by `prepare-assets.mjs` at build time.
+ *
+ * Typed loosely on purpose. The page needs four fields to draw a target picker; the other
+ * thirty are the compiler's business, and restating the whole `TargetProfile` interface here
+ * would be a second copy of a schema that already has one. The profiles pass through this
+ * app untouched on their way to `compileAgentContext`.
+ */
+export interface TargetSummary {
+  id: string;
+  displayName: string;
+  /**
+   * Three values, not two. `stub` is the one that means "demonstration only": those profiles
+   * exist so the registry can show that adding a vendor is adding a file (ADR-0013), and
+   * their vendor conventions have not been verified the way the others have. `firstClass` and
+   * `authored` are both real targets and are the five `docs/AGENTIFY.md` measures.
+   */
+  tier?: "firstClass" | "authored" | "stub";
+  outputs: { path: string; role: string }[];
+  budget: { primaryTokens: number };
+}
+
+export interface AgentifySampleDoc {
+  file: string;
+  label: string;
+}
+
+/** A real compile of the sample corpus, run by `prepare-assets.mjs` at build time. */
+export interface AgentifyExample {
+  documents: number;
+  units: number;
+  tracedSentences: number;
+  traceability: number;
+  files: { path: string; tokens: number }[];
+  excerpt: string;
+}
+
 export const getParity = (): ParityDigest => read<ParityDigest>("parity.json");
+export const getTargets = (): TargetSummary[] => read<TargetSummary[]>("targets.json");
+export const getAgentifySample = (): AgentifySampleDoc[] =>
+  read<AgentifySampleDoc[]>("agentify-sample/manifest.json");
+export const getAgentifyExample = (): AgentifyExample =>
+  read<AgentifyExample>("agentify-example.json");
 export const getBaselines = (): Baselines => read<Baselines>("baselines.json");
 export const getFlavors = (): FlavorData => read<FlavorData>("flavors.json");
 export const getSamples = (): SampleInfo[] => read<SampleInfo[]>("samples/manifest.json");

@@ -270,7 +270,10 @@ async function compileWith(sources, registry, targets, pair, merge) {
   return agentify.compile(sources, { registry, targets, assist, enforceMergePredicate: false });
 }
 
-const registry = agentify.loadRegistry(join(REPO, "targets"));
+// Not on the package index — it needs node:fs and ajv, and the index must bundle for a
+// browser (see packages/agentify/src/registry-node.ts).
+const { loadRegistry } = await import(new URL("../packages/agentify/dist/registry-node.js", import.meta.url).href);
+const registry = loadRegistry(join(REPO, "targets"));
 
 /** Every first-class profile: the predicate asks whether **any** target's output changes. */
 const TARGETS = ["agents-md", "claude-md", "claude-skills", "claude-commands", "mcp-manifest"];

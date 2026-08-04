@@ -10,16 +10,13 @@ export function SiteNav() {
   return (
     <header className="sticky top-0 z-30 rule-b bg-paper/85 backdrop-blur-md">
       <nav className="mx-auto flex h-14 max-w-[1400px] items-center gap-6 px-5 lg:px-8">
-        <Link href="/" className="group flex items-baseline gap-2">
-          <span className="text-[15px] font-semibold tracking-tight text-ink">MarkForge</span>
-          <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint transition-colors group-hover:text-ember sm:inline">
-            in the browser
-          </span>
+        <Link href="/" className="flex items-baseline">
+          <span className="display text-[19px] leading-none text-ink">MarkForge</span>
         </Link>
 
         <div className="ml-auto flex items-center gap-1">
-          <NavLink href="/forge">Forge</NavLink>
-          <NavLink href="/fidelity">Fidelity</NavLink>
+          <NavLink href="/compile">Compile</NavLink>
+          <NavLink href="/forge">Convert</NavLink>
           <NavLink href={REPO_URL} external>
             Source
           </NavLink>

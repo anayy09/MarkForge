@@ -3,10 +3,12 @@
 import type {
   BROWSER_INPUT_FORMATS,
   BROWSER_OUTPUT_FORMATS,
+  BrowserCompileResult,
   BrowserConvertOptions,
   BrowserConvertResult,
   BrowserInputFormat,
   BrowserOutputFormat,
+  compileAgentContext,
   convertInBrowser,
   formatMarkdownInBrowser,
   parse,
@@ -30,6 +32,8 @@ import type { loadPdfRenderer } from "@markforge/browser/pdf";
 
 type Engine = {
   convertInBrowser: typeof convertInBrowser;
+  /** SPEC §10, the Agent Context Compiler. In the bundle since 2026-08-02. */
+  compileAgentContext: typeof compileAgentContext;
   formatMarkdownInBrowser: typeof formatMarkdownInBrowser;
   parse: typeof parse;
   render: typeof render;
@@ -47,6 +51,7 @@ declare global {
 }
 
 export type {
+  BrowserCompileResult,
   BrowserConvertOptions,
   BrowserConvertResult,
   BrowserInputFormat,
@@ -54,7 +59,7 @@ export type {
 };
 
 /** Roughly what `markforge.js` weighs, for the one place that tells the user before loading. */
-export const ENGINE_BYTES = 986_160;
+export const ENGINE_BYTES = 1_059_659;
 
 const scripts = new Map<string, Promise<void>>();
 
