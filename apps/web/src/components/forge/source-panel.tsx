@@ -48,7 +48,7 @@ export function SourcePanel({
           onDrop={drop}
           className={cn(
             "m-4 rounded-panel border border-dashed p-6 text-center transition-colors",
-            dragging ? "border-ember bg-ember-wash" : "border-rule-strong",
+            dragging ? "border-accent bg-accent-wash" : "border-rule-strong",
           )}
         >
           <FileArrowUp size={22} className="mx-auto text-ink-faint" />
@@ -60,7 +60,7 @@ export function SourcePanel({
           <button
             type="button"
             onClick={() => input.current?.click()}
-            className="mt-3 rounded-chip px-2 py-1 text-[12px] text-ember underline underline-offset-4 hover:bg-ember-wash"
+            className="mt-3 rounded-chip px-2 py-1 text-[12px] text-accent underline underline-offset-4 hover:bg-accent-wash"
           >
             or choose a file
           </button>

@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./registry-node": {
+      "types": "./dist/registry-node.d.ts",
+      "default": "./dist/registry-node.js"
     }
   },
   "main": "./dist/index.js",
@@ -23,6 +27,6 @@
     "ajv-formats": "^3.0.1"
   },
   "markforge": {
-    "browserTier": "nodeOnly"
+    "browserTier": "eager"
   }
 }

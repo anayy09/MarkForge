@@ -24,7 +24,17 @@ export type {
   TargetResult,
 } from "./compile.js";
 
-export { loadRegistry, sectionForCategory, countTokens, counterDescription } from "./targets.js";
+/*
+ * `loadRegistry` is deliberately **not** re-exported here.
+ *
+ * It lives at `@markforge/agentify/registry-node` because it needs node:fs, node:module and
+ * ajv, and this index must bundle and evaluate against web-platform globals alone —
+ * `check-browser-bundle.mjs` probes exactly this file. Re-exporting it would pull four Node
+ * builtins into the browser entry point and put SPEC §10 back out of the browser's reach,
+ * which is the state this package was in until the split. Callers holding resolved profiles
+ * use `registryFromProfiles`; callers holding a directory import the subpath.
+ */
+export { registryFromProfiles, sectionForCategory, countTokens, counterDescription, verificationAge } from "./targets.js";
 export type {
   Registry,
   SectionRender,

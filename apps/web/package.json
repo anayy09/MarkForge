@@ -15,7 +15,6 @@
   "dependencies": {
     "@markforge/adapters-pdf": "workspace:*",
     "@markforge/core": "workspace:*",
-    "@markforge/fidelity": "workspace:*",
     "@markforge/infer": "workspace:*",
     "@markforge/ir": "workspace:*",
     "@myriaddreamin/typst.ts": "0.7.0",

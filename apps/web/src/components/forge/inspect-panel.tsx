@@ -168,7 +168,7 @@ function Branch({
       <div
         className={cn(
           "group flex items-center gap-1.5 rounded-chip py-0.5 pr-1.5",
-          isSelected ? "bg-ember-wash" : "hover:bg-sunken",
+          isSelected ? "bg-accent-wash" : "hover:bg-sunken",
         )}
       >
         {children.length > 0 ? (

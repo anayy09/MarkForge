@@ -62,9 +62,6 @@ importers:
       '@markforge/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@markforge/fidelity':
-        specifier: workspace:*
-        version: link:../../packages/fidelity
       '@markforge/infer':
         specifier: workspace:*
         version: link:../../packages/infer
@@ -214,6 +211,9 @@ importers:
 
   packages/browser:
     dependencies:
+      '@markforge/agentify':
+        specifier: workspace:*
+        version: link:../agentify
       '@markforge/core':
         specifier: workspace:*
         version: link:../core

@@ -1,22 +1,23 @@
 import { Closing } from "@/components/landing/closing";
+import { CompileBand } from "@/components/landing/compile-band";
 import { DiagnosticsExample } from "@/components/landing/diagnostics-example";
-import { FormatMatrix } from "@/components/landing/format-matrix";
 import { Hero } from "@/components/landing/hero";
 import { Measured } from "@/components/landing/measured";
-import { NodeTypes } from "@/components/landing/node-types";
-import { Pipeline } from "@/components/landing/pipeline";
-import { Privacy } from "@/components/landing/privacy";
-import { RenderedPage } from "@/components/landing/rendered-page";
-import { Surfaces } from "@/components/landing/surfaces";
-import { getBaselines, getExamples, getNodeTypes, getParity } from "@/lib/data";
+import { getAgentifyExample, getBaselines, getExamples } from "@/lib/data";
 
 /**
- * Nine sections, eight layout families, two eyebrows, one marquee.
+ * Five sections, five layout families, one eyebrow.
  *
- * Every number and every quoted diagnostic on this page comes from `getExamples`,
- * `getBaselines` or `getParity`, all of which are generated at build time by the real engine
- * and the committed baselines. There is no hand-written measurement anywhere below, which is
- * the least a page making this particular argument can do.
+ * It was nine sections, and the extra four were the problem rather than the value: a format
+ * matrix, a pipeline diagram, a surface-parity table and a marquee of 53 IR node types, none
+ * of which a visitor had a reason to read and all of which sat between them and the thing
+ * the product does. What is left is the two actions, one proof for each, and the numbers
+ * behind both.
+ *
+ * Every figure and every quoted line below comes from `getExamples`, `getBaselines` or
+ * `getAgentifyExample`, all generated at build time by the real engine and the real
+ * compiler. There is no hand-written measurement anywhere on this page, which is the least a
+ * page making this particular argument can do.
  */
 export default function Home() {
   const examples = getExamples();
@@ -26,16 +27,11 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <FormatMatrix />
-      <RenderedPage />
+      <CompileBand example={getAgentifyExample()} />
       {asHtml && flattened ? (
         <DiagnosticsExample asHtml={asHtml} flattened={flattened} />
       ) : null}
-      <Pipeline />
-      <Surfaces parity={getParity()} />
       <Measured baselines={getBaselines()} />
-      <NodeTypes types={getNodeTypes()} />
-      <Privacy />
       <Closing />
     </>
   );

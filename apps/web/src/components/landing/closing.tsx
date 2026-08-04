@@ -15,27 +15,27 @@ export function Closing() {
   return (
     <Section className="rule-t py-20 lg:py-28">
       <Reveal className="mx-auto max-w-2xl text-center">
-        <h2 className="text-3xl font-semibold tracking-tight text-ink md:text-4xl">
-          Load one of your own documents and read the diagnostics.
+        <h2 className="display text-3xl text-ink md:text-[2.75rem]">
+          Run it on your own documents.
         </h2>
-        <p className="mx-auto mt-4 max-w-[52ch] text-[15px] leading-relaxed text-ink-muted">
+        <p className="mx-auto mt-5 max-w-[52ch] text-[15px] leading-relaxed text-ink-muted">
           The corpus numbers describe the corpus. The only measurement that answers your
-          question runs on your file, and it runs in this tab.
+          question runs on your files, and it runs in this tab.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Link
-            href="/forge"
-            className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-panel bg-ember px-4 text-sm font-medium text-ember-ink transition-[filter,transform] duration-150 hover:brightness-[1.08] active:translate-y-px"
+            href="/compile"
+            className="inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-panel bg-accent px-5 text-sm font-medium text-accent-ink transition-[filter,transform] duration-150 hover:brightness-110 active:translate-y-px"
           >
-            Open the forge
+            Compile a folder
             <ArrowRight size={14} />
           </Link>
           <a
             href={DOCS.limits}
             target="_blank"
             rel="noreferrer noopener"
-            className="inline-flex h-10 items-center whitespace-nowrap rounded-panel border border-rule-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-sunken active:translate-y-px"
+            className="inline-flex h-11 items-center whitespace-nowrap rounded-panel border border-rule-strong px-5 text-sm font-medium text-ink transition-colors hover:bg-sunken active:translate-y-px"
           >
             Read the limits first
           </a>

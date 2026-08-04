@@ -27,7 +27,7 @@ function Help({ children }: { children: ReactNode }) {
 const CONTROL = cn(
   "w-full rounded-chip border border-rule-strong bg-surface text-ink",
   "transition-colors hover:border-ink-faint",
-  "focus:border-ember focus:outline-none focus:ring-2 focus:ring-ember/25",
+  "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25",
 );
 
 export interface Option<T extends string> {
@@ -111,8 +111,8 @@ export function Toggle({
           onClick={() => onChange(!checked)}
           className={cn(
             "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-chip border transition-colors",
-            checked ? "border-ember bg-ember text-ember-ink" : "border-rule-strong bg-surface",
-            "hover:border-ember disabled:cursor-not-allowed disabled:opacity-50",
+            checked ? "border-accent bg-accent text-accent-ink" : "border-rule-strong bg-surface",
+            "hover:border-accent disabled:cursor-not-allowed disabled:opacity-50",
           )}
         >
           {checked ? <Check size={11} weight="bold" /> : null}

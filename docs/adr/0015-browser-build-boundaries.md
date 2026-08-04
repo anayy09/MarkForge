@@ -20,9 +20,29 @@ JS-only. Ours includes three WASM artifacts of meaningful size.
 ## Decision
 
 **Fully in-browser, eagerly loaded:** `ir`, `adapters-md`, `adapters-html`, `adapters-docx`,
-`render-md`, `render-html`, `render-docx`, `infer`, `core`, `fidelity`. This set covers the
-DOCX ↔ Markdown path that is the project's Phase 1 gate, so the privacy story holds for the
-primary use case with no large download.
+`render-md`, `render-html`, `render-docx`, `infer`, `core`, `fidelity`, `agentify`. This set
+covers the DOCX ↔ Markdown path that is the project's Phase 1 gate, so the privacy story
+holds for the primary use case with no large download.
+
+> **Amended 2026-08-02.** `agentify` was added to this list, having been `nodeOnly` since it
+> was written. Nothing about the package changed to earn the promotion: every module in it
+> was already pure, and `compile.ts`'s own header said this ADR "wants this to run in a
+> browser". What made it `nodeOnly` was a single file, `targets.ts`, which opened the target
+> registry with `node:fs`, `node:url`, `node:module` and ajv — four builtins spent on
+> *acquiring* profiles rather than on understanding them.
+>
+> That one import list kept the Agent Context Compiler (SPEC §10) out of every browser, which
+> is why the web app shipped without the product's headline feature. Loading now lives in
+> `@markforge/agentify/registry-node`, reached through a subpath that `index.ts` must never
+> re-export, and the pure half takes resolved profiles as data through `registryFromProfiles`.
+> That is this ADR's own rule — *"browser entry points take bytes and an explicit config
+> object"* — applied to a registry, the same way ADR-0003's compile seam applies it to a
+> compiler.
+>
+> Measured: `agentify` bundles and evaluates on web-platform globals at 435 KB, and the
+> shipped `browser` entry point went from 961 KB to 1,033 KB. Both figures come from
+> `scripts/check-browser-bundle.mjs`, which is what would have caught the promotion had it
+> been made without splitting the file.
 
 **Lazy-loaded WASM, fetched only when the user asks for that capability:**
 `render-pdf`, `adapters-pdf` (`pdfjs-dist`), `adapters-ocr` (the Tesseract bundle and its

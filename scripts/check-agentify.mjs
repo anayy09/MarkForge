@@ -63,7 +63,10 @@ const fail = (m) => {
 };
 
 const FIRST_CLASS = ["agents-md", "claude-md", "claude-skills", "claude-commands", "mcp-manifest"];
-const registry = agentify.loadRegistry(join(REPO, "targets"));
+// `loadRegistry` is not on the package index: it needs node:fs and ajv, and the index has to
+// bundle for a browser (see packages/agentify/src/registry-node.ts).
+const { loadRegistry } = await import(new URL("../packages/agentify/dist/registry-node.js", import.meta.url).href);
+const registry = loadRegistry(join(REPO, "targets"));
 
 async function readSet(dir) {
   const sources = [];

@@ -1,43 +1,34 @@
 /**
- * The target registry — data, not code (SPEC §10.9, ADR-0013).
+ * What a target profile *is* — data, not code (SPEC §10.9, ADR-0013).
  *
- * A profile is JSON on disk. Nothing in this file knows that Cursor uses globs or that
- * Claude Code's import syntax is `@path`; it knows how to read a profile, apply a delta to
- * its base, and refuse a profile that does not validate. Adding a target is adding a file,
- * which is the whole claim ADR-0013 makes and the reason the escape hatch is
- * `vendorFields` rather than a plugin interface.
+ * Nothing in this file knows that Cursor uses globs or that Claude Code's import syntax is
+ * `@path`. It declares the shape of a profile, the three pure functions that read one, and
+ * the `Registry` interface `compile()` consumes. Adding a target is adding a file, which is
+ * the whole claim ADR-0013 makes and the reason the escape hatch is `vendorFields` rather
+ * than a plugin interface.
  *
- * **Deltas merge shallowly, at the top level only.** `claude-md` overriding `budget`
- * replaces the whole budget object rather than merging into it. Deep merge was rejected
- * for a reason that shows up the first time someone debugs a profile: with deep merge,
- * reading a delta no longer tells you what the resolved profile contains, because any
- * absent leaf might be inherited from three levels away. Shallow merge means the delta
- * *is* the diff.
+ * ## Why reading the directory lives somewhere else
  *
- * **Only the resolved profile is validated.** A delta on its own is not a target profile
- * and would fail the schema's `required` list by design — `claude-md` declares no
- * `sections` because it wants the base's. Validating after resolution is the single
- * honest checkpoint, and `additionalProperties: false` still catches a typo'd key in a
- * delta, because the merge carries the typo through into the resolved object.
+ * This file used to open the registry itself: `node:fs` for the directory, `node:module`
+ * for ajv, `node:url` for the schema next to the built package. Four builtins, all of them
+ * in service of *acquiring* profiles rather than of understanding them — and they made
+ * `@markforge/agentify` a `nodeOnly` package in `check-browser-bundle.mjs`.
+ *
+ * That tier was load-bearing in the wrong direction. Every other module in this package is
+ * already pure: `extract`, `dedup`, `budget`, `assemble`, `verify` and `compile` take data
+ * and return data, and `compile()`'s own header says ADR-0015 "wants this to run in a
+ * browser". One file's import list was the only thing making the Agent Context Compiler —
+ * SPEC §10, the product's headline feature — unreachable from any browser, which is why the
+ * web app shipped without it.
+ *
+ * So loading is now `./registry-node.js`, reached through the `@markforge/agentify/registry-node`
+ * subpath. This is the same split `@markforge/browser` already makes for the PDF compiler:
+ * the pure half takes an explicit config object, and the half that needs a filesystem is a
+ * separate entry point nobody bundles by accident. A caller with a directory calls
+ * `loadRegistry`; a caller holding already-resolved profiles calls `registryFromProfiles`
+ * below.
  */
-import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
-import { join } from "node:path";
-import type { ValidateFunction } from "ajv";
 import type { UnitCategory } from "./units.js";
-
-interface AjvInstance {
-  compile(schema: object): ValidateFunction;
-}
-
-// Same CJS interop shape as @markforge/ir's validator, for the same reason: ajv's typings
-// expose a namespace rather than a constructable class under NodeNext.
-const require = createRequire(import.meta.url);
-type Ajv2020Ctor = new (opts: Record<string, unknown>) => AjvInstance;
-const Ajv2020: Ajv2020Ctor = require("ajv/dist/2020.js").default ?? require("ajv/dist/2020.js");
-const addFormats: (ajv: AjvInstance) => void =
-  require("ajv-formats").default ?? require("ajv-formats");
 
 export type TargetKind =
   | "flatMarkdown"
@@ -97,28 +88,6 @@ export interface TargetProfile {
   vendorFields?: Record<string, unknown>;
 }
 
-function loadSchema(): object {
-  const candidates = [
-    new URL("../schema/target.v0.schema.json", import.meta.url),
-    new URL("../../schema/target.v0.schema.json", import.meta.url),
-  ];
-  for (const url of candidates) {
-    const path = fileURLToPath(url);
-    if (existsSync(path)) return JSON.parse(readFileSync(path, "utf8")) as object;
-  }
-  throw new Error("agentify: target.v0.schema.json not found next to the built package");
-}
-
-let validator: ValidateFunction | undefined;
-
-function targetValidator(): ValidateFunction {
-  if (validator) return validator;
-  const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
-  addFormats(ajv);
-  validator = ajv.compile(loadSchema());
-  return validator;
-}
-
 export interface Registry {
   get(id: string): TargetProfile;
   ids(): string[];
@@ -127,96 +96,66 @@ export interface Registry {
 }
 
 /**
- * Reads every `*.json` in a directory as a profile and returns a resolver.
+ * How stale one vendor check is. Shared so both registries answer this identically.
  *
- * Resolution is lazy and memoised: a registry of twelve profiles where a run uses one
- * should not pay to resolve eleven, and more importantly should not *fail* because an
- * unrelated stub has a bad `extends`. A broken profile fails when it is asked for.
+ * `NaN` for a missing date rather than `0` or `Infinity`: an absent check is not a fresh
+ * one and is not an infinitely old one, and every caller formats it as "unknown". A
+ * numeric stand-in would sort.
  */
-export function loadRegistry(dir: string): Registry {
-  if (!existsSync(dir)) {
-    throw new Error(
-      `agentify: no target registry at "${dir}". Targets are data, not code ` +
-        `(SPEC §10.9) — the registry is a directory of profile JSON files. Point ` +
-        `agentify.registry at one, or use the repository's ./targets.`,
-    );
-  }
-  const files = readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
-  const raw = new Map<string, Record<string, unknown>>();
-  for (const file of files) {
-    const parsed = JSON.parse(readFileSync(join(dir, file), "utf8")) as Record<string, unknown>;
-    // Editor affordance only, and not part of the schema, so it is stripped before the
-    // resolved object is validated under additionalProperties: false.
-    delete parsed["$schema"];
-    const id = parsed["id"];
-    if (typeof id !== "string") {
-      throw new Error(`agentify: ${file} has no string "id"`);
-    }
-    if (raw.has(id)) throw new Error(`agentify: two profiles claim id "${id}"`);
-    raw.set(id, parsed);
-  }
+export function verificationAge(date: string, today: Date): number {
+  return date ? Math.floor((today.getTime() - Date.parse(`${date}T00:00:00Z`)) / 86_400_000) : Number.NaN;
+}
 
-  const resolved = new Map<string, TargetProfile>();
-
-  function resolve(id: string, chain: string[]): TargetProfile {
-    const memo = resolved.get(id);
-    if (memo) return memo;
-    if (chain.includes(id)) {
-      throw new Error(`agentify: circular target extends: ${[...chain, id].join(" -> ")}`);
+/**
+ * A registry over profiles that are **already resolved and already validated**.
+ *
+ * This is the browser's way in, and the honesty of it rests entirely on that sentence. It
+ * runs no `extends` merge and no schema validation, because it has no ajv and no schema to
+ * validate against — so it must never be handed raw profile JSON straight off disk. What it
+ * is for is the case where resolution already happened somewhere that could do it properly:
+ * `apps/web/scripts/prepare-assets.mjs` calls `loadRegistry` at build time, in Node, with
+ * the schema present, and serialises the twelve resolved profiles. The browser then gets
+ * objects that a validating loader produced, rather than objects it chose to trust.
+ *
+ * Passing an unresolved delta here does not silently half-work. A delta declares no
+ * `sections` and no `kind`, so `assemble()` would emit an empty file and `verify()` would
+ * pass it at 100% traceability — a gate reporting perfect provenance over nothing. The
+ * `extends` check below refuses that case by name instead.
+ */
+export function registryFromProfiles(profiles: readonly TargetProfile[]): Registry {
+  const byId = new Map<string, TargetProfile>();
+  for (const profile of profiles) {
+    if (typeof profile?.id !== "string") {
+      throw new Error("agentify: registryFromProfiles received a profile with no string \"id\"");
     }
-    const profile = raw.get(id);
-    if (!profile) {
+    if ((profile as { extends?: unknown }).extends !== undefined) {
       throw new Error(
-        `agentify: no target profile "${id}" in ${dir}. Available: ${[...raw.keys()].sort().join(", ")}.`,
+        `agentify: profile "${profile.id}" still declares "extends", so it has not been ` +
+          `resolved. registryFromProfiles takes resolved profiles only — it has no schema and ` +
+          `no ajv, and an unresolved delta carries no sections, which assemble() would turn ` +
+          `into an empty file that verify() then passes at 100%. Resolve it with loadRegistry ` +
+          `from @markforge/agentify/registry-node first.`,
       );
     }
-    let merged: Record<string, unknown>;
-    if (typeof profile["extends"] === "string") {
-      const base = resolve(profile["extends"], [...chain, id]) as unknown as Record<string, unknown>;
-      merged = { ...base, ...profile };
-      delete merged["extends"];
-      // The base's identity must not leak into the delta. Shallow merge already
-      // overwrites these because every profile declares them, but a profile that
-      // forgot one would silently inherit the base's id and emit to the base's path.
-      for (const key of ["id", "targetVersion", "displayName", "verifiedAgainst"]) {
-        if (!(key in profile)) {
-          throw new Error(
-            `agentify: profile "${id}" extends "${profile["extends"] as string}" but does not ` +
-              `declare its own "${key}". A delta inheriting that field would emit under the ` +
-              `base's identity — for verifiedAgainst it would also inherit a vendor check that ` +
-              `was never done for this target (ADR-0013).`,
-          );
-        }
-      }
-    } else {
-      merged = { ...profile };
-    }
-
-    const validate = targetValidator();
-    if (!validate(merged)) {
-      const errors = (validate.errors ?? [])
-        .map((e) => `  ${e.instancePath || "/"} ${e.message ?? ""}`)
-        .join("\n");
-      throw new Error(
-        `agentify: target profile "${id}" does not validate against ` +
-          `packages/agentify/schema/target.v0.schema.json after resolving its deltas:\n${errors}`,
-      );
-    }
-    const out = merged as unknown as TargetProfile;
-    resolved.set(id, out);
-    return out;
+    if (byId.has(profile.id)) throw new Error(`agentify: two profiles claim id "${profile.id}"`);
+    byId.set(profile.id, profile);
   }
 
   return {
-    get: (id) => resolve(id, []),
-    ids: () => [...raw.keys()].sort(),
+    get: (id) => {
+      const found = byId.get(id);
+      if (!found) {
+        throw new Error(
+          `agentify: no target profile "${id}". Available: ${[...byId.keys()].sort().join(", ")}.`,
+        );
+      }
+      return found;
+    },
+    ids: () => [...byId.keys()].sort(),
     verificationAges: (today) =>
-      [...raw.keys()].sort().map((id) => {
-        const date = String((raw.get(id) as { verifiedAgainst?: { date?: string } }).verifiedAgainst?.date ?? "");
-        const ageDays = date
-          ? Math.floor((today.getTime() - Date.parse(date + "T00:00:00Z")) / 86_400_000)
-          : Number.NaN;
-        return { id, date, ageDays };
+      [...byId.keys()].sort().map((id) => {
+        const date = byId.get(id)?.verifiedAgainst?.date ?? "";
+        return { id, date, ageDays: verificationAge(date, today) };
       }),
   };
 }

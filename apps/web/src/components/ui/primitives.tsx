@@ -12,7 +12,7 @@ type Size = "md" | "sm";
 
 const VARIANT: Record<Variant, string> = {
   // 5.21:1 in light, 7.65:1 in dark. Measured, not assumed.
-  primary: "bg-ember text-ember-ink hover:brightness-[1.08] active:brightness-100",
+  primary: "bg-accent text-accent-ink hover:brightness-[1.08] active:brightness-100",
   secondary: "border border-rule-strong text-ink hover:bg-sunken",
   ghost: "text-ink-muted hover:bg-sunken hover:text-ink",
 };
@@ -70,7 +70,7 @@ export function Chip({
   const tones = {
     neutral: "bg-sunken text-ink-muted",
     quiet: "text-ink-faint",
-    accent: "bg-ember-wash text-ember",
+    accent: "bg-accent-wash text-accent",
     danger: "bg-danger-wash text-danger",
   } as const;
   return (
@@ -142,7 +142,7 @@ export function Stat({
       <div
         className={cn(
           "font-mono text-3xl tabular-nums tracking-tight md:text-4xl",
-          tone === "accent" ? "text-ember" : "text-ink",
+          tone === "accent" ? "text-accent" : "text-ink",
         )}
       >
         {value}

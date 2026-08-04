@@ -5,8 +5,11 @@ import { Check, Copy, DownloadSimple } from "@phosphor-icons/react";
 import { Button, Chip } from "@/components/ui/primitives";
 import { FORMATS, type OutputFormat } from "@/lib/formats";
 import { PDF_LIMITS } from "@/lib/pdf";
+import { markdownToHtml, sanitizeHtml } from "@/lib/preview";
 import type { Conversion, Status } from "@/lib/use-conversion";
 import { cn } from "@/lib/cn";
+
+type View = "preview" | "code";
 
 export function OutputPanel({
   result,
@@ -21,6 +24,17 @@ export function OutputPanel({
   name: string;
   onLoadPdf: () => void;
 }) {
+  /*
+   * Preview first, and this used to have no preview at all.
+   *
+   * The pane showed a wall of Markdown source and nothing else, so the only way to find out
+   * what you had converted was to download the file and open it somewhere. For a tool whose
+   * entire job is producing a document, that put the actual result one step outside the
+   * product. `code` is still one click away, because for Markdown and HTML the source *is*
+   * often what a person came for.
+   */
+  const [view, setView] = useState<View>("preview");
+
   if (status.kind === "error" && status.message === "needs-pdf-compiler") {
     return <PdfGate onLoad={onLoadPdf} />;
   }
@@ -28,16 +42,41 @@ export function OutputPanel({
   if (status.kind === "empty") return <IdleState />;
   if (!result) return <Skeleton />;
 
+  // PDF renders in the browser's own viewer and DOCX has no honest preview, so the toggle is
+  // offered only where both views exist rather than being shown disabled.
+  const hasBothViews = result.to === "md" || result.to === "html";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="rule-b flex h-9 shrink-0 items-center gap-2 px-3">
-        <Chip mono tone="quiet">
-          {FORMATS[result.to].label}
-        </Chip>
+      <header className="rule-b flex h-10 shrink-0 items-center gap-2.5 px-3">
+        {hasBothViews ? (
+          <div className="flex items-center gap-px rounded-chip bg-sunken p-0.5">
+            {(["preview", "code"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className={cn(
+                  "rounded-chip px-2 py-1 text-[12px] capitalize transition-colors",
+                  view === v ? "bg-surface text-ink shadow-sm" : "text-ink-muted hover:text-ink",
+                )}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Chip mono tone="quiet">
+            {FORMATS[result.to].label}
+          </Chip>
+        )}
+
         <span className="font-mono text-[11px] tabular-nums text-ink-muted">
           {result.bytes.length.toLocaleString("en-US")} B
         </span>
-        <span className="font-mono text-[11px] tabular-nums text-ink-faint">{result.ms} ms</span>
+        <span className="hidden font-mono text-[11px] tabular-nums text-ink-faint sm:inline">
+          {result.ms} ms
+        </span>
         {status.kind === "converting" ? (
           <span className="text-[11px] text-ink-faint">reconverting</span>
         ) : null}
@@ -49,13 +88,50 @@ export function OutputPanel({
 
       {result.to === "pdf" ? (
         <PdfPreview bytes={result.bytes} />
-      ) : result.text !== null ? (
-        <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-relaxed text-ink">
+      ) : result.text === null ? (
+        <DocxSummary result={result} />
+      ) : view === "code" ? (
+        <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3.5 font-mono text-[12px] leading-relaxed text-ink">
           {result.text}
         </pre>
       ) : (
-        <DocxSummary result={result} />
+        <RenderedPreview text={result.text} to={result.to} />
       )}
+    </div>
+  );
+}
+
+/**
+ * The output as a document rather than as source.
+ *
+ * For an HTML target the engine already produced HTML, so it is shown directly. For Markdown
+ * it is converted a second time, `md -> html`, through the same engine. That second
+ * conversion is a rendering step for display only: the bytes offered for download are always
+ * the first conversion's, so nothing the preview does can change what the user takes away.
+ */
+function RenderedPreview({ text, to }: { text: string; to: OutputFormat }) {
+  const [html, setHtml] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    if (to === "html") {
+      setHtml(sanitizeHtml(text));
+      return;
+    }
+    setHtml(null);
+    void markdownToHtml(text).then((out) => {
+      if (live) setHtml(out);
+    });
+    return () => {
+      live = false;
+    };
+  }, [text, to]);
+
+  if (html === null) return <Skeleton />;
+
+  return (
+    <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
+      <div className="prose-mf" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }
@@ -203,7 +279,7 @@ function CopyButton({ text }: { text: string }) {
       }}
       className={cn(
         "flex h-7 items-center gap-1.5 rounded-chip px-2 text-[11px] transition-colors",
-        done ? "text-ember" : "text-ink-muted hover:bg-sunken hover:text-ink",
+        done ? "text-accent" : "text-ink-muted hover:bg-sunken hover:text-ink",
       )}
     >
       {done ? <Check size={12} /> : <Copy size={12} />}

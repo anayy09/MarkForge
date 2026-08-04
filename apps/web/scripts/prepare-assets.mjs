@@ -237,42 +237,113 @@ const examples = {
 const parity = await parityDigest("fixtures/md/clean-report.md", "md", "docx");
 writeFileSync(join(OUT, "parity.json"), `${JSON.stringify(parity, null, 2)}\n`);
 
-// ---------------------------------------------------------------------------------------
-// 6. A rendered page, as an image
-//
-// The site is about what happens to documents and until this existed it never showed one.
-// The honest way to fix that is not stock photography of a desk: it is to render a page with
-// the same compiler, the same Typst markup and the same fonts the PDF writer uses, and put
-// that on the page.
-//
-// SVG rather than a raster, for three reasons that all matter here. It stays sharp at any
-// size, it needs no rasteriser in the build, and it is text rather than pixels, so a reader
-// who doubts it is a real render can open it. The compiler is the Node binding rather than
-// the WASM one: this runs at build time, where a native addon is free.
-const renderedPage = await (async () => {
-  const { NodeCompiler } = await import("@myriaddreamin/typst-ts-node-compiler");
-  const { toTypst } = await load("packages/render-pdf/dist/index.js");
-  const { loadShippedFonts } = await load("packages/typst-node/dist/index.js");
-
-  const input = "fixtures/md/clean-report.md";
-  const bytes = new Uint8Array(readFileSync(join(REPO, input)));
-  // Parsed and inferred exactly as a conversion would, by going through `convert` and
-  // taking the document rather than the bytes.
-  const { document } = await convert(bytes, { from: "md", to: "md", path: input });
-
-  const fonts = loadShippedFonts();
-  const compiler = NodeCompiler.create({
-    fontArgs: [{ fontBlobs: fonts.map((f) => Buffer.from(f.bytes)) }],
-  });
-  const svg = compiler.svg({ mainFileContent: toTypst(document).source });
-
-  if (!svg.startsWith("<svg")) {
-    throw new Error("prepare-assets: the Typst compiler returned no SVG for the sample page.");
-  }
-  writeFileSync(join(OUT, "rendered-page.svg"), svg);
-  return { input, bytes: svg.length };
-})();
 writeFileSync(join(OUT, "examples.json"), `${JSON.stringify(examples, null, 2)}\n`);
+
+// Section 6 built `rendered-page.svg`: a page of `clean-report.md` compiled by the Node Typst
+// binding, with the same markup and the same fonts the PDF writer uses. It is deleted as of
+// 2026-08-02 along with the landing section that displayed it. Nothing served the file, and a
+// build step that imports a native addon to produce an asset no page requests is weight with
+// no reader. The Typst path is still exercised on every run by `check:pdf` and
+// `check:pdf-fonts`, which is where a compiler regression should be caught anyway.
+
+// ---------------------------------------------------------------------------------------
+// 7. The Agent Context Compiler's inputs: target profiles, and a folder to try it on
+//
+// ## Why the profiles are resolved here rather than fetched as-is
+//
+// `targets/` holds twelve profile files, and several are deltas: `claude-md` declares no
+// `sections` because it inherits the base's. Serving those raw would give the browser an
+// object whose `extends` was never applied, and an unresolved profile does not fail loudly
+// — it assembles an empty file that the traceability gate then passes at 100%, which is the
+// worst possible failure for a feature whose entire claim is provenance.
+//
+// So resolution and schema validation happen here, in Node, where ajv and the schema exist.
+// `registryFromProfiles` in the browser refuses anything still carrying `extends`, so the
+// two ends agree about what "resolved" means rather than trusting each other.
+
+const { resolveAllProfiles } = await load("packages/agentify/dist/registry-node.js");
+const profiles = resolveAllProfiles(join(REPO, "targets"));
+writeFileSync(join(OUT, "targets.json"), `${JSON.stringify(profiles, null, 2)}\n`);
+
+// The five-document clean set from `fixtures/agentify/clean/`, which is the exact corpus
+// docs/AGENTIFY.md measures the acceptance criterion on: mixed formats (Markdown, HTML and
+// a DOCX), authored before the extractor existed. A visitor who clicks "try the sample"
+// gets the run the project's own gate reports on, not a curated happy path.
+mkdirSync(join(OUT, "agentify-sample"), { recursive: true });
+const AGENTIFY_SAMPLE = [
+  { file: "product-spec.md", label: "Product spec" },
+  { file: "architecture.md", label: "Architecture notes" },
+  { file: "runbook.md", label: "Runbook" },
+  { file: "api-contract.html", label: "API contract" },
+  { file: "conventions.docx", label: "Coding conventions" },
+];
+for (const s of AGENTIFY_SAMPLE) {
+  copyFileSync(join(REPO, "fixtures/agentify/clean", s.file), join(OUT, "agentify-sample", s.file));
+}
+writeFileSync(
+  join(OUT, "agentify-sample/manifest.json"),
+  `${JSON.stringify(AGENTIFY_SAMPLE, null, 2)}\n`,
+);
+
+/**
+ * A real compile of that sample set, for the landing page to quote.
+ *
+ * Same reasoning as the conversion examples above: the page's whole argument is that its
+ * numbers are measured, so an illustrative AGENTS.md pasted into JSX would be the one
+ * dishonest thing on it. This runs the actual compiler over the actual corpus, and the
+ * traceability figure the page prints is the figure the gate computed here. If extraction
+ * regresses, this build fails rather than the page continuing to advertise the old number.
+ */
+const agentifyExample = await (async () => {
+  const { compile, authorityOf } = await load("packages/agentify/dist/index.js");
+  const { registryFromProfiles } = await load("packages/agentify/dist/index.js");
+  const { parse } = await load("packages/core/dist/index.js");
+
+  const sources = [];
+  for (const { file } of AGENTIFY_SAMPLE) {
+    const path = join(REPO, "fixtures/agentify/clean", file);
+    const bytes = new Uint8Array(readFileSync(path));
+    const format = file.endsWith(".docx") ? "docx" : file.endsWith(".html") ? "html" : "md";
+    const parsed = await parse(bytes, format, file);
+    const sourceText = format === "docx" ? "" : readFileSync(path, "utf8");
+    sources.push({
+      path: file,
+      document: parsed.document,
+      sourceText,
+      role: "unknown",
+      authority: authorityOf(sourceText, [], file),
+    });
+  }
+
+  const run = await compile(sources, {
+    registry: registryFromProfiles(profiles),
+    targets: ["agents-md", "claude-skills"],
+  });
+
+  const agents = run.results.find((r) => r.target === "agents-md")?.files[0];
+  if (!agents || run.report.targets[0].traceability < 1) {
+    throw new Error(
+      `prepare-assets: the sample compile no longer reaches 100% traceability ` +
+        `(${run.report.targets[0]?.traceability}). The landing page states that figure as a ` +
+        `measurement, so this is a decision to make rather than a number to update.`,
+    );
+  }
+
+  const manifestFile = run.manifest.files.find((f) => f.path === agents.path);
+  const traced = manifestFile.sections.flatMap((s) => s.sentences).filter((s) => s.unitIds.length);
+
+  return {
+    documents: AGENTIFY_SAMPLE.length,
+    units: run.units.length,
+    tracedSentences: traced.length,
+    traceability: run.report.targets[0].traceability,
+    files: run.results.flatMap((r) => r.files.map((f) => ({ path: f.path, tokens: f.tokens }))),
+    // Enough of the real file to show its shape, cut at a line boundary so the excerpt is
+    // never a half-written table row.
+    excerpt: agents.content.split("\n").slice(0, 22).join("\n"),
+  };
+})();
+writeFileSync(join(OUT, "agentify-example.json"), `${JSON.stringify(agentifyExample, null, 2)}\n`);
 
 // ---------------------------------------------------------------------------------------
 
@@ -281,5 +352,8 @@ console.log(
   `prepare-assets: engine ${kb(eager.code.length)}, pdf chunk ${kb(deferred.code.length)}, ` +
     `typst.wasm ${kb(wasmBytes)}, ${fonts.length} fonts, ${SAMPLES.length} samples, ` +
     `${Object.keys(FLAVORS).length} flavours, ${nodeTypes.length} node types, ` +
-    `${Object.keys(examples).length} examples (${diagCount} diagnostics)`,
+    `${Object.keys(examples).length} examples (${diagCount} diagnostics), ` +
+    `${profiles.length} target profiles, ${AGENTIFY_SAMPLE.length} sample documents, ` +
+    `agentify example ${agentifyExample.tracedSentences} traced sentences at ` +
+    `${(agentifyExample.traceability * 100).toFixed(1)}%`,
 );
