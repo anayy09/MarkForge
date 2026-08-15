@@ -68,9 +68,7 @@ anywhere.
 | `fonts/` | The five shipped faces plus a manifest |
 | `samples/` | Demo documents copied out of `fixtures/` |
 | `flavors.json` | The seven presets and the renderer defaults, read from the built package |
-| `node-types.json` | The 53 node types, extracted from the IR schema |
 | `baselines.json` | The committed fidelity baselines, verbatim |
-| `parity.json` | A real sha256, computed at build time |
 | `examples.json` | Real conversions, run by the real engine |
 | `targets.json` | The 12 target profiles, resolved and schema-validated in Node |
 | `agentify-sample/` | The five-document clean set from `fixtures/agentify/` |

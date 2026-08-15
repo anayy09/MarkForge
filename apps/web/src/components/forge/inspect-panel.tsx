@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { CaretRight, DownloadSimple } from "@phosphor-icons/react";
 import type { MarkForgeDocument, Producer, Provenance, StyleEvidence } from "@markforge/ir";
 import { Chip } from "@/components/ui/primitives";
+import { downloadBlob } from "@/lib/download";
 import type { Conversion } from "@/lib/use-conversion";
 import { cn } from "@/lib/cn";
 
@@ -79,16 +80,9 @@ function Tree({ doc }: { doc: MarkForgeDocument }) {
   const provenance = doc.provenance as unknown as Record<string, Provenance> | undefined;
   const sidecar = doc.sidecar as unknown as Record<string, StyleEvidence> | undefined;
 
-  const download = () => {
+  const download = () =>
     // Canonical JSON is the engine's own concern; this is a readable copy for a human.
-    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${doc.id}.mfir.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+    downloadBlob(`${doc.id}.mfir.json`, JSON.stringify(doc, null, 2), "application/json");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

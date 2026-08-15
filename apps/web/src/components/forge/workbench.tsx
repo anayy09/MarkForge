@@ -169,8 +169,13 @@ export function Workbench({ flavors, samples }: { flavors: FlavorData; samples: 
        * The rail reserves nothing when it is closed, and it is closed unless something went
        * wrong. It used to hold up to 38% of the viewport open at all times, which put a list
        * that is usually empty between the user and the output on every single conversion.
+       *
+       * `flex flex-col` is what makes the cap mean anything when it is open: as a flex item
+       * with `min-h-0`, the rail shrinks to 38vh and its own list scrolls inside that. As a
+       * plain block child it would size to its content and a long list would spill over the
+       * bottom of the page instead.
        */}
-      <div className="shrink-0 lg:max-h-[38vh]">
+      <div className="flex shrink-0 flex-col lg:max-h-[38vh]">
         <DiagnosticsRail diagnostics={result?.diagnostics ?? []} busy={busy} />
       </div>
 

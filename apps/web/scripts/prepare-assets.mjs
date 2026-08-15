@@ -32,7 +32,6 @@
  * resolves licence rows relative to `fixtures/`, so a registered `apps/**.docx` would be
  * reported as phantom. A gitignored copy satisfies both by not existing in git.
  */
-import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -145,19 +144,15 @@ writeFileSync(
   )}\n`,
 );
 
-// A node type is a definition in the IR schema that pins `type` to a constant. That is what
-// makes it a node rather than a supporting shape like BBox or Provenance.
 // The committed baselines, verbatim. CI recomputes these and fails on any drop beyond the
 // tolerance, so the file is a measurement rather than a claim, and copying it means the site
 // quotes the same numbers the build enforces.
 copyFileSync(join(REPO, "fixtures/expected/baselines.json"), join(OUT, "baselines.json"));
 
-const irSchema = JSON.parse(readFileSync(join(REPO, "packages/ir/schema/ir.v0.schema.json"), "utf8"));
-const nodeTypes = Object.values(irSchema.$defs ?? irSchema.definitions ?? {})
-  .map((d) => d?.properties?.type?.const)
-  .filter((t) => typeof t === "string")
-  .sort();
-writeFileSync(join(OUT, "node-types.json"), `${JSON.stringify(nodeTypes, null, 2)}\n`);
+// `node-types.json`, the node-type list read out of the IR schema, was generated here for a
+// landing section that no longer exists. Deleted rather than kept warm: a build step that
+// produces an asset no page requests is weight with no reader, which is the same reasoning
+// that removed `rendered-page.svg` below.
 
 // ---------------------------------------------------------------------------------------
 // 5. Worked examples for the landing page, run by the real engine
@@ -194,24 +189,6 @@ async function example({ input, from, to, expectCode, options = {} }) {
 
 const MERGED = { input: "fixtures/docx/tables-merged-horizontal.docx", from: "docx", to: "md" };
 
-/**
- * A real digest, for the section that claims four surfaces produce the same bytes.
- *
- * Computed here from an actual conversion rather than pasted. `scripts/check-surface-parity.mjs`
- * is what proves the claim; this is the page showing a number it can be checked against, and
- * a reader with the repo can run the same conversion and get the same string.
- */
-async function parityDigest(input, from, to) {
-  const bytes = new Uint8Array(readFileSync(join(REPO, input)));
-  const result = await convert(bytes, { from, to, path: input });
-  return {
-    input,
-    to,
-    bytes: result.bytes.length,
-    sha256: createHash("sha256").update(result.bytes).digest("hex"),
-  };
-}
-
 const examples = {
   // The headline pair, and the reason it is a pair.
   //
@@ -234,9 +211,9 @@ const examples = {
   }),
 };
 
-const parity = await parityDigest("fixtures/md/clean-report.md", "md", "docx");
-writeFileSync(join(OUT, "parity.json"), `${JSON.stringify(parity, null, 2)}\n`);
-
+// `parity.json`, a real sha256 of one conversion, went the same way as `node-types.json`: the
+// section that quoted it beside the four-surface claim is gone, and `check-surface-parity.mjs`
+// is what proves that claim anyway. The digest here was only ever the page showing its work.
 writeFileSync(join(OUT, "examples.json"), `${JSON.stringify(examples, null, 2)}\n`);
 
 // Section 6 built `rendered-page.svg`: a page of `clean-report.md` compiled by the Node Typst
@@ -295,8 +272,9 @@ writeFileSync(
  * regresses, this build fails rather than the page continuing to advertise the old number.
  */
 const agentifyExample = await (async () => {
-  const { compile, authorityOf } = await load("packages/agentify/dist/index.js");
-  const { registryFromProfiles } = await load("packages/agentify/dist/index.js");
+  const { compile, authorityOf, registryFromProfiles } = await load(
+    "packages/agentify/dist/index.js",
+  );
   const { parse } = await load("packages/core/dist/index.js");
 
   const sources = [];
@@ -321,22 +299,40 @@ const agentifyExample = await (async () => {
   });
 
   const agents = run.results.find((r) => r.target === "agents-md")?.files[0];
-  if (!agents || run.report.targets[0].traceability < 1) {
+
+  // Every target that was asked for, not just the first one reported. The page prints one
+  // traceability figure above a file list drawn from both targets, so gating `targets[0]`
+  // alone would let a regression in `claude-skills` ship under a number measured on
+  // `agents-md`. An empty report is a failure too rather than a crash one line before the
+  // message that would have explained it.
+  const shortfall = run.report.targets.filter((t) => t.traceability < 1);
+  if (!agents || run.report.targets.length === 0 || shortfall.length > 0) {
+    const measured =
+      run.report.targets.map((t) => `${t.id} ${t.traceability}`).join(", ") || "no targets";
     throw new Error(
-      `prepare-assets: the sample compile no longer reaches 100% traceability ` +
-        `(${run.report.targets[0]?.traceability}). The landing page states that figure as a ` +
-        `measurement, so this is a decision to make rather than a number to update.`,
+      `prepare-assets: the sample compile no longer reaches 100% traceability (${measured}). ` +
+        `The landing page states that figure as a measurement, so this is a decision to make ` +
+        `rather than a number to update.`,
     );
   }
 
   const manifestFile = run.manifest.files.find((f) => f.path === agents.path);
+  if (!manifestFile) {
+    throw new Error(
+      `prepare-assets: the manifest has no entry for ${agents.path}, so the traced-sentence ` +
+        `count the page quotes cannot be computed. The manifest and the emitted files have ` +
+        `stopped agreeing about paths.`,
+    );
+  }
   const traced = manifestFile.sections.flatMap((s) => s.sentences).filter((s) => s.unitIds.length);
 
   return {
     documents: AGENTIFY_SAMPLE.length,
     units: run.units.length,
     tracedSentences: traced.length,
-    traceability: run.report.targets[0].traceability,
+    // The lowest of the targets, so the one figure the page prints is true of every file it
+    // lists beside it. The gate above has already required all of them to be 1.
+    traceability: Math.min(...run.report.targets.map((t) => t.traceability)),
     files: run.results.flatMap((r) => r.files.map((f) => ({ path: f.path, tokens: f.tokens }))),
     // Enough of the real file to show its shape, cut at a line boundary so the excerpt is
     // never a half-written table row.
@@ -351,7 +347,7 @@ const diagCount = Object.values(examples).reduce((n, e) => n + e.diagnostics.len
 console.log(
   `prepare-assets: engine ${kb(eager.code.length)}, pdf chunk ${kb(deferred.code.length)}, ` +
     `typst.wasm ${kb(wasmBytes)}, ${fonts.length} fonts, ${SAMPLES.length} samples, ` +
-    `${Object.keys(FLAVORS).length} flavours, ${nodeTypes.length} node types, ` +
+    `${Object.keys(FLAVORS).length} flavours, ` +
     `${Object.keys(examples).length} examples (${diagCount} diagnostics), ` +
     `${profiles.length} target profiles, ${AGENTIFY_SAMPLE.length} sample documents, ` +
     `agentify example ${agentifyExample.tracedSentences} traced sentences at ` +

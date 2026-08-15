@@ -23,6 +23,7 @@ export function CompileWorkbench({
   targets,
   sample,
 }: {
+  /** What this page offers. The stub profiles are filtered out by the page, not here. */
   targets: TargetSummary[];
   sample: AgentifySampleDoc[];
 }) {
@@ -31,21 +32,14 @@ export function CompileWorkbench({
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [selectedUnits, setSelectedUnits] = useState<string[] | null>(null);
   const [loadingSample, setLoadingSample] = useState(false);
+  /** A sample set that would not download. Reported, never compiled. */
+  const [notice, setNotice] = useState<string | null>(null);
 
   const { result, status, run, reset } = useCompile();
 
-  /*
-   * Everything except the stubs, which is the five targets `docs/AGENTIFY.md` measures.
-   *
-   * Filtering on `tier === "firstClass"` would have been wrong and quietly so: the tier field
-   * has three values, and `claude-commands` and `mcp-manifest` are `authored`. Both are real,
-   * verified targets. The stubs exist so the registry can demonstrate that adding a vendor is
-   * adding a file (ADR-0013), which is a claim about the architecture rather than an
-   * invitation to compile against a profile whose vendor conventions nobody has checked.
-   */
-  const offered = useMemo(() => targets.filter((t) => t.tier !== "stub"), [targets]);
-
   const addSources = useCallback((incoming: CompileSource[]) => {
+    // A failed sample download says nothing about the folder the user just dropped instead.
+    setNotice(null);
     setSources((current) => {
       const byPath = new Map(current.map((s) => [s.path, s]));
       for (const source of incoming) byPath.set(source.path, source);
@@ -55,14 +49,24 @@ export function CompileWorkbench({
 
   const loadSample = useCallback(async () => {
     setLoadingSample(true);
+    setNotice(null);
     try {
       const loaded = await Promise.all(
         sample.map(async (doc) => {
           const response = await fetch(`/markforge/agentify-sample/${doc.file}`);
+          // Without this the error page is what gets compiled: the Markdown ones parse and
+          // produce units from a 404, and the DOCX fails deep inside the zip reader with a
+          // message about a corrupt archive that names neither the file nor the reason.
+          if (!response.ok) throw new Error(`${doc.file} (HTTP ${response.status})`);
           return { path: doc.file, bytes: new Uint8Array(await response.arrayBuffer()) };
         }),
       );
       setSources(loaded);
+    } catch (e) {
+      setNotice(
+        `The sample set did not download: ${e instanceof Error ? e.message : String(e)}. ` +
+          `It is generated at build time, so a fresh checkout needs one build first.`,
+      );
     } finally {
       setLoadingSample(false);
     }
@@ -73,9 +77,9 @@ export function CompileWorkbench({
   // effect coalesces them into one.
   useEffect(() => {
     if (sources.length === 0 || chosen.length === 0) return;
-    const t = setTimeout(() => void run(sources, offered, chosen), 60);
+    const t = setTimeout(() => void run(sources, targets, chosen), 60);
     return () => clearTimeout(t);
-  }, [sources, chosen, offered, run]);
+  }, [sources, chosen, targets, run]);
 
   const files = useMemo(
     () => (result?.results ?? []).flatMap((r) => r.files.map((f) => ({ ...f, target: r.target }))),
@@ -100,11 +104,22 @@ export function CompileWorkbench({
   const manifestFiles = (result?.manifest.files ?? []) as unknown as ManifestFile[];
   const units = (result?.manifest.units ?? []) as unknown as ManifestUnit[];
   const busy = status.kind === "loading" || status.kind === "compiling" || loadingSample;
+  // A failed download and a failed compile are the same event to the person reading the page,
+  // so they share one banner instead of stacking two.
+  const problem = notice ?? (status.kind === "error" ? status.message : null);
 
   if (sources.length === 0) {
     return (
       <div className="mx-auto max-w-[1400px] px-5 py-16 lg:px-8 lg:py-24">
         <Dropzone onSources={addSources} onSample={() => void loadSample()} busy={loadingSample} />
+        {problem ? (
+          <p
+            role="alert"
+            className="mx-auto mt-4 max-w-2xl text-center text-[12px] leading-relaxed text-danger"
+          >
+            {problem}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -115,18 +130,19 @@ export function CompileWorkbench({
         result={result}
         status={status}
         sourceCount={sources.length}
-        onRecompile={() => void run(sources, offered, chosen)}
+        onRecompile={() => void run(sources, targets, chosen)}
         onClear={() => {
           setSources([]);
+          setNotice(null);
           reset();
         }}
         busy={busy}
       />
 
-      {status.kind === "error" ? (
+      {problem ? (
         <div role="alert" className="rule-b flex shrink-0 items-start gap-2 bg-danger-wash px-4 py-2.5">
           <Warning size={14} className="mt-0.5 shrink-0 text-danger" />
-          <p className="text-[12px] leading-relaxed text-ink">{status.message}</p>
+          <p className="text-[12px] leading-relaxed text-ink">{problem}</p>
         </div>
       ) : null}
 
@@ -140,7 +156,7 @@ export function CompileWorkbench({
             busy={busy}
             onRemove={(path) => setSources((s) => s.filter((x) => x.path !== path))}
           />
-          <TargetPicker targets={offered} chosen={chosen} onChange={setChosen} />
+          <TargetPicker targets={targets} chosen={chosen} onChange={setChosen} />
         </section>
 
         <section className="rule-b flex min-h-[520px] flex-col overflow-hidden bg-surface lg:min-h-0 lg:border-b-0">
