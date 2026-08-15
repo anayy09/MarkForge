@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, DownloadSimple } from "@phosphor-icons/react";
+import { downloadBlob } from "@/lib/download";
 import { markdownToHtml } from "@/lib/preview";
 import { traceSegments } from "@/lib/use-compile";
 import { cn } from "@/lib/cn";
@@ -49,6 +50,10 @@ export function FileView({
   useEffect(() => {
     if (!isMarkdown || view !== "rendered") return;
     let live = true;
+    // Cleared first. A recompile changes `content` under the same path, so the component is
+    // not remounted, and holding the previous render until the new one resolves would show
+    // the last compile's file as though it were this one's.
+    setHtml(null);
     void markdownToHtml(content, path).then((out) => {
       if (live) setHtml(out);
     });
@@ -63,16 +68,15 @@ export function FileView({
     return () => clearTimeout(t);
   }, [copied]);
 
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([content], { type: "text/markdown" }));
-    const a = document.createElement("a");
-    a.href = url;
-    // Only the basename: a browser download cannot create `.claude/skills/x/` anyway, and a
-    // slash in the attribute is silently rewritten rather than honoured.
-    a.download = path.split("/").pop() ?? "output.md";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const download = () =>
+    downloadBlob(
+      // Only the basename: a browser download cannot create `.claude/skills/x/` anyway, and a
+      // slash in the attribute is silently rewritten rather than honoured.
+      path.split("/").pop() ?? "output.md",
+      content,
+      // Not every target emits Markdown. `mcp-manifest` writes `.mcp.json`.
+      path.endsWith(".json") ? "application/json" : "text/markdown",
+    );
 
   // Memoised because it slices the whole file, and the toolbar re-renders on every copy
   // click and every selection change in the pane beside it.

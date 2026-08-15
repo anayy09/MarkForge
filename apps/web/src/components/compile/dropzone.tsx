@@ -8,6 +8,71 @@ import type { CompileSource } from "@/lib/use-compile";
 /** What the browser build can ingest. Anything else is reported by name, not dropped. */
 const READABLE = /\.(md|markdown|html|htm|docx)$/i;
 
+/** A file with the path it should be labelled by, which is not always `file.name`. */
+interface Picked {
+  file: File;
+  path: string;
+}
+
+/**
+ * Everything under a drop, folders included.
+ *
+ * `dataTransfer.files` flattens a dropped folder to the folder itself: a single zero-byte
+ * entry named after the directory, which fails the extension test and gets reported as a file
+ * this build cannot read. Since a folder is the unit this feature works on, that left the
+ * control unable to do the one thing its own instruction asks for. The entry API is the way
+ * to read a directory out of a drop; it is non-standard and every browser implements it.
+ */
+async function pick(transfer: DataTransfer): Promise<Picked[]> {
+  // Taken synchronously. The item list is emptied when the drop handler returns, so an entry
+  // not claimed before the first await is gone by the time it would be asked for.
+  const entries = Array.from(transfer.items)
+    .filter((item) => item.kind === "file")
+    .map((item) => item.webkitGetAsEntry())
+    .filter((entry): entry is FileSystemEntry => entry !== null);
+
+  if (entries.length === 0) {
+    return Array.from(transfer.files).map((file) => ({ file, path: file.name }));
+  }
+
+  const picked: Picked[] = [];
+  await Promise.all(entries.map((entry) => walk(entry, "", picked)));
+  return picked;
+}
+
+async function walk(entry: FileSystemEntry, prefix: string, out: Picked[]): Promise<void> {
+  const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+  if (entry.isFile) {
+    const file = await new Promise<File | null>((resolve) => {
+      (entry as FileSystemFileEntry).file(resolve, () => resolve(null));
+    });
+    // A file the OS declines to hand over is skipped rather than failing the drop: one
+    // unreadable file in a folder of forty is not a reason to refuse the other thirty-nine.
+    if (file) out.push({ file, path });
+    return;
+  }
+
+  const reader = (entry as FileSystemDirectoryEntry).createReader();
+  for (;;) {
+    // `readEntries` returns at most a hundred per call and signals the end with an empty
+    // batch, so a single call would silently truncate any folder larger than that.
+    const batch = await new Promise<FileSystemEntry[]>((resolve) => {
+      reader.readEntries(resolve, () => resolve([]));
+    });
+    if (batch.length === 0) return;
+    await Promise.all(batch.map((child) => walk(child, path, out)));
+  }
+}
+
+/** The picker's own answer to the same question. `webkitRelativePath` is set for a folder. */
+function fromInput(files: FileList | null): Picked[] {
+  return Array.from(files ?? []).map((file) => ({
+    file,
+    path: file.webkitRelativePath || file.name,
+  }));
+}
+
 /**
  * The way in.
  *
@@ -33,19 +98,18 @@ export function Dropzone({
   const dirInput = useRef<HTMLInputElement>(null);
 
   const accept = useCallback(
-    async (files: File[]) => {
-      const usable = files.filter((f) => READABLE.test(f.name));
-      const skipped = files.filter((f) => !READABLE.test(f.name));
-      setRejected(skipped.map((f) => f.name));
+    async (picked: Picked[]) => {
+      const usable = picked.filter((p) => READABLE.test(p.path));
+      setRejected(picked.filter((p) => !READABLE.test(p.path)).map((p) => p.path));
       if (usable.length === 0) return;
 
       const sources = await Promise.all(
-        usable.map(async (file) => ({
-          // `webkitRelativePath` keeps the folder structure in the label, which is what the
-          // provenance panel shows a user to identify the document later. A bare filename
-          // would collide the moment two folders both hold a README.
-          path: (file.webkitRelativePath || file.name).replace(/\\/g, "/"),
-          bytes: new Uint8Array(await file.arrayBuffer()),
+        usable.map(async (p) => ({
+          // The folder structure stays in the label, which is what the provenance panel shows
+          // a user to identify the document later. A bare filename would collide the moment
+          // two folders both hold a README.
+          path: p.path.replace(/\\/g, "/"),
+          bytes: new Uint8Array(await p.file.arrayBuffer()),
         })),
       );
       onSources(sources);
@@ -57,7 +121,7 @@ export function Dropzone({
     (e: DragEvent) => {
       e.preventDefault();
       setOver(false);
-      void accept(Array.from(e.dataTransfer.files));
+      void pick(e.dataTransfer).then(accept);
     },
     [accept],
   );
@@ -131,7 +195,7 @@ export function Dropzone({
           accept=".md,.markdown,.html,.htm,.docx"
           className="hidden"
           onChange={(e) => {
-            void accept(Array.from(e.target.files ?? []));
+            void accept(fromInput(e.target.files));
             e.target.value = "";
           }}
         />
@@ -145,7 +209,7 @@ export function Dropzone({
           // browsers are moving toward; setting both costs nothing and ages better.
           {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
           onChange={(e) => {
-            void accept(Array.from(e.target.files ?? []));
+            void accept(fromInput(e.target.files));
             e.target.value = "";
           }}
         />

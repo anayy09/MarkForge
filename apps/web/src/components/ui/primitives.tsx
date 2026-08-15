@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, AnchorHTMLAttributes, ReactNode, Ref } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { cn } from "@/lib/cn";
 
 /*
@@ -41,15 +41,6 @@ export function Button({
   ref?: Ref<HTMLButtonElement>;
 }) {
   return <button className={cn(BASE, VARIANT[variant], SIZE[size], className)} {...rest} />;
-}
-
-export function LinkButton({
-  variant = "secondary",
-  size = "md",
-  className,
-  ...rest
-}: AnchorHTMLAttributes<HTMLAnchorElement> & { variant?: Variant; size?: Size }) {
-  return <a className={cn(BASE, VARIANT[variant], SIZE[size], className)} {...rest} />;
 }
 
 /**

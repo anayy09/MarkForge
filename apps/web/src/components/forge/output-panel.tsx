@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, DownloadSimple } from "@phosphor-icons/react";
 import { Button, Chip } from "@/components/ui/primitives";
+import { downloadBlob } from "@/lib/download";
 import { FORMATS, type OutputFormat } from "@/lib/formats";
 import { PDF_LIMITS } from "@/lib/pdf";
 import { markdownToHtml, sanitizeHtml } from "@/lib/preview";
@@ -292,12 +293,11 @@ function DownloadButton({ result, name }: { result: Conversion; name: string }) 
   const download = () => {
     const copy = new Uint8Array(result.bytes.length);
     copy.set(result.bytes);
-    const url = URL.createObjectURL(new Blob([copy], { type: FORMATS[result.to].mime }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${name.replace(/\.[^.]+$/, "")}.${FORMATS[result.to].ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(
+      `${name.replace(/\.[^.]+$/, "")}.${FORMATS[result.to].ext}`,
+      copy,
+      FORMATS[result.to].mime,
+    );
   };
 
   return (

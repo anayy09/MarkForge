@@ -86,9 +86,14 @@ export function DiagnosticsRail({
   // An error is the one case worth spending the user's screen on unasked. Lossy is not:
   // "this table became HTML" is normal, expected, and exactly what the summary line reports.
   // Opening only, never closing, so a user who collapses it is not overruled on the next run.
+  //
+  // Keyed on the diagnostics list itself, which is a new array per conversion, rather than on
+  // the error count. A count gets both halves of that wrong: two consecutive failures with
+  // the same number of errors leave the rail shut on the second, and a run that merely
+  // changes the count reopens a rail the user just collapsed.
   useEffect(() => {
-    if (errors > 0) setOpen(true);
-  }, [errors]);
+    if (diagnostics.some((d) => d.severity === "error")) setOpen(true);
+  }, [diagnostics]);
 
   return (
     <section className="rule-t flex min-h-0 flex-col bg-surface">

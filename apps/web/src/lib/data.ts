@@ -57,13 +57,6 @@ export interface Baselines {
   entries: BaselineEntry[];
 }
 
-export interface ParityDigest {
-  input: string;
-  to: string;
-  bytes: number;
-  sha256: string;
-}
-
 /**
  * A target profile, resolved and schema-validated by `prepare-assets.mjs` at build time.
  *
@@ -101,7 +94,6 @@ export interface AgentifyExample {
   excerpt: string;
 }
 
-export const getParity = (): ParityDigest => read<ParityDigest>("parity.json");
 export const getTargets = (): TargetSummary[] => read<TargetSummary[]>("targets.json");
 export const getAgentifySample = (): AgentifySampleDoc[] =>
   read<AgentifySampleDoc[]>("agentify-sample/manifest.json");
@@ -110,6 +102,5 @@ export const getAgentifyExample = (): AgentifyExample =>
 export const getBaselines = (): Baselines => read<Baselines>("baselines.json");
 export const getFlavors = (): FlavorData => read<FlavorData>("flavors.json");
 export const getSamples = (): SampleInfo[] => read<SampleInfo[]>("samples/manifest.json");
-export const getNodeTypes = (): string[] => read<string[]>("node-types.json");
 export const getExamples = (): Record<string, WorkedExample> =>
   read<Record<string, WorkedExample>>("examples.json");

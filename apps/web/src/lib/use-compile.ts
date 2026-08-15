@@ -21,11 +21,17 @@ export type CompileStatus =
 /**
  * One run of the Agent Context Compiler, in the browser.
  *
- * Deliberately **not** debounced-on-change the way `useConversion` is. A conversion is one
- * document and runs in single-digit milliseconds, so recomputing it as the user types is
- * free and feels live. A compile reads a folder, extracts and ranks every sentence in it and
- * verifies the result against a traceability gate, and firing that on every checkbox tick
- * would make the page feel worse rather than better. It runs when asked.
+ * The hook does not debounce, unlike `useConversion`, and it does not decide when to run: it
+ * runs when `run` is called. A conversion is one document in single-digit milliseconds, so
+ * recomputing it on every keystroke is free; a compile reads a folder, extracts and ranks
+ * every sentence in it and verifies the result against a traceability gate, which is not a
+ * keystroke-scale operation and does not belong on a change handler.
+ *
+ * What the caller does with that is the caller's business, and `CompileWorkbench` does fire
+ * it on source and target changes behind a short timer — the inputs there arrive in bursts
+ * (five files at once, a checkbox tick) and coalescing them is the reason the timer exists.
+ * Superseded runs are dropped by `runId` rather than cancelled, since there is nothing in the
+ * engine to cancel.
  */
 export function useCompile() {
   const [result, setResult] = useState<BrowserCompileResult | null>(null);

@@ -33,14 +33,56 @@ import { engine } from "@/lib/engine";
  * The pass is structural rather than textual. It parses to a DOM and walks it, so it cannot
  * be defeated by the encoding tricks that beat a regex over a string.
  */
-const FORBIDDEN = new Set(["SCRIPT", "IFRAME", "OBJECT", "EMBED", "LINK", "META", "BASE", "FORM"]);
+const FORBIDDEN = new Set([
+  "SCRIPT",
+  "IFRAME",
+  "OBJECT",
+  "EMBED",
+  "LINK",
+  "META",
+  "BASE",
+  "FORM",
+  // A `<style>` in the body is not a script but it is not local either: one `*` rule reaches
+  // out of the preview pane and repositions the page around it.
+  "STYLE",
+]);
 const URL_ATTRS = new Set(["href", "src", "action", "formaction", "xlink:href"]);
+
+/**
+ * Attributes the browser fetches as a subresource rather than navigates to.
+ *
+ * This is the distinction `data:` turns on. On `href` it is navigable and belongs in the
+ * blocklist; on `img src` it cannot script and is exactly what a document converter emits for
+ * an embedded image, so blocking it there breaks the picture in every preview and explains
+ * nothing about why — the one failure mode this project is least willing to ship.
+ */
+const SUBRESOURCE_ATTRS = new Set(["src"]);
+
+/**
+ * The scheme, read the way the browser will read it.
+ *
+ * Tabs, newlines and leading control characters are stripped from a URL before it is
+ * resolved, so `java&#9;script:` is `javascript:` by the time anything runs. The HTML parser
+ * upstream has already decoded the entity, so a pattern anchored on the literal text matches
+ * neither the attribute as stored nor the URL as executed.
+ *
+ * Everything outside printable ASCII is dropped, which is broader than the browser's own rule
+ * and errs in the safe direction: a scheme is ASCII, so nothing removed here could have been
+ * part of one.
+ */
+function schemeOf(value: string): string | null {
+  const stripped = value.replace(/[^!-~]/g, "");
+  return /^([a-z][a-z0-9+.-]*):/i.exec(stripped)?.[1]?.toLowerCase() ?? null;
+}
 
 function sanitize(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
 
   for (const el of Array.from(doc.body.querySelectorAll("*"))) {
-    if (FORBIDDEN.has(el.tagName)) {
+    // Uppercased rather than compared as reported: HTML elements report an uppercase
+    // `tagName` but foreign content does not, so a `<script>` inside `<svg>` arrives here
+    // as "script" and missed a set written in the HTML spelling.
+    if (FORBIDDEN.has(el.tagName.toUpperCase())) {
       el.remove();
       continue;
     }
@@ -52,7 +94,13 @@ function sanitize(html: string): string {
         el.removeAttribute(attr.name);
         continue;
       }
-      if (URL_ATTRS.has(name) && /^\s*(javascript|data|vbscript):/i.test(attr.value)) {
+      if (!URL_ATTRS.has(name)) continue;
+      const scheme = schemeOf(attr.value);
+      if (
+        scheme === "javascript" ||
+        scheme === "vbscript" ||
+        (scheme === "data" && !SUBRESOURCE_ATTRS.has(name))
+      ) {
         el.removeAttribute(attr.name);
       }
     }
